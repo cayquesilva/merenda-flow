@@ -1,0 +1,213 @@
+import { Fornecedor, UnidadeMedida, Contrato, UnidadeEducacional, Pedido, Recibo } from '@/types';
+
+export const unidadesMedida: UnidadeMedida[] = [
+  { id: '1', nome: 'Quilograma', sigla: 'kg' },
+  { id: '2', nome: 'Gramas', sigla: 'g' },
+  { id: '3', nome: 'Pacote', sigla: 'pct' },
+  { id: '4', nome: 'Litro', sigla: 'l' },
+  { id: '5', nome: 'Unidade', sigla: 'un' },
+  { id: '6', nome: 'Caixa', sigla: 'cx' },
+];
+
+export const fornecedores: Fornecedor[] = [
+  {
+    id: '1',
+    nome: 'Alimentos Frescos Ltda',
+    cnpj: '12.345.678/0001-90',
+    telefone: '(11) 99999-9999',
+    email: 'contato@alimentosfrescos.com.br',
+    endereco: 'Rua das Flores, 123 - São Paulo/SP',
+    ativo: true,
+    createdAt: '2024-01-15T10:00:00Z',
+  },
+  {
+    id: '2',
+    nome: 'Distribuidora Campos Verde',
+    cnpj: '98.765.432/0001-10',
+    telefone: '(11) 88888-8888',
+    email: 'vendas@camposverde.com.br',
+    endereco: 'Av. Central, 456 - São Paulo/SP',
+    ativo: true,
+    createdAt: '2024-02-10T14:30:00Z',
+  },
+];
+
+export const unidadesEducacionais: UnidadeEducacional[] = [
+  {
+    id: '1',
+    nome: 'EMEI Jardim das Flores',
+    codigo: 'JF001',
+    endereco: 'Rua A, 100 - Bairro Central',
+    telefone: '(11) 3333-3333',
+    email: 'jardimflores@edu.sp.gov.br',
+    ativo: true,
+  },
+  {
+    id: '2',
+    nome: 'EMEF Vila Nova',
+    codigo: 'VN002',
+    endereco: 'Rua B, 200 - Vila Nova',
+    telefone: '(11) 4444-4444',
+    email: 'vilanova@edu.sp.gov.br',
+    ativo: true,
+  },
+  {
+    id: '3',
+    nome: 'EMEI Pequenos Passos',
+    codigo: 'PP003',
+    endereco: 'Rua C, 300 - Jardim Esperança',
+    telefone: '(11) 5555-5555',
+    email: 'pequenospassos@edu.sp.gov.br',
+    ativo: true,
+  },
+];
+
+export const contratos: Contrato[] = [
+  {
+    id: '1',
+    numero: 'CT-2024-001',
+    fornecedorId: '1',
+    fornecedor: fornecedores[0],
+    dataInicio: '2024-01-01',
+    dataFim: '2024-12-31',
+    valorTotal: 250000.00,
+    status: 'ativo',
+    createdAt: '2024-01-15T10:00:00Z',
+    itens: [
+      {
+        id: '1',
+        contratoId: '1',
+        nome: 'Arroz Integral',
+        unidadeMedidaId: '1',
+        unidadeMedida: unidadesMedida[0],
+        valorUnitario: 5.50,
+        quantidadeOriginal: 10000,
+        saldoAtual: 8500,
+      },
+      {
+        id: '2',
+        contratoId: '1',
+        nome: 'Feijão Preto',
+        unidadeMedidaId: '3',
+        unidadeMedida: unidadesMedida[2],
+        valorUnitario: 8.90,
+        quantidadeOriginal: 5000,
+        saldoAtual: 4200,
+      },
+      {
+        id: '3',
+        contratoId: '1',
+        nome: 'Óleo de Soja',
+        unidadeMedidaId: '4',
+        unidadeMedida: unidadesMedida[3],
+        valorUnitario: 6.75,
+        quantidadeOriginal: 2000,
+        saldoAtual: 1800,
+      },
+    ],
+  },
+  {
+    id: '2',
+    numero: 'CT-2024-002',
+    fornecedorId: '2',
+    fornecedor: fornecedores[1],
+    dataInicio: '2024-02-01',
+    dataFim: '2024-12-31',
+    valorTotal: 180000.00,
+    status: 'ativo',
+    createdAt: '2024-02-10T14:30:00Z',
+    itens: [
+      {
+        id: '4',
+        contratoId: '2',
+        nome: 'Leite Integral',
+        unidadeMedidaId: '4',
+        unidadeMedida: unidadesMedida[3],
+        valorUnitario: 4.20,
+        quantidadeOriginal: 8000,
+        saldoAtual: 7500,
+      },
+      {
+        id: '5',
+        contratoId: '2',
+        nome: 'Pão Francês',
+        unidadeMedidaId: '5',
+        unidadeMedida: unidadesMedida[4],
+        valorUnitario: 0.35,
+        quantidadeOriginal: 50000,
+        saldoAtual: 35000,
+      },
+    ],
+  },
+];
+
+export const pedidos: Pedido[] = [
+  {
+    id: '1',
+    numero: 'PD-2024-001',
+    contratoId: '1',
+    contrato: contratos[0],
+    dataPedido: '2024-07-20',
+    dataEntregaPrevista: '2024-07-25',
+    status: 'entregue',
+    valorTotal: 15750.00,
+    createdAt: '2024-07-20T09:00:00Z',
+    itens: [
+      {
+        id: '1',
+        pedidoId: '1',
+        itemContratoId: '1',
+        itemContrato: contratos[0].itens[0],
+        unidadeEducacionalId: '1',
+        unidadeEducacional: unidadesEducacionais[0],
+        quantidade: 500,
+      },
+      {
+        id: '2',
+        pedidoId: '1',
+        itemContratoId: '2',
+        itemContrato: contratos[0].itens[1],
+        unidadeEducacionalId: '1',
+        unidadeEducacional: unidadesEducacionais[0],
+        quantidade: 200,
+      },
+    ],
+  },
+];
+
+export const recibos: Recibo[] = [
+  {
+    id: '1',
+    numero: 'RB-2024-001',
+    pedidoId: '1',
+    pedido: pedidos[0],
+    dataEntrega: '2024-07-25',
+    responsavelEntrega: 'João Silva - Transportadora',
+    responsavelRecebimento: 'Maria Santos - EMEI Jardim das Flores',
+    status: 'confirmado',
+    qrcode: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(window.location.origin + '/confirmacao-recebimento/1'),
+    observacoes: 'Entrega realizada conforme solicitado',
+    createdAt: '2024-07-25T14:00:00Z',
+    itens: [
+      {
+        id: '1',
+        reciboId: '1',
+        itemPedidoId: '1',
+        itemPedido: pedidos[0].itens[0],
+        quantidadeSolicitada: 500,
+        quantidadeRecebida: 500,
+        conforme: true,
+      },
+      {
+        id: '2',
+        reciboId: '1',
+        itemPedidoId: '2',
+        itemPedido: pedidos[0].itens[1],
+        quantidadeSolicitada: 200,
+        quantidadeRecebida: 180,
+        conforme: false,
+        observacoes: 'Faltaram 20 pacotes',
+      },
+    ],
+  },
+];
