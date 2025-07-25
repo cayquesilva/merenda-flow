@@ -41,7 +41,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard teste</h2>
         <p className="text-muted-foreground">
           Visão geral do sistema de gestão de contratos de merenda
         </p>
