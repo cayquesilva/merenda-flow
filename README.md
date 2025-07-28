@@ -1,73 +1,120 @@
-# Welcome to your Lovable project
+Merenda Flow
+O Merenda Flow é um sistema de gestão para otimizar o fluxo de distribuição de merendas escolares, desde o controlo de contratos e fornecedores até à entrega nas unidades educacionais.
 
-## Project info
+Funcionalidades
+Gestão de Fornecedores: Cadastro e controlo de fornecedores.
 
-**URL**: https://lovable.dev/projects/9cbd1fd4-ac65-4c8a-8c41-f57aa8682e5e
+Gestão de Contratos: Criação e acompanhamento de contratos de fornecimento, incluindo os seus itens e saldos.
 
-## How can I edit this code?
+Gestão de Unidades Educacionais: Cadastro das escolas e centros de ensino.
 
-There are several ways of editing your application.
+(Em desenvolvimento): Gestão de Pedidos, Controlo de Entregas e Recibos, Dashboard com Estatísticas.
 
-**Use Lovable**
+Tecnologias Utilizadas
+Frontend: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/9cbd1fd4-ac65-4c8a-8c41-f57aa8682e5e) and start prompting.
+Backend: Node.js, Express, Prisma (ORM)
 
-Changes made via Lovable will be committed automatically to this repo.
+Banco de Dados: PostgreSQL (a correr em Docker)
 
-**Use your preferred IDE**
+🚀 Guia de Instalação e Execução
+Siga os passos abaixo para configurar e executar o projeto no seu ambiente de desenvolvimento local.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. Pré-requisitos
+   Antes de começar, certifique-se de que tem os seguintes programas instalados na sua máquina:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Node.js (versão 18 ou superior)
 
-Follow these steps:
+npm (geralmente vem com o Node.js)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Docker e Docker Compose
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Configuração do Projeto
+   Primeiro, clone o repositório e instale as dependências do frontend e do backend.
 
-# Step 3: Install the necessary dependencies.
-npm i
+# 1. Clone o repositório do GitHub
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+git clone <URL_DO_SEU_REPOSITORIO>
+cd merenda-flow
+
+# 2. Instale as dependências do Frontend (na raiz do projeto)
+
+npm install
+
+# 3. Navegue para a pasta do Backend e instale as suas dependências
+
+cd backend
+npm install
+
+3. Configuração do Banco de Dados
+   O sistema utiliza um banco de dados PostgreSQL que corre dentro de um contêiner Docker, facilitando a configuração.
+
+3.1. Variáveis de Ambiente
+Dentro da pasta backend, renomeie o ficheiro .env.example (se existir) para .env ou crie um novo ficheiro .env. Ele deve conter a URL de conexão para o banco de dados:
+
+Ficheiro: backend/.env
+
+# URL de conexão para o banco de dados PostgreSQL que será criado pelo Docker
+
+# A senha "sua_senha_forte" deve ser a mesma definida no ficheiro docker-compose.yml
+
+DATABASE_URL="postgresql://merenda_user:sua_senha_forte@localhost:5432/merenda_db"
+
+3.2. Iniciar o Banco de Dados com Docker
+Com o Docker em execução na sua máquina, utilize o Docker Compose para iniciar o contêiner do banco de dados.
+
+# Na raiz do projeto (pasta 'merenda-flow')
+
+docker-compose up -d
+
+O comando -d (detached) faz com que o contêiner corra em segundo plano.
+
+Para parar o contêiner, pode usar docker-compose down.
+
+4. Migração e População do Banco de Dados (Seeding)
+   Com o banco de dados a correr, precisamos de criar as tabelas e, opcionalmente, inserir alguns dados iniciais para teste.
+
+# 1. Navegue para a pasta do backend
+
+cd backend
+
+# 2. Aplique as migrações do Prisma
+
+# Este comando irá ler o ficheiro `schema.prisma` e criar todas as tabelas no banco.
+
+npx prisma migrate dev
+
+# 3. (Opcional) Popule o banco com dados iniciais
+
+# Este comando executa o script `prisma/seed.js` para cadastrar dados de exemplo.
+
+npx prisma db seed
+
+Ao final destes passos, o seu banco de dados estará pronto e populado.
+
+5. Executar a Aplicação
+   Finalmente, vamos iniciar os servidores do backend e do frontend. Você precisará de dois terminais abertos.
+
+Terminal 1 - Iniciar o Backend:
+
+# A partir da pasta 'merenda-flow', navegue para o backend
+
+cd backend
+
+# Inicie o servidor da API
+
+npm run start
+
+# Ou, se não tiver o script "start", use: node index.js
+
+O servidor da API estará a correr em http://localhost:3001.
+
+Terminal 2 - Iniciar o Frontend:
+
+# A partir da raiz do projeto ('merenda-flow')
+
 npm run dev
-```
 
-**Edit a file directly in GitHub**
+A aplicação frontend estará acessível no seu navegador, geralmente em http://localhost:5173.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/9cbd1fd4-ac65-4c8a-8c41-f57aa8682e5e) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Pronto! O ambiente de desenvolvimento do Merenda Flow está totalmente configurado e em execução.

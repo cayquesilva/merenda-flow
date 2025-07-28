@@ -1,0 +1,7 @@
+# Environment variables for the Merenda application
+# Database configuration
+DATABASE_URL="postgresql://user:password@localhost:5432/bancodedados"
+
+
+# This was inserted by `prisma init`:
+[object Promise]
