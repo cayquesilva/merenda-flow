@@ -21,9 +21,15 @@ import {
   MapPin
 } from "lucide-react";
 import { fornecedores } from "@/data/mockData";
+import { FornecedorDialog } from "@/components/fornecedores/FornecedorDialog";
 
 export default function Fornecedores() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleSuccess = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   const filteredFornecedores = fornecedores.filter(fornecedor =>
     fornecedor.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -40,10 +46,7 @@ export default function Fornecedores() {
             Gerencie os fornecedores cadastrados no sistema
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Fornecedor
-        </Button>
+        <FornecedorDialog onSuccess={handleSuccess} />
       </div>
 
       {/* Filtros */}
@@ -123,9 +126,7 @@ export default function Fornecedores() {
                       <Button variant="outline" size="sm">
                         <Eye className="h-3 w-3" />
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-3 w-3" />
-                      </Button>
+                      <FornecedorDialog fornecedor={fornecedor} onSuccess={handleSuccess} />
                     </div>
                   </TableCell>
                 </TableRow>

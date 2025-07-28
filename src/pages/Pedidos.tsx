@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { pedidos } from "@/data/mockData";
 import { NovoPedidoDialog } from "@/components/pedidos/NovoPedidoDialog";
+import { PedidoDetailDialog } from "@/components/pedidos/PedidoDetailDialog";
 
 export default function Pedidos() {
   const [busca, setBusca] = useState("");
@@ -235,10 +236,7 @@ export default function Pedidos() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3 mr-1" />
-                          Ver
-                        </Button>
+                        <PedidoDetailDialog pedido={pedido} />
                         {pedido.status === 'confirmado' && (
                           <Button variant="outline" size="sm">
                             <FileText className="h-3 w-3 mr-1" />

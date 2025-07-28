@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { recibos } from "@/data/mockData";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
+import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
 
 export default function Recibos() {
   const [busca, setBusca] = useState("");
@@ -266,10 +267,7 @@ export default function Recibos() {
                           <ExternalLink className="h-3 w-3 mr-1" />
                           Confirmar
                         </Button>
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3 mr-1" />
-                          Ver
-                        </Button>
+                        <ReciboDetailDialog recibo={recibo} />
                       </div>
                     </TableCell>
                   </TableRow>

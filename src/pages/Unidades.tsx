@@ -22,9 +22,15 @@ import {
   Building2
 } from "lucide-react";
 import { unidadesEducacionais } from "@/data/mockData";
+import { UnidadeDialog } from "@/components/unidades/UnidadeDialog";
 
 export default function Unidades() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleSuccess = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   const filteredUnidades = unidadesEducacionais.filter(unidade =>
     unidade.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -41,10 +47,7 @@ export default function Unidades() {
             Gerencie as unidades educacionais do sistema
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Unidade
-        </Button>
+        <UnidadeDialog onSuccess={handleSuccess} />
       </div>
 
       {/* Filtros */}
@@ -127,9 +130,7 @@ export default function Unidades() {
                       <Button variant="outline" size="sm">
                         <Eye className="h-3 w-3" />
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-3 w-3" />
-                      </Button>
+                      <UnidadeDialog unidade={unidade} onSuccess={handleSuccess} />
                     </div>
                   </TableCell>
                 </TableRow>

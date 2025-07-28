@@ -71,8 +71,8 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
     const qrCodeUrl = gerarQRCode(novoReciboId);
 
     toast({
-      title: "Recibo gerado!",
-      description: `Recibo ${novoReciboId} criado com QR Code para confirmação`,
+      title: "Recibo gerado com sucesso!",
+      description: `Recibo ${novoReciboId} criado com QR Code. Agora está pronto para entrega e confirmação de recebimento.`,
     });
 
     // Reset form
@@ -201,12 +201,15 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
                   <div className="bg-primary/5 p-4 rounded-lg">
                     <div className="flex items-center gap-2 text-primary mb-2">
                       <QrCode className="h-4 w-4" />
-                      <span className="font-medium">QR Code será gerado</span>
+                      <span className="font-medium">Fluxo de Entrega e Confirmação</span>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Um QR Code será gerado automaticamente para permitir a confirmação de recebimento 
-                      diretamente no local de entrega.
-                    </p>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>1. <strong>Recibo será gerado</strong> com QR Code único</p>
+                      <p>2. <strong>Entrega realizada</strong> pelo responsável informado</p>
+                      <p>3. <strong>QR Code escaneado</strong> no local de entrega</p>
+                      <p>4. <strong>Confirmação de recebimento</strong> via smartphone</p>
+                      <p>5. <strong>Saldos atualizados</strong> automaticamente no sistema</p>
+                    </div>
                   </div>
                 </div>
               </CardContent>

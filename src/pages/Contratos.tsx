@@ -31,11 +31,17 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { contratos } from "@/data/mockData";
+import { ContratoDialog } from "@/components/contratos/ContratoDialog";
 import { Contrato } from "@/types";
 
 export default function Contratos() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleSuccess = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   const filteredContratos = contratos.filter(contrato =>
     contrato.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -74,10 +80,7 @@ export default function Contratos() {
             Gerencie os contratos de fornecimento de merenda
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Contrato
-        </Button>
+        <ContratoDialog onSuccess={handleSuccess} />
       </div>
 
       {/* Filtros */}
@@ -236,9 +239,7 @@ export default function Contratos() {
                         </DialogContent>
                       </Dialog>
                       
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-3 w-3" />
-                      </Button>
+                      <ContratoDialog contrato={contrato} onSuccess={handleSuccess} />
                     </div>
                   </TableCell>
                 </TableRow>
