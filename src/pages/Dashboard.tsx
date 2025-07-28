@@ -14,6 +14,10 @@ import {
 import { contratos, pedidos, fornecedores } from "@/data/mockData";
 
 export default function Dashboard() {
+  // Simulação de dados de consolidação
+  const consolidacoesPendentes = 2; // Pedidos com recibos pendentes de confirmação
+  const eficienciaEntrega = 85; // Percentual médio de conformidade
+
   // Cálculos das métricas
   const totalContratos = contratos.length;
   const contratosAtivos = contratos.filter(c => c.status === 'ativo').length;
@@ -41,14 +45,14 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard teste</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <p className="text-muted-foreground">
           Visão geral do sistema de gestão de contratos de merenda
         </p>
       </div>
 
       {/* Métricas Principais */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <MetricCard
           title="Contratos Ativos"
           value={contratosAtivos}
@@ -78,6 +82,14 @@ export default function Dashboard() {
           description="Contratos ativos"
           icon={DollarSign}
           variant="success"
+        />
+
+        <MetricCard
+          title="Consolidações Pendentes"
+          value={consolidacoesPendentes}
+          description="Pedidos aguardando confirmação"
+          icon={AlertTriangle}
+          variant="warning"
         />
       </div>
 

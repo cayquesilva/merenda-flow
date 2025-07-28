@@ -138,10 +138,14 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   const handleSalvar = () => {
     if (!validarPedido()) return;
 
-    // Simular criação do pedido
+    // Simular criação do pedido e geração automática de recibos por unidade
+    const unidadesEnvolvidas = [...new Set(itensPedido.flatMap(item => 
+      item.unidades.filter(u => u.quantidade > 0).map(u => u.unidadeId)
+    ))];
+
     toast({
       title: "Pedido criado!",
-      description: `Pedido no valor de R$ ${calcularTotalPedido().toFixed(2)} criado com sucesso`,
+      description: `Pedido criado com sucesso! ${unidadesEnvolvidas.length} recibo(s) foram gerados automaticamente para as unidades.`,
     });
 
     // Reset form

@@ -88,6 +88,8 @@ export interface Recibo {
   numero: string;
   pedidoId: string;
   pedido: Pedido;
+  unidadeEducacionalId: string;
+  unidadeEducacional: UnidadeEducacional;
   dataEntrega: string;
   responsavelEntrega: string;
   responsavelRecebimento?: string;
@@ -96,4 +98,14 @@ export interface Recibo {
   itens: ItemRecibo[];
   observacoes?: string;
   createdAt: string;
+}
+
+export interface ConsolidacaoPedido {
+  pedidoId: string;
+  pedido: Pedido;
+  recibos: Recibo[];
+  statusConsolidacao: 'pendente' | 'parcial' | 'completo';
+  totalUnidades: number;
+  unidadesConfirmadas: number;
+  percentualConfirmacao: number;
 }

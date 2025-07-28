@@ -181,6 +181,8 @@ export const recibos: Recibo[] = [
     numero: 'RB-2024-001',
     pedidoId: '1',
     pedido: pedidos[0],
+    unidadeEducacionalId: '1',
+    unidadeEducacional: unidadesEducacionais[0],
     dataEntrega: '2024-07-25',
     responsavelEntrega: 'João Silva - Transportadora',
     responsavelRecebimento: 'Maria Santos - EMEI Jardim das Flores',

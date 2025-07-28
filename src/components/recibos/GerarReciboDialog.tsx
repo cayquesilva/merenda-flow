@@ -66,13 +66,13 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
   const handleGerar = () => {
     if (!validarRecibo()) return;
 
-    // Simular geração do recibo
-    const novoReciboId = `RB-2024-${String(Date.now()).slice(-3)}`;
-    const qrCodeUrl = gerarQRCode(novoReciboId);
+    // Simular geração de recibos por unidade
+    const unidadesEnvolvidas = [...new Set(pedidoSelecionado!.itens.map(item => item.unidadeEducacional.id))];
+    const quantidadeRecibos = unidadesEnvolvidas.length;
 
     toast({
       title: "Recibo gerado com sucesso!",
-      description: `Recibo ${novoReciboId} criado com QR Code. Agora está pronto para entrega e confirmação de recebimento.`,
+      description: `${quantidadeRecibos} recibo(s) gerado(s) - um para cada unidade educacional. Cada recibo possui seu próprio QR Code.`,
     });
 
     // Reset form

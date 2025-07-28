@@ -8,14 +8,19 @@ import {
   Receipt, 
   CheckCircle, 
   BarChart3,
+  Shield,
+  LogOut,
   ChevronDown,
   ChevronRight
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -26,43 +31,50 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const navigationItems = [
-  {
-    group: "Principal",
-    items: [
-      { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    ]
-  },
-  {
-    group: "Cadastros",
-    items: [
-      { title: "Contratos", url: "/contratos", icon: FileText },
-      { title: "Fornecedores", url: "/fornecedores", icon: Users },
-      { title: "Unidades", url: "/unidades", icon: Building2 },
-    ]
-  },
-  {
-    group: "Operações",
-    items: [
-      { title: "Pedidos", url: "/pedidos", icon: ShoppingCart },
-      { title: "Recibos", url: "/recibos", icon: Receipt },
-      { title: "Confirmações", url: "/confirmacoes", icon: CheckCircle },
-    ]
-  },
-  {
-    group: "Relatórios",
-    items: [
-      { title: "Relatórios", url: "/relatorios", icon: BarChart3 },
-    ]
-  }
-];
-
 export function AppSidebar() {
   const { state } = useSidebar();
+  const { user, canAccessModule, logout } = useAuth();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
   const [expandedGroups, setExpandedGroups] = useState<string[]>(["Principal", "Cadastros", "Operações"]);
+
+  const navigationItems = [
+    {
+      group: "Principal",
+      items: [
+        { title: "Dashboard", url: "/", icon: LayoutDashboard, module: "dashboard" },
+      ]
+    },
+    {
+      group: "Cadastros",
+      items: [
+        { title: "Contratos", url: "/contratos", icon: FileText, module: "contratos" },
+        { title: "Fornecedores", url: "/fornecedores", icon: Users, module: "fornecedores" },
+        { title: "Unidades", url: "/unidades", icon: Building2, module: "unidades" },
+      ]
+    },
+    {
+      group: "Operações",
+      items: [
+        { title: "Pedidos", url: "/pedidos", icon: ShoppingCart, module: "pedidos" },
+        { title: "Recibos", url: "/recibos", icon: Receipt, module: "recibos" },
+        { title: "Confirmações", url: "/confirmacoes", icon: CheckCircle, module: "confirmacoes" },
+      ]
+    },
+    {
+      group: "Relatórios",
+      items: [
+        { title: "Relatórios", url: "/relatorios", icon: BarChart3, module: "relatorios" },
+      ]
+    },
+    {
+      group: "Administração",
+      items: [
+        { title: "Usuários", url: "/usuarios", icon: Shield, module: "usuarios" },
+      ]
+    }
+  ];
 
   const isActive = (path: string) => currentPath === path;
   
@@ -96,7 +108,7 @@ export function AppSidebar() {
         
         {navigationItems.map((section) => {
           const isExpanded = expandedGroups.includes(section.group);
-          const hasActiveItem = section.items.some(item => isActive(item.url));
+          const hasActiveItem = section.items.some(item => isActive(item.url) && canAccessModule(item.module));
           
           return (
             <SidebarGroup key={section.group}>
@@ -118,18 +130,20 @@ export function AppSidebar() {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {section.items.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild>
-                          <NavLink 
-                            to={item.url} 
-                            end 
-                            className={getNavClassName(item.url)}
-                          >
-                            <item.icon className="h-4 w-4 shrink-0" />
-                            {!collapsed && <span>{item.title}</span>}
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                      canAccessModule(item.module) && (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton asChild>
+                            <NavLink 
+                              to={item.url} 
+                              end 
+                              className={getNavClassName(item.url)}
+                            >
+                              <item.icon className="h-4 w-4 shrink-0" />
+                              {!collapsed && <span>{item.title}</span>}
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      )
                     ))}
                   </SidebarMenu>
                 </SidebarGroupContent>
@@ -138,6 +152,24 @@ export function AppSidebar() {
           );
         })}
       </SidebarContent>
+      
+      <SidebarFooter className="p-2">
+        {!collapsed && user && (
+          <div className="px-2 py-1 text-xs text-muted-foreground">
+            <p className="font-medium">{user.nome}</p>
+            <p>{user.email}</p>
+          </div>
+        )}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={logout}
+          className="w-full justify-start"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span className="ml-2">Sair</span>}
+        </Button>
+      </SidebarFooter>
     </Sidebar>
   );
 }
