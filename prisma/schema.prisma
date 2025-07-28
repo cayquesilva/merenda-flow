@@ -1,0 +1,206 @@
+// prisma/schema.prisma
+
+// 1. Configuração do Banco de Dados e Gerador do Cliente Prisma
+// Define a conexão com o banco de dados MySQL e o gerador do Prisma Client.
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 2. Enumerações (Enums)
+// Definem tipos com valores pré-determinados para garantir consistência nos dados.
+enum StatusContrato {
+  ativo
+  inativo
+  concluido
+  rascunho
+}
+
+enum StatusPedido {
+  pendente
+  processando
+  entregue
+  cancelado
+}
+
+enum StatusRecibo {
+  pendente // O recibo foi gerado, mas a entrega ainda não foi confirmada.
+  confirmado // A unidade educacional confirmou o recebimento.
+  divergente // O recebimento foi confirmado, mas com divergências.
+}
+
+
+// 3. Modelos da Base de Dados
+
+// Modelo para Unidades de Medida (ex: kg, litro, pacote)
+model UnidadeMedida {
+  id    String @id @default(cuid())
+  nome  String @unique
+  sigla String @unique
+
+  // Relações
+  itensContrato ItemContrato[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modelo para Fornecedores
+model Fornecedor {
+  id       String  @id @default(cuid())
+  nome     String
+  cnpj     String  @unique
+  telefone String?
+  email    String  @unique
+  endereco String?
+  ativo    Boolean @default(true)
+
+  // Relações
+  contratos Contrato[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modelo para Unidades Educacionais (Escolas)
+model UnidadeEducacional {
+  id       String  @id @default(cuid())
+  nome     String
+  codigo   String  @unique
+  endereco String?
+  telefone String?
+  email    String  @unique
+  ativo    Boolean @default(true)
+
+  // Relações
+  itensPedido ItemPedido[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modelo para Contratos com Fornecedores
+model Contrato {
+  id         String   @id @default(cuid())
+  numero     String   @unique
+  dataInicio DateTime
+  dataFim    DateTime
+  valorTotal Decimal  @db.Decimal(10, 2) // Precisão de 10 dígitos, 2 casas decimais
+  status     StatusContrato @default(ativo)
+
+  // Relações
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+  itens        ItemContrato[]
+  pedidos      Pedido[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Itens específicos de um Contrato (ex: Arroz, Feijão)
+model ItemContrato {
+  id                 String  @id @default(cuid())
+  nome               String
+  valorUnitario      Decimal @db.Decimal(10, 2)
+  quantidadeOriginal Decimal @db.Decimal(10, 3) // Usando Decimal para precisão em quantidades
+  saldoAtual         Decimal @db.Decimal(10, 3)
+
+  // Relações
+  contratoId      String
+  contrato        Contrato @relation(fields: [contratoId], references: [id])
+  unidadeMedidaId String
+  unidadeMedida   UnidadeMedida @relation(fields: [unidadeMedidaId], references: [id])
+  itensPedido     ItemPedido[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modelo para Pedidos feitos a um Contrato
+model Pedido {
+  id                  String   @id @default(cuid())
+  numero              String   @unique
+  dataPedido          DateTime @default(now())
+  dataEntregaPrevista DateTime
+  valorTotal          Decimal  @db.Decimal(10, 2)
+  status              StatusPedido @default(pendente)
+
+  // Relações
+  contratoId String
+  contrato   Contrato @relation(fields: [contratoId], references: [id])
+  itens      ItemPedido[]
+  recibo     Recibo? // Um pedido pode ter um recibo (relação 1-para-1)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Itens específicos de um Pedido, direcionados a uma Unidade Educacional
+model ItemPedido {
+  id         String  @id @default(cuid())
+  quantidade Decimal @db.Decimal(10, 3)
+
+  // Relações
+  pedidoId             String
+  pedido               Pedido @relation(fields: [pedidoId], references: [id])
+  itemContratoId       String
+  itemContrato         ItemContrato @relation(fields: [itemContratoId], references: [id])
+  unidadeEducacionalId String
+  unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
+  itemRecibo           ItemRecibo? // Um item de pedido pode ter um item de recibo
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modelo para Recibos de Entrega, confirmando um Pedido
+model Recibo {
+  id                       String   @id @default(cuid())
+  numero                   String   @unique
+  dataEntrega              DateTime
+  responsavelEntrega       String
+  responsavelRecebimento   String
+  status                   StatusRecibo @default(pendente)
+  qrcode                   String?
+  observacoes              String?  @db.Text
+
+  // Relações
+  pedidoId String   @unique // Garante que um pedido só tenha um recibo
+  pedido   Pedido   @relation(fields: [pedidoId], references: [id])
+  itens    ItemRecibo[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Itens específicos de um Recibo, verificando um Item de Pedido
+model ItemRecibo {
+  id                   String   @id @default(cuid())
+  quantidadeSolicitada Decimal  @db.Decimal(10, 3)
+  quantidadeRecebida   Decimal  @db.Decimal(10, 3)
+  conforme             Boolean
+  observacoes          String?  @db.Text
+
+  // Relações
+  reciboId     String
+  recibo       Recibo @relation(fields: [reciboId], references: [id])
+  itemPedidoId String @unique // Garante que um item de pedido só seja verificado uma vez
+  itemPedido   ItemPedido @relation(fields: [itemPedidoId], references: [id])
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
