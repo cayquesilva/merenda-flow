@@ -36,7 +36,9 @@ function DatabaseConnectionTest() {
           throw new Error("A resposta da rede não foi OK");
         }
         const data = await response.json();
-        setDbStatus(`${data.message} - Horário do servidor DB: ${data.time}`);
+        setDbStatus(
+          `${data.message} - Horário do servidor DB: ${data.horario_do_banco}`
+        );
       } catch (error) {
         console.error("Erro ao buscar dados da API:", error);
         setDbStatus(
