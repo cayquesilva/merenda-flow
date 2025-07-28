@@ -1,9 +1,15 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -11,38 +17,85 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  Search, 
-  Plus, 
-  Eye, 
-  Edit, 
+import {
+  Search,
+  Plus,
+  Eye,
+  Edit,
   Phone,
   Mail,
   MapPin,
-  Building2
+  Building2,
 } from "lucide-react";
 import { unidadesEducacionais } from "@/data/mockData";
 import { UnidadeDialog } from "@/components/unidades/UnidadeDialog";
+import { formatTelefone } from "@/lib/utils";
+
+// COMENTÁRIO: Tipo para os dados que vêm da API.
+interface UnidadeEducacional {
+  id: string;
+  nome: string;
+  codigo: string;
+  endereco: string | null;
+  telefone: string | null;
+  email: string;
+  ativo: boolean;
+}
+
+// COMENTÁRIO: Hook para "debouncing", que evita chamadas excessivas à API ao digitar na busca.
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function Unidades() {
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // COMENTÁRIO: Estados para armazenar os dados da API e controlar o carregamento.
+  const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
+  const [status, setStatus] = useState("A carregar unidades...");
+
   const handleSuccess = () => {
-    setRefreshKey(prev => prev + 1);
+    setRefreshKey((prev) => prev + 1);
   };
 
-  const filteredUnidades = unidadesEducacionais.filter(unidade =>
-    unidade.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    unidade.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    unidade.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // COMENTÁRIO: Efeito que busca a lista de unidades da API.
+  useEffect(() => {
+    const fetchUnidades = async () => {
+      setStatus("A carregar unidades...");
+      try {
+        const response = await fetch(
+          `http://localhost:3001/api/unidades?q=${debouncedSearchTerm}`
+        );
+        if (!response.ok) throw new Error("Falha ao buscar unidades");
+        const data = await response.json();
+        setUnidades(data);
+        if (data.length === 0) {
+          setStatus("Nenhuma unidade encontrada.");
+        }
+      } catch (error) {
+        console.error("Erro:", error);
+        setStatus(
+          `Falha ao carregar unidades. Verifique se a API está a correr.`
+        );
+      }
+    };
+    fetchUnidades();
+  }, [debouncedSearchTerm, refreshKey]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Unidades Educacionais</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Unidades Educacionais
+          </h2>
           <p className="text-muted-foreground">
             Gerencie as unidades educacionais do sistema
           </p>
@@ -73,7 +126,7 @@ export default function Unidades() {
         <CardHeader>
           <CardTitle>Unidades Cadastradas</CardTitle>
           <CardDescription>
-            {filteredUnidades.length} unidade(s) encontrada(s)
+            {unidades.length} unidade(s) encontrada(s)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -89,52 +142,63 @@ export default function Unidades() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUnidades.map((unidade) => (
-                <TableRow key={unidade.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center">
-                      <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                      {unidade.nome}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {unidade.codigo}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center text-sm">
-                        <Phone className="mr-1 h-3 w-3" />
-                        {unidade.telefone}
+              {unidades.length > 0 ? (
+                unidades.map((unidade) => (
+                  <TableRow key={unidade.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center">
+                        <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                        {unidade.nome}
                       </div>
-                      <div className="flex items-center text-sm">
-                        <Mail className="mr-1 h-3 w-3" />
-                        {unidade.email}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {unidade.codigo}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center text-sm">
+                          <Phone className="mr-1 h-3 w-3" />
+                          {formatTelefone(unidade.telefone)}
+                        </div>
+                        <div className="flex items-center text-sm">
+                          <Mail className="mr-1 h-3 w-3" />
+                          {unidade.email}
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center text-sm">
-                      <MapPin className="mr-1 h-3 w-3" />
-                      <span className="truncate max-w-[200px]">
-                        {unidade.endereco}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={unidade.ativo ? "default" : "secondary"}>
-                      {unidade.ativo ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-3 w-3" />
-                      </Button>
-                      <UnidadeDialog unidade={unidade} onSuccess={handleSuccess} />
-                    </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center text-sm">
+                        <MapPin className="mr-1 h-3 w-3" />
+                        <span className="truncate max-w-[200px]">
+                          {unidade.endereco}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={unidade.ativo ? "default" : "secondary"}>
+                        {unidade.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="outline" size="sm">
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <UnidadeDialog
+                          unidade={unidade}
+                          onSuccess={handleSuccess}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center p-10">
+                    {status}
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>

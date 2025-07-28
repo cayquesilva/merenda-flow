@@ -340,6 +340,118 @@ app.delete("/api/contratos/:id", async (req, res) => {
   }
 });
 
+// --- INÍCIO DAS ROTAS DE UNIDADES EDUCACIONAIS (CRUD) ---
+
+// ROTA 1: Listar todas as Unidades (com busca)
+// GET /api/unidades?q=...
+app.get("/api/unidades", async (req, res) => {
+  const { q } = req.query;
+
+  try {
+    const unidades = await prisma.unidadeEducacional.findMany({
+      where: q
+        ? {
+            OR: [
+              { nome: { contains: q, mode: "insensitive" } },
+              { codigo: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      orderBy: {
+        nome: "asc",
+      },
+    });
+    res.json(unidades);
+  } catch (error) {
+    console.error("Erro ao buscar unidades educacionais:", error);
+    res.status(500).json({ error: "Não foi possível buscar as unidades." });
+  }
+});
+
+// ROTA 2: Buscar uma única Unidade pelo ID
+// GET /api/unidades/:id
+app.get("/api/unidades/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const unidade = await prisma.unidadeEducacional.findUnique({
+      where: { id },
+    });
+    if (unidade) {
+      res.json(unidade);
+    } else {
+      res.status(404).json({ error: "Unidade Educacional não encontrada." });
+    }
+  } catch (error) {
+    console.error("Erro ao buscar unidade:", error);
+    res.status(500).json({ error: "Não foi possível buscar a unidade." });
+  }
+});
+
+// ROTA 3: Criar uma nova Unidade
+// POST /api/unidades
+app.post("/api/unidades", async (req, res) => {
+  const { nome, codigo, email, telefone, endereco, ativo } = req.body;
+  try {
+    const novaUnidade = await prisma.unidadeEducacional.create({
+      data: { nome, codigo, email, telefone, endereco, ativo },
+    });
+    res.status(201).json(novaUnidade);
+  } catch (error) {
+    if (error.code === "P2002") {
+      return res
+        .status(409)
+        .json({
+          error: `O campo ${error.meta.target.join(", ")} já está em uso.`,
+        });
+    }
+    console.error("Erro ao criar unidade:", error);
+    res.status(500).json({ error: "Não foi possível criar a unidade." });
+  }
+});
+
+// ROTA 4: Atualizar uma Unidade existente
+// PUT /api/unidades/:id
+app.put("/api/unidades/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nome, codigo, email, telefone, endereco, ativo } = req.body;
+  try {
+    const unidadeAtualizada = await prisma.unidadeEducacional.update({
+      where: { id },
+      data: { nome, codigo, email, telefone, endereco, ativo },
+    });
+    res.json(unidadeAtualizada);
+  } catch (error) {
+    if (error.code === "P2002") {
+      return res
+        .status(409)
+        .json({
+          error: `O campo ${error.meta.target.join(", ")} já está em uso.`,
+        });
+    }
+    console.error("Erro ao atualizar unidade:", error);
+    res.status(500).json({ error: "Não foi possível atualizar a unidade." });
+  }
+});
+
+// ROTA 5: Deletar uma Unidade
+// DELETE /api/unidades/:id
+app.delete("/api/unidades/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Adicionar lógica para deletar dependências se houver (ex: recibos, etc)
+    await prisma.unidadeEducacional.delete({
+      where: { id },
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Erro ao deletar unidade:", error);
+    res.status(500).json({ error: "Não foi possível deletar a unidade." });
+  }
+});
+
+// --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
+
 // Rota de teste para verificar a conexão com o banco de dados
 app.get("/api/test-db", async (req, res) => {
   try {
