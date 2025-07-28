@@ -1,26 +1,18 @@
-# docker-compose.yml
-
-version: "3.8" # Especifica a versão do Docker Compose
+version: "3.8"
 
 services:
-  # Define o serviço do nosso banco de dados
   db:
-    image: mysql:8.0 # Usa a imagem oficial do MySQL versão 8.0
-    container_name: merendaflow-mysql # Nomeia o contêiner para fácil identificação
-    restart: always # Reinicia o contêiner automaticamente se ele parar
+    image: postgres:15 # Usando uma imagem oficial e atual do PostgreSQL
+    container_name: merendaflow_db
+    restart: always
     environment:
-      MYSQL_DATABASE: "merendaflow" # Nome do banco de dados que será criado
-      MYSQL_USER: "cayque_merenda" # Nome do usuário para acessar o banco
-      MYSQL_PASSWORD: "cayque_merenda" # Senha para o usuário
-      MYSQL_ROOT_PASSWORD: "C350600a" # Senha para o usuário root (administrador)
+      POSTGRES_DB: merenda
+      POSTGRES_USER: CayqueSilva
+      POSTGRES_PASSWORD: Kiq3506! # Use uma senha mais forte em um projeto real
     ports:
-      # Mapeia a porta 3306 do contêiner para a porta 3306 da sua máquina
-      # Sua aplicação vai se conectar em: localhost:3306
-      - "3306:3306"
+      - "5432:5432" # Expõe a porta do banco de dados para sua máquina local
     volumes:
-      # Garante que os dados do banco de dados persistam mesmo se o contêiner for recriado
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data # Garante que os dados persistam
 
-# Define o volume nomeado para persistir os dados
 volumes:
-  mysql_data:
+  postgres_data:
