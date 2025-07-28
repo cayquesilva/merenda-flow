@@ -1,0 +1,171 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================================
+// MODELOS BASE
+// ===================================
+
+model UnidadeMedida {
+  id    String @id @default(uuid())
+  nome  String
+  sigla String @unique
+
+  // Relações
+  itensContrato ItemContrato[]
+}
+
+model Fornecedor {
+  id        String    @id @default(uuid())
+  nome      String
+  cnpj      String    @unique
+  telefone  String?
+  email     String    @unique
+  endereco  String?
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // Relações
+  contratos Contrato[]
+}
+
+model UnidadeEducacional {
+  id       String   @id @default(uuid())
+  nome     String
+  codigo   String   @unique
+  endereco String?
+  telefone String?
+  email    String   @unique
+  ativo    Boolean  @default(true)
+
+  // Relações
+  pedidos ItemPedido[]
+  recibos Recibo[]
+}
+
+// ===================================
+// MODELOS PRINCIPAIS
+// ===================================
+
+model Contrato {
+  id         String   @id @default(uuid())
+  numero     String   @unique
+  dataInicio DateTime @map("data_inicio")
+  dataFim    DateTime @map("data_fim")
+  valorTotal Float    @map("valor_total")
+  status     String // Ex: 'ativo', 'inativo', 'concluido'
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relação com Fornecedor
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+  fornecedorId String     @map("fornecedor_id")
+
+  // Relação com Itens do Contrato
+  itens  ItemContrato[]
+  // Relação com Pedidos
+  pedidos Pedido[]
+}
+
+model ItemContrato {
+  id                 String @id @default(uuid())
+  nome               String
+  valorUnitario      Float  @map("valor_unitario")
+  quantidadeOriginal Float  @map("quantidade_original")
+  saldoAtual         Float  @map("saldo_atual")
+
+  // Relação com Contrato
+  contrato   Contrato @relation(fields: [contratoId], references: [id])
+  contratoId String   @map("contrato_id")
+
+  // Relação com Unidade de Medida
+  unidadeMedida   UnidadeMedida @relation(fields: [unidadeMedidaId], references: [id])
+  unidadeMedidaId String        @map("unidade_medida_id")
+
+  // Relação com Itens de Pedido
+  itensPedido ItemPedido[]
+}
+
+model Pedido {
+  id                 String   @id @default(uuid())
+  numero             String   @unique
+  dataPedido         DateTime @map("data_pedido")
+  dataEntregaPrevista DateTime @map("data_entrega_prevista")
+  status             String // Ex: 'pendente', 'entregue', 'cancelado'
+  valorTotal         Float    @map("valor_total")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  // Relação com Contrato
+  contrato   Contrato @relation(fields: [contratoId], references: [id])
+  contratoId String   @map("contrato_id")
+
+  // Relações
+  itens  ItemPedido[]
+  recibo Recibo? // Um pedido pode ter um recibo
+}
+
+model ItemPedido {
+  id         String @id @default(uuid())
+  quantidade Float
+
+  // Relação com Pedido
+  pedido   Pedido @relation(fields: [pedidoId], references: [id])
+  pedidoId String @map("pedido_id")
+
+  // Relação com Item do Contrato (para saber o que foi pedido)
+  itemContrato   ItemContrato @relation(fields: [itemContratoId], references: [id])
+  itemContratoId String       @map("item_contrato_id")
+
+  // Relação com Unidade Educacional (para onde vai o item)
+  unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
+  unidadeEducacionalId String             @map("unidade_educacional_id")
+
+  // Relação com Itens de Recibo
+  itemRecibo ItemRecibo?
+}
+
+model Recibo {
+  id                      String   @id @default(uuid())
+  numero                  String   @unique
+  dataEntrega             DateTime @map("data_entrega")
+  responsavelEntrega      String   @map("responsavel_entrega")
+  responsavelRecebimento  String   @map("responsavel_recebimento")
+  status                  String // Ex: 'confirmado', 'pendente', 'rejeitado'
+  qrcode                  String?
+  observacoes             String?
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  // Relação com Pedido (um recibo pertence a um pedido)
+  pedido   Pedido @relation(fields: [pedidoId], references: [id])
+  pedidoId String @unique @map("pedido_id")
+
+  // Relação com Unidade Educacional (quem recebeu)
+  unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
+  unidadeEducacionalId String             @map("unidade_educacional_id")
+
+  // Relação com Itens do Recibo
+  itens ItemRecibo[]
+}
+
+model ItemRecibo {
+  id                   String  @id @default(uuid())
+  quantidadeSolicitada Float   @map("quantidade_solicitada")
+  quantidadeRecebida   Float   @map("quantidade_recebida")
+  conforme             Boolean
+  observacoes          String?
+
+  // Relação com Recibo
+  recibo   Recibo @relation(fields: [reciboId], references: [id])
+  reciboId String @map("recibo_id")
+
+  // Relação com Item do Pedido (para saber o que foi recebido)
+  itemPedido   ItemPedido @relation(fields: [itemPedidoId], references: [id])
+  itemPedidoId String     @unique @map("item_pedido_id")
+}
