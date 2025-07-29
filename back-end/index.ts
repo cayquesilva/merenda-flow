@@ -968,6 +968,236 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
   }
 });
 
+// --- ROTAS DE RELATÓRIOS ---
+
+// COMENTÁRIO: Gera um relatório consolidado de pedidos por contrato em PDF
+// UTILIZAÇÃO: Chamada pela página `Relatorios.tsx` ao clicar em "Exportar PDF"
+app.post("/api/relatorios/consolidado-pedidos/:contratoId", async (req: Request, res: Response) => {
+  const { contratoId } = req.params;
+  
+  try {
+    // Buscar dados do contrato e pedidos
+    const contrato = await prisma.contrato.findUnique({
+      where: { id: contratoId },
+      include: {
+        fornecedor: true,
+        itens: { include: { unidadeMedida: true } }
+      }
+    });
+
+    if (!contrato) {
+      return res.status(404).json({ error: "Contrato não encontrado" });
+    }
+
+    const pedidos = await prisma.pedido.findMany({
+      where: { contratoId },
+      include: {
+        itens: {
+          include: {
+            itemContrato: { include: { unidadeMedida: true } },
+            unidadeEducacional: true
+          }
+        }
+      }
+    });
+
+    // Simular geração de PDF (em produção, usar biblioteca como puppeteer ou PDFKit)
+    const reportData = {
+      contrato,
+      pedidos,
+      totalPedidos: pedidos.length,
+      valorTotal: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
+      dataGeracao: new Date()
+    };
+
+    // Por enquanto, retornar JSON (em produção seria um PDF)
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="relatorio-${contrato.numero}.json"`);
+    res.json(reportData);
+
+  } catch (error) {
+    console.error("Erro ao gerar relatório:", error);
+    res.status(500).json({ error: "Não foi possível gerar o relatório" });
+  }
+});
+
+// COMENTÁRIO: Relatório de entregas por período
+app.get("/api/relatorios/entregas", async (req: Request, res: Response) => {
+  const { dataInicio, dataFim, unidadeId } = req.query;
+  
+  try {
+    const whereClause: any = {};
+    
+    if (dataInicio && dataFim) {
+      whereClause.dataEntrega = {
+        gte: new Date(dataInicio as string),
+        lte: new Date(dataFim as string)
+      };
+    }
+    
+    if (unidadeId) {
+      whereClause.unidadeEducacionalId = unidadeId as string;
+    }
+
+    const recibos = await prisma.recibo.findMany({
+      where: whereClause,
+      include: {
+        unidadeEducacional: true,
+        pedido: {
+          include: {
+            contrato: { include: { fornecedor: true } }
+          }
+        },
+        itens: {
+          include: {
+            itemPedido: {
+              include: {
+                itemContrato: { include: { unidadeMedida: true } }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { dataEntrega: 'desc' }
+    });
+
+    const estatisticas = {
+      totalEntregas: recibos.length,
+      entregasConfirmadas: recibos.filter(r => r.status === 'confirmado').length,
+      entregasPendentes: recibos.filter(r => r.status === 'pendente').length,
+      valorTotalEntregue: recibos.reduce((sum, r) => {
+        return sum + r.itens.reduce((itemSum, item) => {
+          return itemSum + (item.quantidadeRecebida * item.itemPedido.itemContrato.valorUnitario);
+        }, 0);
+      }, 0)
+    };
+
+    res.json({ recibos, estatisticas });
+
+  } catch (error) {
+    console.error("Erro ao gerar relatório de entregas:", error);
+    res.status(500).json({ error: "Não foi possível gerar o relatório de entregas" });
+  }
+});
+
+// COMENTÁRIO: Relatório de conformidade das entregas
+app.get("/api/relatorios/conformidade", async (req: Request, res: Response) => {
+  const { dataInicio, dataFim } = req.query;
+  
+  try {
+    const whereClause: any = {};
+    
+    if (dataInicio && dataFim) {
+      whereClause.dataEntrega = {
+        gte: new Date(dataInicio as string),
+        lte: new Date(dataFim as string)
+      };
+    }
+
+    const recibos = await prisma.recibo.findMany({
+      where: whereClause,
+      include: {
+        unidadeEducacional: true,
+        pedido: {
+          include: {
+            contrato: { include: { fornecedor: true } }
+          }
+        },
+        itens: true
+      }
+    });
+
+    const analiseConformidade = recibos.map(recibo => {
+      const totalItens = recibo.itens.length;
+      const itensConformes = recibo.itens.filter(item => item.conforme).length;
+      const percentualConformidade = totalItens > 0 ? (itensConformes / totalItens) * 100 : 0;
+      
+      return {
+        ...recibo,
+        totalItens,
+        itensConformes,
+        percentualConformidade
+      };
+    });
+
+    const mediaConformidade = analiseConformidade.length > 0 
+      ? analiseConformidade.reduce((sum, r) => sum + r.percentualConformidade, 0) / analiseConformidade.length
+      : 0;
+
+    res.json({
+      analiseConformidade,
+      estatisticas: {
+        totalRecibos: recibos.length,
+        mediaConformidade,
+        recibosConformes: analiseConformidade.filter(r => r.percentualConformidade === 100).length,
+        recibosParciais: analiseConformidade.filter(r => r.percentualConformidade > 0 && r.percentualConformidade < 100).length,
+        recibosNaoConformes: analiseConformidade.filter(r => r.percentualConformidade === 0).length
+      }
+    });
+
+  } catch (error) {
+    console.error("Erro ao gerar relatório de conformidade:", error);
+    res.status(500).json({ error: "Não foi possível gerar o relatório de conformidade" });
+  }
+});
+
+// COMENTÁRIO: Relatório de gastos por fornecedor
+app.get("/api/relatorios/gastos-fornecedor", async (req: Request, res: Response) => {
+  const { dataInicio, dataFim } = req.query;
+  
+  try {
+    const whereClause: any = {};
+    
+    if (dataInicio && dataFim) {
+      whereClause.dataPedido = {
+        gte: new Date(dataInicio as string),
+        lte: new Date(dataFim as string)
+      };
+    }
+
+    const pedidos = await prisma.pedido.findMany({
+      where: whereClause,
+      include: {
+        contrato: { include: { fornecedor: true } }
+      }
+    });
+
+    const gastosPorFornecedor = pedidos.reduce((acc, pedido) => {
+      const fornecedorId = pedido.contrato.fornecedorId;
+      const fornecedorNome = pedido.contrato.fornecedor.nome;
+      
+      if (!acc[fornecedorId]) {
+        acc[fornecedorId] = {
+          fornecedorId,
+          fornecedorNome,
+          totalGasto: 0,
+          totalPedidos: 0
+        };
+      }
+      
+      acc[fornecedorId].totalGasto += pedido.valorTotal;
+      acc[fornecedorId].totalPedidos += 1;
+      
+      return acc;
+    }, {} as Record<string, any>);
+
+    const relatorio = Object.values(gastosPorFornecedor).sort((a, b) => b.totalGasto - a.totalGasto);
+
+    res.json({
+      gastosPorFornecedor: relatorio,
+      estatisticas: {
+        totalFornecedores: relatorio.length,
+        gastoTotal: relatorio.reduce((sum, f) => sum + f.totalGasto, 0),
+        pedidosTotal: relatorio.reduce((sum, f) => sum + f.totalPedidos, 0)
+      }
+    });
+
+  } catch (error) {
+    console.error("Erro ao gerar relatório de gastos:", error);
+    res.status(500).json({ error: "Não foi possível gerar o relatório de gastos" });
+  }
+});
+
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {
   try {

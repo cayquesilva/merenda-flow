@@ -54,13 +54,42 @@ export function RelatorioConsolidadoPedidos() {
     }
   } : null;
 
-  const gerarRelatorio = () => {
+  const gerarRelatorio = async () => {
     if (!consolidacao) return;
 
-    toast({
-      title: "Relatório gerado!",
-      description: "O relatório consolidado foi gerado com sucesso",
-    });
+    try {
+      const response = await fetch(`http://localhost:3001/api/relatorios/consolidado-pedidos/${contratoSelecionado}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `relatorio-consolidado-${contrato!.numero}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        toast({
+          title: "Relatório gerado!",
+          description: "O relatório consolidado foi gerado com sucesso",
+        });
+      } else {
+        throw new Error('Falha ao gerar relatório');
+      }
+    } catch (error) {
+      toast({
+        title: "Erro ao gerar relatório",
+        description: "Não foi possível gerar o relatório. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

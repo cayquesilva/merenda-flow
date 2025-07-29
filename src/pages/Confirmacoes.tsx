@@ -35,6 +35,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { ConsolidacaoPedido, Recibo } from "@/types";
+import { ConsolidacaoDetailDialog } from "@/components/confirmacoes/ConsolidacaoDetailDialog";
+import { ReciboConfirmacaoDialog } from "@/components/confirmacoes/ReciboConfirmacaoDialog";
 
 interface ConfirmacaoDetalhada extends Recibo {
   percentualConformidade: number;
@@ -54,6 +56,8 @@ export default function Confirmacoes() {
   const [isLoading, setIsLoading] = useState(true);
   const [consolidacoes, setConsolidacoes] = useState<ConsolidacaoPedido[]>([]);
   const [confirmacoes, setConfirmacoes] = useState<ConfirmacaoDetalhada[]>([]);
+  const [consolidacaoSelecionada, setConsolidacaoSelecionada] = useState<ConsolidacaoPedido | null>(null);
+  const [reciboSelecionado, setReciboSelecionado] = useState<ConfirmacaoDetalhada | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     pendentes: 0,
@@ -411,7 +415,11 @@ export default function Confirmacoes() {
                           R$ {consolidacao.pedido.valorTotal.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setConsolidacaoSelecionada(consolidacao)}
+                          >
                             <Eye className="h-3 w-3 mr-1" />
                             Ver Detalhes
                           </Button>
@@ -530,7 +538,11 @@ export default function Confirmacoes() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setReciboSelecionado(confirmacao)}
+                            >
                               <Eye className="h-3 w-3 mr-1" />
                               Detalhes
                             </Button>
@@ -545,6 +557,19 @@ export default function Confirmacoes() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <ConsolidacaoDetailDialog
+        open={!!consolidacaoSelecionada}
+        onOpenChange={(open) => !open && setConsolidacaoSelecionada(null)}
+        consolidacao={consolidacaoSelecionada}
+      />
+
+      <ReciboConfirmacaoDialog
+        open={!!reciboSelecionado}
+        onOpenChange={(open) => !open && setReciboSelecionado(null)}
+        recibo={reciboSelecionado}
+      />
     </div>
   );
 }

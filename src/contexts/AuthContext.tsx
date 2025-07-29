@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const categoryPermissions = USER_CATEGORIES[user.categoria];
     const modulePermission = categoryPermissions.permissions[module as keyof typeof categoryPermissions.permissions];
     
-    return modulePermission?.actions.includes(action) || false;
+    return modulePermission?.actions.includes(action as any) || false;
   };
 
   const canAccessModule = (module: string): boolean => {

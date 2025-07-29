@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, FileText, TrendingUp } from "lucide-react";
 import { RelatorioConsolidadoPedidos } from "@/components/relatorios/RelatorioConsolidadoPedidos";
+import { RelatorioEntregas } from "@/components/relatorios/RelatorioEntregas";
+import { RelatorioConformidade } from "@/components/relatorios/RelatorioConformidade";
+import { RelatorioGastosFornecedor } from "@/components/relatorios/RelatorioGastosFornecedor";
 
 export default function Relatorios() {
   return (
@@ -22,9 +25,17 @@ export default function Relatorios() {
             <BarChart3 className="mr-2 h-4 w-4" />
             Consolidado de Pedidos
           </TabsTrigger>
-          <TabsTrigger value="outros" disabled>
+          <TabsTrigger value="entregas">
+            <TrendingUp className="mr-2 h-4 w-4" />
+            Relatório de Entregas
+          </TabsTrigger>
+          <TabsTrigger value="conformidade">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Relatório de Conformidade
+          </TabsTrigger>
+          <TabsTrigger value="gastos">
             <FileText className="mr-2 h-4 w-4" />
-            Outros Relatórios
+            Gastos por Fornecedor
           </TabsTrigger>
         </TabsList>
 
@@ -32,27 +43,16 @@ export default function Relatorios() {
           <RelatorioConsolidadoPedidos />
         </TabsContent>
 
-        <TabsContent value="outros">
-          <Card>
-            <CardHeader>
-              <CardTitle>Outros Relatórios</CardTitle>
-              <CardDescription>
-                Funcionalidades em desenvolvimento
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Em breve você poderá gerar relatórios de:
-              </p>
-              <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
-                <li>Saldos de contratos por período</li>
-                <li>Entregas realizadas por unidade educacional</li>
-                <li>Conformidade das entregas</li>
-                <li>Valor gasto por fornecedor</li>
-                <li>Análise de consumo por item</li>
-              </ul>
-            </CardContent>
-          </Card>
+        <TabsContent value="entregas">
+          <RelatorioEntregas />
+        </TabsContent>
+
+        <TabsContent value="conformidade">
+          <RelatorioConformidade />
+        </TabsContent>
+
+        <TabsContent value="gastos">
+          <RelatorioGastosFornecedor />
         </TabsContent>
       </Tabs>
     </div>
