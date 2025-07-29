@@ -8,6 +8,8 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input"; // Importar Input
+import { Label } from "@/components/ui/label"; // Importar Label
 import {
   Loader2,
   CheckCircle,
@@ -43,6 +45,7 @@ export default function SaidaEstoqueQRCode() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saidaConfirmada, setSaidaConfirmada] = useState(false);
+  const [quantidadeSaida, setQuantidadeSaida] = useState<number>(1); // Estado para a quantidade de saída
 
   useEffect(() => {
     if (!estoqueId) {
@@ -55,7 +58,6 @@ export default function SaidaEstoqueQRCode() {
       setIsLoading(true);
       setError(null);
       try {
-        // Busca os detalhes do item de estoque para exibição
         const response = await fetch(
           `http://localhost:3001/api/estoque/consolidado?q=&unidadeId=&estoqueId=${estoqueId}`
         );
@@ -66,9 +68,12 @@ export default function SaidaEstoqueQRCode() {
           );
         }
         const data = await response.json();
-        // A API de consolidado retorna um array, então pegamos o primeiro item
         if (data.length > 0) {
           setItemEstoque(data[0]);
+          // Define a quantidade de saída como 1 ou a quantidade atual se for menor
+          setQuantidadeSaida(
+            data[0].quantidadeAtual >= 1 ? 1 : data[0].quantidadeAtual
+          );
         } else {
           throw new Error("Item de estoque não encontrado ou sem dados.");
         }
@@ -89,6 +94,24 @@ export default function SaidaEstoqueQRCode() {
   const handleConfirmarSaida = async () => {
     if (!itemEstoque) return;
 
+    if (quantidadeSaida <= 0) {
+      toast({
+        title: "Erro",
+        description: "A quantidade de saída deve ser maior que zero.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (quantidadeSaida > itemEstoque.quantidadeAtual) {
+      toast({
+        title: "Erro",
+        description: "Quantidade de saída maior que o estoque disponível.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await fetch(
@@ -96,8 +119,7 @@ export default function SaidaEstoqueQRCode() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // O corpo pode ser vazio ou conter informações adicionais se a rota de backend precisar
-          body: JSON.stringify({}),
+          body: JSON.stringify({ quantidade: quantidadeSaida }), // Envia a quantidade editável
         }
       );
 
@@ -110,11 +132,10 @@ export default function SaidaEstoqueQRCode() {
 
       toast({
         title: "Saída Confirmada!",
-        description: `1 ${itemEstoque.itemContrato.unidadeMedida.sigla} de ${itemEstoque.itemContrato.nome} foi baixado do estoque.`,
+        description: `${quantidadeSaida} ${itemEstoque.itemContrato.unidadeMedida.sigla} de ${itemEstoque.itemContrato.nome} foi baixado do estoque.`,
         variant: "default",
       });
       setSaidaConfirmada(true);
-      // Opcional: Redirecionar após alguns segundos ou mostrar uma mensagem final
       setTimeout(() => navigate("/estoque"), 3000);
     } catch (err) {
       toast({
@@ -154,7 +175,6 @@ export default function SaidaEstoqueQRCode() {
     );
   }
 
-  // Corrigido o erro de sintaxe aqui: o return estava fora do div
   if (!itemEstoque) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
@@ -204,21 +224,47 @@ export default function SaidaEstoqueQRCode() {
                   Unidade: {itemEstoque.unidadeEducacional.nome}
                 </p>
                 <p className="text-lg text-muted-foreground">
-                  Quantidade Atual:{" "}
+                  Estoque Atual:{" "}
                   <span className="font-bold">
                     {itemEstoque.quantidadeAtual}{" "}
                     {itemEstoque.itemContrato.unidadeMedida.sigla}
                   </span>
                 </p>
-                <p className="text-xl font-bold text-red-500 dark:text-red-400">
-                  Será baixado: 1 {itemEstoque.itemContrato.unidadeMedida.sigla}
-                </p>
+
+                {/* Campo de entrada para a quantidade de saída */}
+                <div>
+                  <Label
+                    htmlFor="quantidadeSaida"
+                    className="text-xl font-bold text-red-500 dark:text-red-400"
+                  >
+                    Quantidade a ser baixada:
+                  </Label>
+                  <Input
+                    id="quantidadeSaida"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={quantidadeSaida}
+                    onChange={(e) => setQuantidadeSaida(Number(e.target.value))}
+                    className="text-center text-2xl font-bold mt-2"
+                    max={itemEstoque.quantidadeAtual}
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Unidade de medida:{" "}
+                    {itemEstoque.itemContrato.unidadeMedida.sigla}
+                  </p>
+                </div>
               </div>
 
               <div className="flex flex-col gap-4">
                 <Button
                   onClick={handleConfirmarSaida}
-                  disabled={isSubmitting || itemEstoque.quantidadeAtual < 1}
+                  disabled={
+                    isSubmitting ||
+                    quantidadeSaida <= 0 ||
+                    quantidadeSaida > itemEstoque.quantidadeAtual
+                  }
                   className="w-full py-3 text-xl font-bold bg-green-600 hover:bg-green-700 text-white rounded-md shadow-lg transition-colors duration-300"
                 >
                   {isSubmitting ? (
@@ -236,10 +282,11 @@ export default function SaidaEstoqueQRCode() {
                   <XCircle className="mr-2 h-6 w-6" />
                   Cancelar
                 </Button>
-                {itemEstoque.quantidadeAtual < 1 && (
+                {(quantidadeSaida <= 0 ||
+                  quantidadeSaida > itemEstoque.quantidadeAtual) && (
                   <p className="text-red-500 text-sm mt-2 flex items-center justify-center gap-1">
                     <AlertTriangle className="h-4 w-4" />
-                    Estoque insuficiente para esta operação.
+                    Quantidade inválida ou estoque insuficiente.
                   </p>
                 )}
               </div>

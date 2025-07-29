@@ -1066,7 +1066,6 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
   }
 });
 
-
 // --- ROTAS DE ESTOQUE ---
 
 // COMENTÁRIO: Lista o estoque de uma unidade específica
@@ -1314,68 +1313,78 @@ app.put(
   }
 );
 
-// NOVA ROTA: Processa a saída de estoque via QR Code
-app.post("/api/estoque/saida-qrcode/:estoqueId", async (req: Request, res: Response) => {
-  const { estoqueId } = req.params;
-  // Quantidade fixa para saída via QR Code, pode ser ajustada
-  const quantidadeSaida = 1; 
-  const motivo = "Consumo diário (QR Code)";
-  const responsavel = "Merendeira (QR Code)";
+// COMENTÁRIO: NOVA ROTA: Processa a saída de estoque via QR Code
+app.post(
+  "/api/estoque/saida-qrcode/:estoqueId",
+  async (req: Request, res: Response) => {
+    const { estoqueId } = req.params;
+    const { quantidade } = req.body; // Agora espera a quantidade no corpo da requisição
+    const quantidadeSaida = Number(quantidade); // Converte para número
+    const motivo = "Consumo diário (QR Code)";
+    const responsavel = "Merendeira (QR Code)"; // Pode ser dinâmico no futuro
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const estoque = await tx.estoque.findUnique({
-        where: { id: estoqueId },
+    if (isNaN(quantidadeSaida) || quantidadeSaida <= 0) {
+      // Validação da quantidade
+      return res.status(400).json({ error: "Quantidade de saída inválida." });
+    }
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const estoque = await tx.estoque.findUnique({
+          where: { id: estoqueId },
+        });
+
+        if (!estoque) {
+          return res
+            .status(404)
+            .json({ error: "Item de estoque não encontrado." });
+        }
+
+        const quantidadeAnterior = estoque.quantidadeAtual;
+        const quantidadeNova = quantidadeAnterior - quantidadeSaida;
+
+        if (quantidadeNova < 0) {
+          throw new Error("Quantidade insuficiente em estoque para a saída.");
+        }
+
+        // Atualizar o estoque
+        const estoqueAtualizado = await tx.estoque.update({
+          where: { id: estoqueId },
+          data: {
+            quantidadeAtual: quantidadeNova,
+            ultimaAtualizacao: new Date(),
+          },
+        });
+
+        // Registrar a movimentação
+        const movimentacao = await tx.movimentacaoEstoque.create({
+          data: {
+            estoqueId,
+            tipo: "saida",
+            quantidade: quantidadeSaida, // Usa a quantidade recebida
+            quantidadeAnterior,
+            quantidadeNova,
+            motivo,
+            responsavel,
+            dataMovimentacao: new Date(),
+          },
+        });
+
+        return { estoque: estoqueAtualizado, movimentacao };
       });
 
-      if (!estoque) {
-        return res.status(404).json({ error: "Item de estoque não encontrado." });
-      }
-
-      const quantidadeAnterior = estoque.quantidadeAtual;
-      const quantidadeNova = quantidadeAnterior - quantidadeSaida;
-
-      if (quantidadeNova < 0) {
-        return res.status(400).json({ error: "Quantidade insuficiente em estoque para a saída." });
-      }
-
-      // Atualizar o estoque
-      const estoqueAtualizado = await tx.estoque.update({
-        where: { id: estoqueId },
-        data: {
-          quantidadeAtual: quantidadeNova,
-          ultimaAtualizacao: new Date(),
-        },
+      res.status(200).json({
+        message: "Saída de estoque registrada com sucesso via QR Code.",
+        data: result,
       });
-
-      // Registrar a movimentação
-      const movimentacao = await tx.movimentacaoEstoque.create({
-        data: {
-          estoqueId,
-          tipo: "saida",
-          quantidade: quantidadeSaida,
-          quantidadeAnterior,
-          quantidadeNova,
-          motivo,
-          responsavel,
-          dataMovimentacao: new Date(),
-        },
-      });
-
-      return { estoque: estoqueAtualizado, movimentacao };
-    });
-
-    res.status(200).json({
-      message: "Saída de estoque registrada com sucesso via QR Code.",
-      data: result,
-    });
-  } catch (error) {
-    console.error("Erro ao registrar saída via QR Code:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Erro desconhecido";
-    res.status(500).json({ error: errorMessage });
+    } catch (error) {
+      console.error("Erro ao registrar saída via QR Code:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      res.status(500).json({ error: errorMessage });
+    }
   }
-});
+);
 
 /// --- FIM ROTA ESTOQUES --- ///
 
@@ -1766,7 +1775,6 @@ app.get(
 );
 
 /// --- FIM ROTA DE RELATORIOS --- ///
-
 
 /// --- ROTA DE DASHBOARD --- ///
 // COMENTÁRIO: Rota para buscar todos os dados do Dashboard
