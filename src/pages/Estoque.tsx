@@ -49,6 +49,7 @@ import {
   History,
   BarChart3,
   Loader2,
+  QrCode, // Adicionado para o QR Code
 } from "lucide-react";
 // Importar todas as interfaces necessárias do seu arquivo de tipos
 import {
@@ -310,6 +311,72 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
   );
 }
 
+// NOVO COMPONENTE: Dialog para exibir o QR Code
+interface QRCodeDialogProps {
+  estoqueId: string;
+  itemName: string;
+  unidadeNome: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function QRCodeDialog({
+  estoqueId,
+  itemName,
+  unidadeNome,
+  open,
+  onOpenChange,
+}: QRCodeDialogProps) {
+  // CORREÇÃO: Usar window.location.origin para obter a base URL dinâmica do frontend
+  const frontendBaseUrl = window.location.origin;
+  // URL que será codificada no QR Code, levando para a página de saída via QR Code
+  const qrcodeDataUrl = `${frontendBaseUrl}/saida-estoque-qrcode/${estoqueId}`;
+  // URL para o serviço de geração de QR Code
+  const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+    qrcodeDataUrl
+  )}`;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md text-center">
+        <DialogHeader>
+          <DialogTitle>QR Code para Saída de Estoque</DialogTitle>
+          <DialogDescription>
+            Escaneie este QR Code para registrar a saída de 1 unidade de:
+            <br />
+            <span className="font-bold text-primary">{itemName}</span> na
+            unidade{" "}
+            <span className="font-bold text-primary">{unidadeNome}</span>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-center p-4">
+          <img
+            src={qrCodeImageUrl}
+            alt={`QR Code para ${itemName}`}
+            className="w-48 h-48 border border-gray-300 rounded-lg"
+          />
+        </div>
+        <DialogFooter className="flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            URL:{" "}
+            <a
+              href={qrcodeDataUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline break-all"
+            >
+              {qrcodeDataUrl}
+            </a>
+          </p>
+          <Button onClick={() => onOpenChange(false)} className="w-full">
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Estoque() {
   const [busca, setBusca] = useState("");
   const debouncedBusca = useDebounce(busca, 300);
@@ -330,6 +397,11 @@ export default function Estoque() {
   });
 
   const { toast } = useToast();
+
+  // Estados para o Dialog de QR Code
+  const [isQRCodeDialogOpen, setIsQRCodeDialogOpen] = useState(false);
+  const [selectedQRCodeEstoque, setSelectedQRCodeEstoque] =
+    useState<EstoqueDetalhado | null>(null);
 
   useEffect(() => {
     const fetchUnidades = async () => {
@@ -447,6 +519,11 @@ export default function Estoque() {
         {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
       </Badge>
     );
+  };
+
+  const handleGenerateQRCode = (item: EstoqueDetalhado) => {
+    setSelectedQRCodeEstoque(item);
+    setIsQRCodeDialogOpen(true);
   };
 
   return (
@@ -668,10 +745,19 @@ export default function Estoque() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <MovimentacaoDialog
-                            estoque={item}
-                            onSuccess={handleSuccess}
-                          />
+                          <div className="flex items-center space-x-2 justify-end">
+                            <MovimentacaoDialog
+                              estoque={item}
+                              onSuccess={handleSuccess}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleGenerateQRCode(item)}
+                            >
+                              <QrCode className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -780,6 +866,17 @@ export default function Estoque() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog para exibir o QR Code */}
+      {isQRCodeDialogOpen && selectedQRCodeEstoque && (
+        <QRCodeDialog
+          open={isQRCodeDialogOpen}
+          onOpenChange={setIsQRCodeDialogOpen}
+          estoqueId={selectedQRCodeEstoque.id}
+          itemName={selectedQRCodeEstoque.itemContrato.nome}
+          unidadeNome={selectedQRCodeEstoque.unidadeEducacional.nome}
+        />
+      )}
     </div>
   );
 }

@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound";
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Badge } from "./components/ui/badge";
+import SaidaEstoqueQRCode from "./pages/SaidaEstoqueQRCode";
 
 const queryClient = new QueryClient();
 
@@ -178,6 +179,10 @@ function AppContent() {
         <Route
           path="/confirmacao-recebimento/:id"
           element={<ConfirmacaoRecebimento />}
+        />
+        <Route
+          path="/saida-estoque-qrcode/:estoqueId"
+          element={<SaidaEstoqueQRCode />}
         />
         <Route path="*" element={<NotFound />} />
       </Routes>
