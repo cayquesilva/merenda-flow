@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -21,8 +21,13 @@ import {
   Calendar,
   FileText,
   Loader2,
+  Camera, // Adicionado para a câmera/foto
+  RotateCcw, // Adicionado para limpar a assinatura
+  XCircle,
 } from "lucide-react";
+// Removido Recibo de "@/types" para usar a interface local ReciboDetalhadoConfirmacao
 import { useToast } from "@/hooks/use-toast";
+import SignatureCanvas from "react-signature-canvas"; // Importar a biblioteca de assinatura
 
 // Interfaces que representam as seleções específicas da rota /api/recibos/confirmacao/:id
 interface UnidadeMedidaSigla {
@@ -67,6 +72,7 @@ interface PedidoConfirmacaoBackend {
 }
 
 // Interface principal que mapeia a resposta completa da rota /api/recibos/confirmacao/:id
+// Adicionado assinaturaDigital e fotoReciboAssinado
 interface ReciboConfirmacaoBackend {
   id: string;
   numero: string;
@@ -83,6 +89,8 @@ interface ReciboConfirmacaoBackend {
   unidadeEducacional: UnidadeEducacionalConfirmacaoBackend;
   pedido: PedidoConfirmacaoBackend;
   itens: ItemReciboConfirmacaoBackend[];
+  assinaturaDigital?: string | null; // Adicionado
+  fotoReciboAssinado?: string | null; // Adicionado
 }
 
 // Nova interface para o objeto de erro retornado pela API
@@ -112,6 +120,16 @@ export default function ConfirmacaoRecebimento() {
     ItemConfirmacaoForm[]
   >([]);
 
+  const [assinaturaDigital, setAssinaturaDigital] = useState<string | null>(
+    null
+  );
+  const [fotoReciboAssinado, setFotoReciboAssinado] = useState<string | null>(
+    null
+  );
+
+  const sigCanvas = useRef<SignatureCanvas>(null); // Referência para o componente SignatureCanvas
+  const fileInputRef = useRef<HTMLInputElement>(null); // Referência para o input de arquivo
+
   useEffect(() => {
     if (id) {
       const fetchRecibo = async () => {
@@ -122,22 +140,31 @@ export default function ConfirmacaoRecebimento() {
             `http://localhost:3001/api/recibos/confirmacao/${id}`
           );
 
+          const data = await response.json();
+
           if (!response.ok) {
-            const errorData: ApiErrorResponse = await response.json();
-            throw new Error(errorData.error || "Falha ao carregar recibo.");
+            // data provavelmente é { error: string }, mas pode não ser
+            const errorMessage =
+              typeof data.error === "string"
+                ? data.error
+                : "Falha ao carregar recibo.";
+            throw new Error(errorMessage);
           }
 
-          const data: ReciboConfirmacaoBackend = await response.json();
+          // A partir daqui, podemos assumir que data é ReciboConfirmacaoBackend
+          const reciboData = data as ReciboConfirmacaoBackend;
 
-          setRecibo(data);
+          setRecibo(reciboData);
           setItensConfirmacao(
-            data.itens.map((item) => ({
+            reciboData.itens.map((item) => ({
               itemId: item.id,
               conforme: true,
               quantidadeRecebida: item.quantidadeSolicitada,
               observacoes: item.observacoes || "",
             }))
           );
+          setAssinaturaDigital(reciboData.assinaturaDigital || null);
+          setFotoReciboAssinado(reciboData.fotoReciboAssinado || null);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Ocorreu um erro.");
         } finally {
@@ -167,14 +194,13 @@ export default function ConfirmacaoRecebimento() {
   function handleItemChange(
     itemId: string,
     field: keyof ItemConfirmacaoForm,
-    value: boolean | number | string // Tipo de união para a implementação
+    value: boolean | number | string
   ) {
     setItensConfirmacao((prev) =>
       prev.map((item) => {
         if (item.itemId === itemId) {
           const updatedItem = { ...item, [field]: value };
 
-          // Refinamento de tipo para 'field' e 'value'
           if (
             field === "conforme" &&
             typeof value === "boolean" &&
@@ -192,6 +218,30 @@ export default function ConfirmacaoRecebimento() {
     );
   }
 
+  const clearSignature = () => {
+    if (sigCanvas.current) {
+      sigCanvas.current.clear();
+      setAssinaturaDigital(null);
+    }
+  };
+
+  const handleSignatureEnd = () => {
+    if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+      setAssinaturaDigital(sigCanvas.current.toDataURL());
+    }
+  };
+
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFotoReciboAssinado(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleConfirmar = async () => {
     if (!responsavel.trim()) {
       toast({
@@ -201,6 +251,16 @@ export default function ConfirmacaoRecebimento() {
       });
       return;
     }
+    // Validação da assinatura
+    if (!assinaturaDigital) {
+      toast({
+        title: "Erro",
+        description: "Por favor, colete a assinatura digital.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -208,17 +268,20 @@ export default function ConfirmacaoRecebimento() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ responsavel, observacoes, itensConfirmacao }),
+          body: JSON.stringify({
+            responsavel,
+            observacoes,
+            itensConfirmacao,
+            assinaturaDigital, // Envia a assinatura
+            fotoReciboAssinado, // Envia a foto
+          }),
         }
       );
-      if (!response.ok) {
-        const errorData: ApiErrorResponse = await response.json();
-        throw new Error(errorData.error || "Falha ao confirmar.");
-      }
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Falha ao confirmar.");
 
       toast({ title: "Recebimento confirmado!", description: data.message });
-      navigate("/");
+      navigate(`/recibos/imprimir/${recibo?.id}`); // Redireciona para a página de impressão
     } catch (err) {
       toast({
         title: "Erro",
@@ -390,7 +453,10 @@ export default function ConfirmacaoRecebimento() {
                               parseInt(e.target.value) || 0
                             )
                           }
-                          disabled={confirmacao?.conforme}
+                          disabled={
+                            recibo.status !== "pendente" ||
+                            confirmacao?.conforme
+                          } // Desabilita se não for pendente ou se já estiver conforme
                         />
                       </div>
                       <div>
@@ -406,7 +472,10 @@ export default function ConfirmacaoRecebimento() {
                               e.target.value
                             )
                           }
-                          disabled={confirmacao?.conforme}
+                          disabled={
+                            recibo.status !== "pendente" ||
+                            confirmacao?.conforme
+                          } // Desabilita se não for pendente ou se já estiver conforme
                         />
                       </div>
                     </div>
@@ -434,6 +503,7 @@ export default function ConfirmacaoRecebimento() {
                 value={responsavel}
                 onChange={(e) => setResponsavel(e.target.value)}
                 required
+                disabled={recibo.status !== "pendente"} // Desabilita se não for pendente
               />
             </div>
             <div>
@@ -444,19 +514,169 @@ export default function ConfirmacaoRecebimento() {
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 rows={1}
+                disabled={recibo.status !== "pendente"} // Desabilita se não for pendente
               />
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Campo de Assinatura Digital */}
+      {recibo.status === "pendente" && ( // Apenas mostra se o recibo estiver pendente
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Assinatura do Responsável pelo Recebimento *
+            </CardTitle>
+            <CardDescription>
+              Assine digitalmente para confirmar o recebimento.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border border-gray-300 rounded-lg overflow-hidden relative">
+              <SignatureCanvas
+                ref={sigCanvas}
+                penColor="black"
+                canvasProps={{
+                  width: 500,
+                  height: 200,
+                  className: "sigCanvas border-none",
+                }}
+                onEnd={handleSignatureEnd}
+                backgroundColor="rgb(248, 250, 252)" // Cor de fundo para o pad
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearSignature}
+                className="absolute top-2 right-2"
+                disabled={!sigCanvas.current || sigCanvas.current.isEmpty()}
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Limpar
+              </Button>
+            </div>
+            {!assinaturaDigital && (
+              <p className="text-sm text-red-500 mt-2">
+                Assinatura é obrigatória.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Campo para Anexar Foto do Recibo Assinado */}
+      {recibo.status === "pendente" && ( // Apenas mostra se o recibo estiver pendente
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Anexar Foto do Recibo Assinado (Opcional)
+            </CardTitle>
+            <CardDescription>
+              Anexe uma foto do recibo físico assinado para comprovação.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Input
+              id="fotoRecibo"
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoUpload}
+              ref={fileInputRef}
+            />
+            {fotoReciboAssinado && (
+              <div className="mt-4 relative group">
+                <img
+                  src={fotoReciboAssinado}
+                  alt="Recibo Assinado"
+                  className="max-w-full h-auto rounded-lg border"
+                />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setFotoReciboAssinado(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Exibir Assinatura e Foto se o recibo JÁ FOI confirmado */}
+      {recibo.status !== "pendente" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Comprovante de Confirmação
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {recibo.assinaturaDigital && (
+              <div>
+                <Label className="text-sm font-medium">
+                  Assinatura Digital:
+                </Label>
+                <img
+                  src={recibo.assinaturaDigital}
+                  alt="Assinatura Digital"
+                  className="w-full max-w-[200px] h-auto border border-gray-300 rounded-lg mt-2"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Responsável: {recibo.responsavelRecebimento}
+                </p>
+              </div>
+            )}
+            {recibo.fotoReciboAssinado && (
+              <div>
+                <Label className="text-sm font-medium">
+                  Foto do Recibo Assinado:
+                </Label>
+                <img
+                  src={recibo.fotoReciboAssinado}
+                  alt="Recibo Físico Assinado"
+                  className="w-full max-w-[200px] h-auto border border-gray-300 rounded-lg mt-2"
+                />
+              </div>
+            )}
+            {!recibo.assinaturaDigital && !recibo.fotoReciboAssinado && (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma assinatura ou foto anexada.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex gap-4 justify-end">
-        <Button variant="outline" onClick={() => navigate("/")}>
+        <Button
+          variant="outline"
+          onClick={() => navigate("/")}
+          disabled={isLoading}
+        >
           Cancelar
         </Button>
-        <Button onClick={handleConfirmar} disabled={isLoading}>
-          <CheckCircle className="mr-2 h-4 w-4" />
-          Confirmar Recebimento
-        </Button>
+        {recibo.status === "pendente" && ( // Botão de confirmar apenas se o recibo estiver pendente
+          <Button onClick={handleConfirmar} disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Confirmar Recebimento
+          </Button>
+        )}
+        {recibo.status !== "pendente" && ( // Botão de imprimir/ver se o recibo já foi confirmado
+          <Button onClick={() => navigate(`/recibos/imprimir/${recibo.id}`)}>
+            <FileText className="mr-2 h-4 w-4" />
+            Ver Comprovante
+          </Button>
+        )}
       </div>
     </div>
   );

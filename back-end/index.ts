@@ -816,6 +816,8 @@ app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
             },
           },
         },
+        assinaturaDigital: true, // Incluir no retorno
+        fotoReciboAssinado: true, // Incluir no retorno
       },
     });
 
@@ -840,7 +842,14 @@ app.post(
   "/api/recibos/confirmacao/:id",
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { responsavel, observacoes, itensConfirmacao } = req.body;
+    // NOVO: Coleta assinaturaDigital e fotoReciboAssinado do corpo da requisição
+    const {
+      responsavel,
+      observacoes,
+      itensConfirmacao,
+      assinaturaDigital,
+      fotoReciboAssinado,
+    } = req.body;
 
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -957,6 +966,8 @@ app.post(
             responsavelRecebimento: responsavel,
             observacoes,
             status: statusFinal,
+            assinaturaDigital: assinaturaDigital || null, // Salva a assinatura
+            fotoReciboAssinado: fotoReciboAssinado || null, // Salva a foto
           },
         });
 
@@ -975,6 +986,48 @@ app.post(
     }
   }
 );
+
+// COMENTÁRIO: Rota para buscar os detalhes completos de um recibo para impressão
+app.get("/api/recibos/imprimir/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const recibo = await prisma.recibo.findUnique({
+      where: { id },
+      include: {
+        pedido: {
+          include: {
+            contrato: { include: { fornecedor: true } },
+          },
+        },
+        unidadeEducacional: true,
+        itens: {
+          include: {
+            itemPedido: {
+              include: {
+                itemContrato: { include: { unidadeMedida: true } },
+                unidadeEducacional: true,
+              },
+            },
+          },
+        },
+        assinaturaDigital: true, // Incluir no retorno
+        fotoReciboAssinado: true, // Incluir no retorno
+      },
+    });
+
+    if (!recibo) {
+      return res
+        .status(404)
+        .json({ error: "Recibo não encontrado para impressão." });
+    }
+    res.json(recibo);
+  } catch (error) {
+    console.error("Erro ao buscar recibo para impressão:", error);
+    res
+      .status(500)
+      .json({ error: "Não foi possível carregar o recibo para impressão." });
+  }
+});
 
 // COMENTÁRIO: Retorna os dados para a página de dashboard de Confirmações.
 // UTILIZAÇÃO: Chamada pela página `Confirmacoes.tsx` para popular as tabelas.
@@ -1497,12 +1550,10 @@ app.get(
         "Erro ao gerar relatório de movimentação por responsável:",
         error
       );
-      res
-        .status(500)
-        .json({
-          error:
-            "Não foi possível gerar o relatório de movimentação por responsável.",
-        });
+      res.status(500).json({
+        error:
+          "Não foi possível gerar o relatório de movimentação por responsável.",
+      });
     }
   }
 );

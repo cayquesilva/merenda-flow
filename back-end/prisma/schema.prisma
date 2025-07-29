@@ -144,6 +144,8 @@ model Recibo {
   qrcode                  String?
   observacoes             String?
   createdAt               DateTime @default(now()) @map("created_at")
+  assinaturaDigital  String? @db.Text // Para armazenar a assinatura digital como base64
+  fotoReciboAssinado String? @db.Text // Para armazenar a foto do recibo assinado como base64
 
   // Relação com Pedido (um recibo pertence a um pedido)
   pedido   Pedido @relation(fields: [pedidoId], references: [id])

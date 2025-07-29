@@ -135,3 +135,47 @@ export interface MovimentacaoEstoque {
   responsavel: string;
   dataMovimentacao: string;
 }
+
+export interface ReciboConfirmacaoBackend {
+  id: string;
+  status: string;
+  dataRecebimento?: string | null;
+
+  unidadeEducacional: {
+    id: string;
+    nome: string;
+    codigo: string;
+    // adicione mais campos se houver
+  };
+
+  pedido: {
+    numero: string;
+    dataEntregaPrevista: string;
+  };
+
+  itens: {
+    id: string;
+    quantidadeSolicitada: number;
+    observacoes?: string | null;
+    itemPedido: {
+      itemContrato: {
+        nome: string;
+        unidadeMedida: {
+          sigla: string;
+        };
+      };
+    };
+  }[];
+
+  assinaturaDigital?: {
+    id: string;
+    imagemBase64: string;
+    criadoEm: string;
+  } | null;
+
+  fotoReciboAssinado?: {
+    id: string;
+    url: string;
+    criadoEm: string;
+  } | null;
+}
