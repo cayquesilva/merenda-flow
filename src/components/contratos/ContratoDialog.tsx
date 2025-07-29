@@ -21,7 +21,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Package, Loader2 } from "lucide-react";
-import { Contrato, ItemContrato } from "@/types";
+// Importar as interfaces completas do seu arquivo de tipos
+import { Contrato, ItemContrato, Fornecedor, UnidadeMedida } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 interface FornecedorLista {
@@ -33,15 +34,29 @@ interface UnidadeMedidaLista {
   nome: string;
   sigla: string;
 }
-type ContratoStatus = "ativo" | "suspenso" | "finalizado";
+type ContratoStatus = "ativo" | "inativo" | "vencido"; // Ajustado para corresponder aos seus tipos de contrato
 
 interface ContratoDialogProps {
-  contrato?: Contrato;
+  contrato?: Contrato | null; // Pode ser Contrato completo ou nulo/indefinido
   onSuccess: () => void;
+  open?: boolean; // Adicionado para controlar o diálogo externamente
+  onOpenChange?: (open: boolean) => void; // Adicionado para controlar o diálogo externamente
 }
 
-export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
-  const [open, setOpen] = useState(false);
+export function ContratoDialog({
+  contrato,
+  onSuccess,
+  open: propOpen,
+  onOpenChange,
+}: ContratoDialogProps) {
+  // Usar o estado interno se não for controlado por props, caso contrário, usar propOpen
+  const [open, setOpen] = useState(propOpen !== undefined ? propOpen : false);
+  useEffect(() => {
+    if (propOpen !== undefined) {
+      setOpen(propOpen);
+    }
+  }, [propOpen]);
+
   const { toast } = useToast();
   const isEdicao = !!contrato;
 
@@ -53,15 +68,7 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
     valorTotal: 0,
     status: "ativo" as ContratoStatus,
   });
-  const [itens, setItens] = useState<Partial<ItemContrato>[]>([
-    {
-      nome: "",
-      unidadeMedidaId: "",
-      valorUnitario: 0,
-      quantidadeOriginal: 0,
-      saldoAtual: 0,
-    },
-  ]);
+  const [itens, setItens] = useState<Partial<ItemContrato>[]>([]); // Inicializa como array vazio
 
   const [fornecedores, setFornecedores] = useState<FornecedorLista[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadeMedidaLista[]>(
@@ -73,6 +80,7 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
   // COMENTÁRIO: Este useEffect foi reestruturado para ser mais robusto.
   useEffect(() => {
     if (open) {
+      // Apenas executa quando o diálogo está aberto
       const fetchInitialData = async () => {
         setIsLoading(true);
         try {
@@ -91,36 +99,21 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
           setFornecedores(await fornecedoresRes.json());
           setUnidadesMedida(await unidadesRes.json());
 
-          // 2. Verifica se está em modo de edição.
+          // 2. Popula o formulário se estiver em modo de edição e 'contrato' estiver disponível
           if (isEdicao && contrato) {
-            // ALTERAÇÃO: Em vez de usar os dados parciais do 'contrato', buscamos os detalhes completos.
-            const detailsRes = await fetch(
-              `http://localhost:3001/api/contratos/${contrato.id}`
-            );
-            if (!detailsRes.ok) {
-              throw new Error(
-                "Falha ao carregar os detalhes do contrato para edição."
-              );
-            }
-            const fullContratoData: Contrato = await detailsRes.json();
-
-            // 3. Popula o formulário com os dados completos recebidos da API.
             setFormData({
-              numero: fullContratoData.numero,
-              fornecedorId: fullContratoData.fornecedor.id,
-              dataInicio: new Date(fullContratoData.dataInicio)
+              numero: contrato.numero,
+              fornecedorId: contrato.fornecedor.id, // Acessa o ID do fornecedor completo
+              dataInicio: new Date(contrato.dataInicio)
                 .toISOString()
                 .split("T")[0],
-              dataFim: new Date(fullContratoData.dataFim)
-                .toISOString()
-                .split("T")[0],
-              valorTotal: fullContratoData.valorTotal,
-              status: fullContratoData.status as ContratoStatus,
+              dataFim: new Date(contrato.dataFim).toISOString().split("T")[0],
+              valorTotal: contrato.valorTotal,
+              status: contrato.status as ContratoStatus,
             });
-            // Agora `fullContratoData.itens` é uma lista válida e não causará o erro.
-            setItens(fullContratoData.itens);
+            setItens(contrato.itens); // Assume que contrato.itens já é o tipo correto
           } else {
-            // 4. Se for modo de criação, reseta o formulário.
+            // Se for modo de criação, reseta o formulário.
             resetForm();
           }
         } catch (error) {
@@ -133,14 +126,19 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
             description: errorMessage,
             variant: "destructive",
           });
-          setOpen(false);
+          // Se houver um erro ao carregar dados, feche o diálogo
+          if (onOpenChange) onOpenChange(false);
+          setOpen(false); // Garante que o estado interno também seja atualizado
         } finally {
           setIsLoading(false);
         }
       };
       fetchInitialData();
+    } else {
+      // Quando o diálogo fecha, reseta o formulário para o próximo uso
+      resetForm();
     }
-  }, [open, contrato, isEdicao, toast]);
+  }, [open, contrato, isEdicao, toast, onOpenChange]); // Adicionado onOpenChange às dependências
 
   const resetForm = () => {
     setFormData({
@@ -185,12 +183,35 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
   const removerItem = (index: number) => {
     if (itens.length > 1) setItens(itens.filter((_, i) => i !== index));
   };
-  const atualizarItem = (index: number, campo: string, valor: any) => {
+  type CamposItem =
+    | "nome"
+    | "unidadeMedidaId"
+    | "valorUnitario"
+    | "quantidadeOriginal"
+    | "saldoAtual";
+
+  function atualizarItem(
+    index: number,
+    campo: "nome" | "unidadeMedidaId",
+    valor: string
+  ): void;
+  function atualizarItem(
+    index: number,
+    campo: "valorUnitario" | "quantidadeOriginal" | "saldoAtual",
+    valor: number
+  ): void;
+  function atualizarItem(
+    index: number,
+    campo: CamposItem,
+    valor: string | number
+  ): void {
     const novosItens = [...itens];
     novosItens[index] = { ...novosItens[index], [campo]: valor };
-    if (campo === "quantidadeOriginal") novosItens[index].saldoAtual = valor;
+    if (campo === "quantidadeOriginal") {
+      novosItens[index].saldoAtual = valor as number;
+    }
     setItens(novosItens);
-  };
+  }
 
   const handleSubmit = async () => {
     if (
@@ -222,13 +243,16 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
       ...formData,
       dataInicio: new Date(formData.dataInicio).toISOString(),
       dataFim: new Date(formData.dataFim).toISOString(),
+      // Itens só são enviados na criação
       ...(!isEdicao && { itens: itensPayload }),
     };
 
     try {
-      const url = isEdicao
-        ? `http://localhost:3001/api/contratos/${contrato.id}`
-        : "http://localhost:3001/api/contratos";
+      // O contrato.id só estará disponível se isEdicao for true e contrato não for null
+      const url =
+        isEdicao && contrato?.id
+          ? `http://localhost:3001/api/contratos/${contrato.id}`
+          : "http://localhost:3001/api/contratos";
       const method = isEdicao ? "PUT" : "POST";
       const response = await fetch(url, {
         method,
@@ -247,7 +271,9 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
           isEdicao ? "atualizado" : "cadastrado"
         } com sucesso.`,
       });
-      setOpen(false);
+      // Se o diálogo for controlado externamente, use onOpenChange
+      if (onOpenChange) onOpenChange(false);
+      setOpen(false); // Garante que o estado interno também seja atualizado
       onSuccess();
     } catch (error) {
       const errorMessage =
@@ -264,20 +290,25 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
     }
   };
 
+  // Função para lidar com a mudança de estado do diálogo (interno ou externo)
+  const handleOpenChangeInternal = (newOpenState: boolean) => {
+    setOpen(newOpenState);
+    if (onOpenChange) {
+      onOpenChange(newOpenState);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChangeInternal}>
       <DialogTrigger asChild>
-        <Button
-          variant={isEdicao ? "outline" : "default"}
-          size={isEdicao ? "sm" : "default"}
-        >
-          {isEdicao ? (
-            <Edit className="h-3 w-3" />
-          ) : (
+        {/* Renderiza o botão de "Novo Contrato" apenas se não estiver em modo de edição */}
+        {!isEdicao && (
+          <Button variant="default">
             <Plus className="mr-2 h-4 w-4" />
-          )}
-          {isEdicao ? "" : "Novo Contrato"}
-        </Button>
+            Novo Contrato
+          </Button>
+        )}
+        {/* Se estiver em modo de edição, o botão de edição será renderizado no componente pai (Contratos.tsx) */}
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -370,8 +401,8 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="suspenso">Suspenso</SelectItem>
-                    <SelectItem value="finalizado">Finalizado</SelectItem>
+                    <SelectItem value="inativo">Inativo</SelectItem>
+                    <SelectItem value="vencido">Vencido</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -396,7 +427,9 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
               <CardContent>
                 <div className="space-y-4">
                   {itens.map((item, index) => (
-                    <Card key={index} className="p-4">
+                    <Card key={item.id || index} className="p-4">
+                      {" "}
+                      {/* Usar item.id se existir, senão index */}
                       <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
                         <div className="md:col-span-2">
                           <Label>Nome do Item *</Label>
@@ -506,7 +539,7 @@ export function ContratoDialog({ contrato, onSuccess }: ContratoDialogProps) {
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => setOpen(false)}
+            onClick={() => handleOpenChangeInternal(false)} // Usar a função que controla o estado interno e externo
             disabled={isSubmitting || isLoading}
           >
             Cancelar

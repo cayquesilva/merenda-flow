@@ -885,7 +885,7 @@ app.post(
             // Buscar o recibo para obter a unidade educacional
             const recibo = await tx.recibo.findUnique({
               where: { id },
-              select: { unidadeEducacionalId: true }
+              select: { unidadeEducacionalId: true },
             });
 
             if (recibo) {
@@ -894,9 +894,9 @@ app.post(
                 where: {
                   unidadeEducacionalId_itemContratoId: {
                     unidadeEducacionalId: recibo.unidadeEducacionalId,
-                    itemContratoId: itemRecibo.itemPedido.itemContratoId
-                  }
-                }
+                    itemContratoId: itemRecibo.itemPedido.itemContratoId,
+                  },
+                },
               });
 
               const quantidadeRecebida = Number(item.quantidadeRecebida);
@@ -908,10 +908,10 @@ app.post(
                   where: { id: estoqueExistente.id },
                   data: {
                     quantidadeAtual: {
-                      increment: quantidadeRecebida
+                      increment: quantidadeRecebida,
                     },
-                    ultimaAtualizacao: new Date()
-                  }
+                    ultimaAtualizacao: new Date(),
+                  },
                 });
               } else {
                 // Criar novo registro de estoque
@@ -921,8 +921,8 @@ app.post(
                     itemContratoId: itemRecibo.itemPedido.itemContratoId,
                     quantidadeAtual: quantidadeRecebida,
                     quantidadeMinima: 0,
-                    ultimaAtualizacao: new Date()
-                  }
+                    ultimaAtualizacao: new Date(),
+                  },
                 });
               }
 
@@ -930,15 +930,15 @@ app.post(
               await tx.movimentacaoEstoque.create({
                 data: {
                   estoqueId: estoqueAtualizado.id,
-                  tipo: 'entrada',
+                  tipo: "entrada",
                   quantidade: quantidadeRecebida,
                   quantidadeAnterior: estoqueExistente?.quantidadeAtual || 0,
                   quantidadeNova: estoqueAtualizado.quantidadeAtual,
                   motivo: `Recebimento confirmado - Recibo ${itemRecibo.itemPedido.quantidade}`,
                   reciboId: id,
                   responsavel: responsavel,
-                  dataMovimentacao: new Date()
-                }
+                  dataMovimentacao: new Date(),
+                },
               });
             }
           }
@@ -1071,43 +1071,48 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
 // --- ROTAS DE ESTOQUE ---
 
 // COMENTÁRIO: Lista o estoque de uma unidade específica
-app.get("/api/estoque/unidade/:unidadeId", async (req: Request, res: Response) => {
-  const { unidadeId } = req.params;
-  const { q } = req.query;
+app.get(
+  "/api/estoque/unidade/:unidadeId",
+  async (req: Request, res: Response) => {
+    const { unidadeId } = req.params;
+    const { q } = req.query;
 
-  try {
-    const estoque = await prisma.estoque.findMany({
-      where: {
-        unidadeEducacionalId: unidadeId,
-        ...(q ? {
-          itemContrato: {
-            nome: { contains: q as string, mode: "insensitive" }
-          }
-        } : {})
-      },
-      include: {
-        itemContrato: {
-          include: {
-            unidadeMedida: true,
-            contrato: {
-              select: {
-                numero: true,
-                fornecedor: { select: { nome: true } }
+    try {
+      const estoque = await prisma.estoque.findMany({
+        where: {
+          unidadeEducacionalId: unidadeId,
+          ...(q
+            ? {
+                itemContrato: {
+                  nome: { contains: q as string, mode: "insensitive" },
+                },
               }
-            }
-          }
+            : {}),
         },
-        unidadeEducacional: { select: { nome: true, codigo: true } }
-      },
-      orderBy: { itemContrato: { nome: "asc" } }
-    });
+        include: {
+          itemContrato: {
+            include: {
+              unidadeMedida: true,
+              contrato: {
+                select: {
+                  numero: true,
+                  fornecedor: { select: { nome: true } },
+                },
+              },
+            },
+          },
+          unidadeEducacional: { select: { nome: true, codigo: true } },
+        },
+        orderBy: { itemContrato: { nome: "asc" } },
+      });
 
-    res.json(estoque);
-  } catch (error) {
-    console.error("Erro ao buscar estoque:", error);
-    res.status(500).json({ error: "Não foi possível buscar o estoque." });
+      res.json(estoque);
+    } catch (error) {
+      console.error("Erro ao buscar estoque:", error);
+      res.status(500).json({ error: "Não foi possível buscar o estoque." });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Lista o estoque consolidado de todas as unidades
 app.get("/api/estoque/consolidado", async (req: Request, res: Response) => {
@@ -1117,11 +1122,13 @@ app.get("/api/estoque/consolidado", async (req: Request, res: Response) => {
     const estoque = await prisma.estoque.findMany({
       where: {
         ...(unidadeId ? { unidadeEducacionalId: unidadeId as string } : {}),
-        ...(q ? {
-          itemContrato: {
-            nome: { contains: q as string, mode: "insensitive" }
-          }
-        } : {})
+        ...(q
+          ? {
+              itemContrato: {
+                nome: { contains: q as string, mode: "insensitive" },
+              },
+            }
+          : {}),
       },
       include: {
         itemContrato: {
@@ -1130,23 +1137,25 @@ app.get("/api/estoque/consolidado", async (req: Request, res: Response) => {
             contrato: {
               select: {
                 numero: true,
-                fornecedor: { select: { nome: true } }
-              }
-            }
-          }
+                fornecedor: { select: { nome: true } },
+              },
+            },
+          },
         },
-        unidadeEducacional: { select: { nome: true, codigo: true } }
+        unidadeEducacional: { select: { nome: true, codigo: true } },
       },
       orderBy: [
         { unidadeEducacional: { nome: "asc" } },
-        { itemContrato: { nome: "asc" } }
-      ]
+        { itemContrato: { nome: "asc" } },
+      ],
     });
 
     res.json(estoque);
   } catch (error) {
     console.error("Erro ao buscar estoque consolidado:", error);
-    res.status(500).json({ error: "Não foi possível buscar o estoque consolidado." });
+    res
+      .status(500)
+      .json({ error: "Não foi possível buscar o estoque consolidado." });
   }
 });
 
@@ -1155,7 +1164,7 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
   const { estoqueId, unidadeId, dataInicio, dataFim } = req.query;
 
   try {
-    const whereClause: any = {};
+    const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
 
     if (estoqueId) {
       whereClause.estoqueId = estoqueId as string;
@@ -1163,14 +1172,14 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
 
     if (unidadeId) {
       whereClause.estoque = {
-        unidadeEducacionalId: unidadeId as string
+        unidadeEducacionalId: unidadeId as string,
       };
     }
 
     if (dataInicio && dataFim) {
       whereClause.dataMovimentacao = {
         gte: new Date(dataInicio as string),
-        lte: new Date(dataFim as string)
+        lte: new Date(dataFim as string),
       };
     }
 
@@ -1181,22 +1190,24 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
           include: {
             itemContrato: {
               include: {
-                unidadeMedida: true
-              }
+                unidadeMedida: true,
+              },
             },
-            unidadeEducacional: { select: { nome: true, codigo: true } }
-          }
+            unidadeEducacional: { select: { nome: true, codigo: true } },
+          },
         },
-        recibo: { select: { numero: true } }
+        recibo: { select: { numero: true } },
       },
       orderBy: { dataMovimentacao: "desc" },
-      take: 100 // Limitar para performance
+      take: 100, // Limitar para performance
     });
 
     res.json(movimentacoes);
   } catch (error) {
     console.error("Erro ao buscar movimentações:", error);
-    res.status(500).json({ error: "Não foi possível buscar as movimentações." });
+    res
+      .status(500)
+      .json({ error: "Não foi possível buscar as movimentações." });
   }
 });
 
@@ -1208,7 +1219,7 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
     const result = await prisma.$transaction(async (tx) => {
       // Buscar o estoque atual
       const estoque = await tx.estoque.findUnique({
-        where: { id: estoqueId }
+        where: { id: estoqueId },
       });
 
       if (!estoque) {
@@ -1220,16 +1231,16 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
 
       // Calcular nova quantidade baseada no tipo de movimentação
       switch (tipo) {
-        case 'saida':
+        case "saida":
           quantidadeNova = quantidadeAnterior - Number(quantidade);
           if (quantidadeNova < 0) {
             throw new Error("Quantidade insuficiente em estoque");
           }
           break;
-        case 'entrada':
+        case "entrada":
           quantidadeNova = quantidadeAnterior + Number(quantidade);
           break;
-        case 'ajuste':
+        case "ajuste":
           quantidadeNova = Number(quantidade);
           break;
         default:
@@ -1241,8 +1252,8 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
         where: { id: estoqueId },
         data: {
           quantidadeAtual: quantidadeNova,
-          ultimaAtualizacao: new Date()
-        }
+          ultimaAtualizacao: new Date(),
+        },
       });
 
       // Registrar a movimentação
@@ -1255,8 +1266,8 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
           quantidadeNova,
           motivo,
           responsavel,
-          dataMovimentacao: new Date()
-        }
+          dataMovimentacao: new Date(),
+        },
       });
 
       return { estoque: estoqueAtualizado, movimentacao };
@@ -1264,130 +1275,146 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: "Movimentação registrada com sucesso",
-      data: result
+      data: result,
     });
   } catch (error) {
     console.error("Erro ao registrar movimentação:", error);
-    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    const errorMessage =
+      error instanceof Error ? error.message : "Erro desconhecido";
     res.status(500).json({ error: errorMessage });
   }
 });
 
 // COMENTÁRIO: Atualiza a quantidade mínima de um item no estoque
-app.put("/api/estoque/:id/quantidade-minima", async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { quantidadeMinima } = req.body;
+app.put(
+  "/api/estoque/:id/quantidade-minima",
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { quantidadeMinima } = req.body;
 
-  try {
-    const estoque = await prisma.estoque.update({
-      where: { id },
-      data: {
-        quantidadeMinima: Number(quantidadeMinima),
-        ultimaAtualizacao: new Date()
-      },
-      include: {
-        itemContrato: { include: { unidadeMedida: true } },
-        unidadeEducacional: { select: { nome: true } }
-      }
-    });
+    try {
+      const estoque = await prisma.estoque.update({
+        where: { id },
+        data: {
+          quantidadeMinima: Number(quantidadeMinima),
+          ultimaAtualizacao: new Date(),
+        },
+        include: {
+          itemContrato: { include: { unidadeMedida: true } },
+          unidadeEducacional: { select: { nome: true } },
+        },
+      });
 
-    res.json(estoque);
-  } catch (error) {
-    console.error("Erro ao atualizar quantidade mínima:", error);
-    res.status(500).json({ error: "Não foi possível atualizar a quantidade mínima." });
+      res.json(estoque);
+    } catch (error) {
+      console.error("Erro ao atualizar quantidade mínima:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível atualizar a quantidade mínima." });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Relatório de estoque por unidade
-app.get("/api/relatorios/estoque-unidade", async (req: Request, res: Response) => {
-  const { unidadeId, dataInicio, dataFim } = req.query;
+app.get(
+  "/api/relatorios/estoque-unidade",
+  async (req: Request, res: Response) => {
+    const { unidadeId, dataInicio, dataFim } = req.query;
 
-  try {
-    const whereClause: any = {};
-    
-    if (unidadeId) {
-      whereClause.unidadeEducacionalId = unidadeId as string;
-    }
+    try {
+      const whereClause: Prisma.EstoqueWhereInput = {};
 
-    // Buscar estoque atual
-    const estoque = await prisma.estoque.findMany({
-      where: whereClause,
-      include: {
-        itemContrato: {
-          include: {
-            unidadeMedida: true,
-            contrato: {
-              select: {
-                numero: true,
-                fornecedor: { select: { nome: true } }
-              }
-            }
-          }
+      if (unidadeId) {
+        whereClause.unidadeEducacionalId = unidadeId as string;
+      }
+
+      // Buscar estoque atual
+      const estoque = await prisma.estoque.findMany({
+        where: whereClause,
+        include: {
+          itemContrato: {
+            include: {
+              unidadeMedida: true,
+              contrato: {
+                select: {
+                  numero: true,
+                  fornecedor: { select: { nome: true } },
+                },
+              },
+            },
+          },
+          unidadeEducacional: { select: { nome: true, codigo: true } },
         },
-        unidadeEducacional: { select: { nome: true, codigo: true } }
+      });
+
+      // Buscar movimentações no período
+      const movimentacoesWhere: Prisma.MovimentacaoEstoqueWhereInput = {};
+
+      if (unidadeId) {
+        movimentacoesWhere.estoque = {
+          unidadeEducacionalId: unidadeId as string,
+        };
       }
-    });
 
-    // Buscar movimentações no período
-    const movimentacoesWhere: any = {};
-    if (unidadeId) {
-      movimentacoesWhere.estoque = {
-        unidadeEducacionalId: unidadeId as string
-      };
-    }
-    if (dataInicio && dataFim) {
-      movimentacoesWhere.dataMovimentacao = {
-        gte: new Date(dataInicio as string),
-        lte: new Date(dataFim as string)
-      };
-    }
-
-    const movimentacoes = await prisma.movimentacaoEstoque.findMany({
-      where: movimentacoesWhere,
-      include: {
-        estoque: {
-          include: {
-            itemContrato: { include: { unidadeMedida: true } },
-            unidadeEducacional: { select: { nome: true } }
-          }
-        }
-      },
-      orderBy: { dataMovimentacao: "desc" }
-    });
-
-    // Calcular estatísticas
-    const totalItens = estoque.length;
-    const itensComEstoque = estoque.filter(e => e.quantidadeAtual > 0).length;
-    const itensAbaixoMinimo = estoque.filter(e => 
-      e.quantidadeMinima > 0 && e.quantidadeAtual < e.quantidadeMinima
-    ).length;
-    const valorTotalEstoque = estoque.reduce((sum, e) => 
-      sum + (e.quantidadeAtual * e.itemContrato.valorUnitario), 0
-    );
-
-    const entradas = movimentacoes.filter(m => m.tipo === 'entrada');
-    const saidas = movimentacoes.filter(m => m.tipo === 'saida');
-    const totalEntradas = entradas.reduce((sum, m) => sum + m.quantidade, 0);
-    const totalSaidas = saidas.reduce((sum, m) => sum + m.quantidade, 0);
-
-    res.json({
-      estoque,
-      movimentacoes,
-      estatisticas: {
-        totalItens,
-        itensComEstoque,
-        itensAbaixoMinimo,
-        valorTotalEstoque,
-        totalEntradas,
-        totalSaidas,
-        totalMovimentacoes: movimentacoes.length
+      if (dataInicio && dataFim) {
+        movimentacoesWhere.dataMovimentacao = {
+          gte: new Date(dataInicio as string),
+          lte: new Date(dataFim as string),
+        };
       }
-    });
-  } catch (error) {
-    console.error("Erro ao gerar relatório de estoque:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório de estoque." });
+
+      const movimentacoes = await prisma.movimentacaoEstoque.findMany({
+        where: movimentacoesWhere,
+        include: {
+          estoque: {
+            include: {
+              itemContrato: { include: { unidadeMedida: true } },
+              unidadeEducacional: { select: { nome: true } },
+            },
+          },
+        },
+        orderBy: { dataMovimentacao: "desc" },
+      });
+
+      // Calcular estatísticas
+      const totalItens = estoque.length;
+      const itensComEstoque = estoque.filter(
+        (e) => e.quantidadeAtual > 0
+      ).length;
+      const itensAbaixoMinimo = estoque.filter(
+        (e) => e.quantidadeMinima > 0 && e.quantidadeAtual < e.quantidadeMinima
+      ).length;
+      const valorTotalEstoque = estoque.reduce(
+        (sum, e) => sum + e.quantidadeAtual * e.itemContrato.valorUnitario,
+        0
+      );
+
+      const entradas = movimentacoes.filter((m) => m.tipo === "entrada");
+      const saidas = movimentacoes.filter((m) => m.tipo === "saida");
+      const totalEntradas = entradas.reduce((sum, m) => sum + m.quantidade, 0);
+      const totalSaidas = saidas.reduce((sum, m) => sum + m.quantidade, 0);
+
+      res.json({
+        estoque,
+        movimentacoes,
+        estatisticas: {
+          totalItens,
+          itensComEstoque,
+          itensAbaixoMinimo,
+          valorTotalEstoque,
+          totalEntradas,
+          totalSaidas,
+          totalMovimentacoes: movimentacoes.length,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao gerar relatório de estoque:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório de estoque." });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Gera um relatório consolidado de pedidos por contrato em PDF
 // UTILIZAÇÃO: Chamada pela página `Relatorios.tsx` ao clicar em "Exportar PDF"

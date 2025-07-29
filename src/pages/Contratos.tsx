@@ -34,9 +34,21 @@ import {
   Package,
   AlertTriangle,
   Loader2,
+  Edit, // Importar o ícone de Edit
 } from "lucide-react";
 import { ContratoDialog } from "@/components/contratos/ContratoDialog";
+// Importar a interface Contrato do seu arquivo de tipos
 import { Contrato } from "@/types";
+
+// COMENTÁRIO: Nova interface para refletir a estrutura de dados retornada pela API /api/contratos
+// Esta interface estende a interface base Contrato, mas sobrescreve 'fornecedor' e adiciona '_count'.
+interface ContratoDetalhadoLista extends Omit<Contrato, "fornecedor"> {
+  fornecedor: { nome: string }; // A API de lista de contratos retorna apenas o nome do fornecedor
+  _count?: {
+    // A API de lista de contratos inclui a contagem de itens
+    itens: number;
+  };
+}
 
 // COMENTÁRIO: Hook customizado para "debouncing". Evita que uma chamada à API
 // seja feita a cada tecla digitada na busca, esperando o utilizador parar de digitar.
@@ -56,7 +68,8 @@ export default function Contratos() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // COMENTÁRIO: Estados para armazenar os dados vindos da API e controlar o carregamento.
-  const [contratos, setContratos] = useState<Contrato[]>([]);
+  // Usando a nova interface ContratoDetalhadoLista para tipar o array de contratos.
+  const [contratos, setContratos] = useState<ContratoDetalhadoLista[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // COMENTÁRIO: Estados dedicados ao dialog de visualização de detalhes.
@@ -65,6 +78,13 @@ export default function Contratos() {
   );
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isDialogLoading, setIsDialogLoading] = useState(false);
+
+  // NOVO: Estado para armazenar o contrato completo para edição
+  const [editContratoData, setEditContratoData] = useState<Contrato | null>(
+    null
+  );
+  // NOVO: Estado para controlar a visibilidade do diálogo de edição
+  const [isEditDialogVisible, setIsEditDialogVisible] = useState(false);
 
   // COMENTÁRIO: Função chamada pelo ContratoDialog após um sucesso (criação/edição) para forçar a atualização da lista.
   const handleSuccess = () => {
@@ -80,8 +100,14 @@ export default function Contratos() {
         const response = await fetch(
           `http://localhost:3001/api/contratos?q=${debouncedSearchTerm}`
         );
-        if (!response.ok) throw new Error("Falha ao buscar contratos da API.");
-        const data = await response.json();
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || "Falha ao buscar contratos da API."
+          );
+        }
+        // Tipando os dados recebidos da API com ContratoDetalhadoLista[]
+        const data: ContratoDetalhadoLista[] = await response.json();
         setContratos(data);
       } catch (error) {
         console.error("Erro ao buscar contratos:", error);
@@ -102,9 +128,14 @@ export default function Contratos() {
       const response = await fetch(
         `http://localhost:3001/api/contratos/${contratoId}`
       );
-      if (!response.ok)
-        throw new Error("Falha ao buscar detalhes do contrato.");
-      const data = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Falha ao buscar detalhes do contrato."
+        );
+      }
+      // Aqui, esperamos o tipo Contrato completo, pois a rota retorna todos os detalhes.
+      const data: Contrato = await response.json();
       setSelectedContrato(data);
     } catch (error) {
       console.error("Erro ao visualizar detalhes:", error);
@@ -112,6 +143,35 @@ export default function Contratos() {
     } finally {
       setIsDialogLoading(false);
     }
+  };
+
+  // NOVO: Função para abrir o diálogo de edição e buscar os dados completos do contrato
+  const handleOpenEditDialog = async (contratoId: string) => {
+    setIsEditDialogVisible(true); // Abre o diálogo para mostrar o estado de carregamento
+    setEditContratoData(null); // Limpa dados anteriores para indicar carregamento
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/contratos/${contratoId}`
+      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Falha ao carregar contrato para edição."
+        );
+      }
+      const data: Contrato = await response.json(); // Busca o Contrato completo
+      setEditContratoData(data); // Define o contrato completo para o diálogo
+    } catch (error) {
+      console.error("Erro ao carregar contrato para edição:", error);
+      // Opcional: mostrar um toast de erro aqui
+      setIsEditDialogVisible(false); // Fecha o diálogo se houver um erro
+    }
+  };
+
+  // NOVO: Função para fechar o diálogo de edição
+  const handleCloseEditDialog = () => {
+    setIsEditDialogVisible(false);
+    setEditContratoData(null); // Limpa os dados ao fechar
   };
 
   // COMENTÁRIO: Funções de ajuda para a renderização, mantidas do seu ficheiro original.
@@ -144,6 +204,7 @@ export default function Contratos() {
             Gerencie os contratos de fornecimento de merenda
           </p>
         </div>
+        {/* ContratoDialog para CRIAÇÃO (sem a prop 'contrato') */}
         <ContratoDialog onSuccess={handleSuccess} />
       </div>
 
@@ -221,9 +282,8 @@ export default function Contratos() {
                     <TableCell>
                       <div className="flex items-center text-sm">
                         <Package className="mr-1 h-3 w-3" />
-                        {(contrato as any)._count?.itens ??
-                          contrato.itens.length}{" "}
-                        itens
+                        {/* Acessando _count.itens diretamente */}
+                        {contrato._count?.itens ?? contrato.itens.length} itens
                       </div>
                     </TableCell>
                     <TableCell>
@@ -235,10 +295,14 @@ export default function Contratos() {
                         >
                           <Eye className="h-3 w-3" />
                         </Button>
-                        <ContratoDialog
-                          contrato={contrato}
-                          onSuccess={handleSuccess}
-                        />
+                        {/* Botão para abrir o diálogo de edição */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEditDialog(contrato.id)} // Chama a nova função
+                        >
+                          <Edit className="h-3 w-3" /> {/* Ícone de edição */}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -255,6 +319,7 @@ export default function Contratos() {
         </CardContent>
       </Card>
 
+      {/* Diálogo para visualização de detalhes (existente) */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -384,6 +449,20 @@ export default function Contratos() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* NOVO: ContratoDialog para EDIÇÃO (controlado por estado) */}
+      {/* Ele só será renderizado se isEditDialogVisible for true */}
+      {isEditDialogVisible && (
+        <ContratoDialog
+          open={isEditDialogVisible} // Passa o estado de controle
+          onOpenChange={handleCloseEditDialog} // Passa a função para fechar o diálogo
+          contrato={editContratoData} // Passa o contrato completo (será null inicialmente, depois preenchido)
+          onSuccess={() => {
+            handleSuccess(); // Atualiza a lista após sucesso
+            handleCloseEditDialog(); // Fecha o diálogo de edição
+          }}
+        />
+      )}
     </div>
   );
 }

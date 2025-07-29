@@ -6,8 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,13 +35,50 @@ import {
   Filter,
   AlertTriangle,
   BarChart3,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Estoque, MovimentacaoEstoque, UnidadeEducacional } from "@/types";
+// Importar as interfaces base do seu arquivo de tipos
+import {
+  Estoque as BaseEstoque,
+  MovimentacaoEstoque as BaseMovimentacaoEstoque,
+  UnidadeEducacional,
+  ItemContrato,
+  Contrato,
+  Fornecedor,
+  UnidadeMedida,
+  Recibo,
+} from "@/types";
+
+// Interfaces detalhadas para corresponder ao retorno da API
+interface ItemContratoDetalhado extends ItemContrato {
+  contrato: Contrato & {
+    fornecedor: Fornecedor;
+  };
+  unidadeMedida: UnidadeMedida;
+}
+
+interface EstoqueDetalhadoRelatorio extends BaseEstoque {
+  itemContrato: ItemContratoDetalhado;
+  unidadeEducacional: UnidadeEducacional;
+}
+
+// CORREÇÃO: Usando Omit para remover 'estoque' e 'recibo' da interface base
+interface MovimentacaoEstoqueDetalhadaRelatorio
+  extends Omit<BaseMovimentacaoEstoque, "estoque" | "recibo"> {
+  estoque: {
+    id: string; // O ID do estoque é o único que vem diretamente aqui, o resto está aninhado
+    itemContrato: ItemContratoDetalhado; // Reutiliza a interface detalhada
+    unidadeEducacional: UnidadeEducacional;
+  };
+  recibo: {
+    numero: string;
+  } | null; // Pode ser nulo
+}
 
 interface RelatorioEstoqueData {
-  estoque: Estoque[];
-  movimentacoes: MovimentacaoEstoque[];
+  estoque: EstoqueDetalhadoRelatorio[]; // Usar a interface detalhada aqui
+  movimentacoes: MovimentacaoEstoqueDetalhadaRelatorio[]; // Usar a interface detalhada aqui
   estatisticas: {
     totalItens: number;
     itensComEstoque: number;
@@ -65,7 +102,9 @@ export function RelatorioEstoque() {
   useEffect(() => {
     const fetchUnidades = async () => {
       try {
-        const response = await fetch("http://localhost:3001/api/unidades-ativas");
+        const response = await fetch(
+          "http://localhost:3001/api/unidades-ativas"
+        );
         if (response.ok) {
           setUnidades(await response.json());
         }
@@ -99,7 +138,7 @@ export function RelatorioEstoque() {
       );
 
       if (response.ok) {
-        const data: RelatorioEstoqueData = await response.json();
+        const data: RelatorioEstoqueData = await response.json(); // Tipagem aqui
         setDados(data);
         toast({
           title: "Relatório gerado!",
@@ -131,12 +170,20 @@ export function RelatorioEstoque() {
     });
   };
 
-  const getStatusBadge = (estoque: Estoque) => {
+  const getStatusBadge = (estoque: EstoqueDetalhadoRelatorio) => {
+    // Usar a interface detalhada
     if (estoque.quantidadeAtual === 0) {
       return <Badge variant="destructive">Sem Estoque</Badge>;
     }
-    if (estoque.quantidadeMinima > 0 && estoque.quantidadeAtual < estoque.quantidadeMinima) {
-      return <Badge variant="outline" className="border-warning text-warning">Abaixo do Mínimo</Badge>;
+    if (
+      estoque.quantidadeMinima > 0 &&
+      estoque.quantidadeAtual < estoque.quantidadeMinima
+    ) {
+      return (
+        <Badge variant="outline" className="border-warning text-warning">
+          Abaixo do Mínimo
+        </Badge>
+      );
     }
     return <Badge variant="default">Normal</Badge>;
   };
@@ -196,7 +243,10 @@ export function RelatorioEstoque() {
             </div>
             <div>
               <Label htmlFor="unidade">Unidade (Opcional)</Label>
-              <Select value={unidadeSelecionada} onValueChange={setUnidadeSelecionada}>
+              <Select
+                value={unidadeSelecionada}
+                onValueChange={setUnidadeSelecionada}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Todas as unidades" />
                 </SelectTrigger>
@@ -237,8 +287,12 @@ export function RelatorioEstoque() {
                     <Package className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total de Itens</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.totalItens}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Total de Itens
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.totalItens}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -251,8 +305,12 @@ export function RelatorioEstoque() {
                     <TrendingUp className="h-6 w-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Com Estoque</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.itensComEstoque}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Com Estoque
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.itensComEstoque}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -265,8 +323,12 @@ export function RelatorioEstoque() {
                     <AlertTriangle className="h-6 w-6 text-warning" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Abaixo do Mínimo</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.itensAbaixoMinimo}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Abaixo do Mínimo
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.itensAbaixoMinimo}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -279,7 +341,9 @@ export function RelatorioEstoque() {
                     <BarChart3 className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Valor Total</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Valor Total
+                    </p>
                     <p className="text-2xl font-bold">
                       R$ {dados.estatisticas.valorTotalEstoque.toFixed(2)}
                     </p>
@@ -301,11 +365,15 @@ export function RelatorioEstoque() {
                     <p className="text-2xl font-bold text-success">
                       {dados.estatisticas.totalEntradas}
                     </p>
-                    <p className="text-sm text-muted-foreground">Total de Entradas</p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Entradas
+                    </p>
                     <Progress
                       value={
                         dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.totalEntradas / dados.estatisticas.totalMovimentacoes) * 100
+                          ? (dados.estatisticas.totalEntradas /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
                           : 0
                       }
                       className="h-2"
@@ -317,11 +385,15 @@ export function RelatorioEstoque() {
                     <p className="text-2xl font-bold text-destructive">
                       {dados.estatisticas.totalSaidas}
                     </p>
-                    <p className="text-sm text-muted-foreground">Total de Saídas</p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Saídas
+                    </p>
                     <Progress
                       value={
                         dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.totalSaidas / dados.estatisticas.totalMovimentacoes) * 100
+                          ? (dados.estatisticas.totalSaidas /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
                           : 0
                       }
                       className="h-2"
@@ -333,7 +405,9 @@ export function RelatorioEstoque() {
                     <p className="text-2xl font-bold text-primary">
                       {dados.estatisticas.totalMovimentacoes}
                     </p>
-                    <p className="text-sm text-muted-foreground">Total de Movimentações</p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Movimentações
+                    </p>
                     <Progress value={100} className="h-2" />
                   </div>
                 </div>
@@ -364,7 +438,9 @@ export function RelatorioEstoque() {
                     <TableRow key={item.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{item.itemContrato.nome}</p>
+                          <p className="font-medium">
+                            {item.itemContrato.nome}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {item.itemContrato.contrato.numero}
                           </p>
@@ -373,21 +449,30 @@ export function RelatorioEstoque() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Building2 className="h-3 w-3" />
-                          <span className="text-sm">{item.unidadeEducacional.nome}</span>
+                          <span className="text-sm">
+                            {item.unidadeEducacional.nome}
+                          </span>
                         </div>
                       </TableCell>
-                      <TableCell>{item.itemContrato.contrato.fornecedor.nome}</TableCell>
+                      <TableCell>
+                        {item.itemContrato.contrato.fornecedor.nome}
+                      </TableCell>
                       <TableCell>
                         <span className="font-medium">
-                          {item.quantidadeAtual} {item.itemContrato.unidadeMedida.sigla}
+                          {item.quantidadeAtual}{" "}
+                          {item.itemContrato.unidadeMedida.sigla}
                         </span>
                       </TableCell>
                       <TableCell>
-                        {item.quantidadeMinima} {item.itemContrato.unidadeMedida.sigla}
+                        {item.quantidadeMinima}{" "}
+                        {item.itemContrato.unidadeMedida.sigla}
                       </TableCell>
                       <TableCell>{getStatusBadge(item)}</TableCell>
                       <TableCell className="font-medium">
-                        R$ {(item.quantidadeAtual * item.itemContrato.valorUnitario).toFixed(2)}
+                        R${" "}
+                        {(
+                          item.quantidadeAtual * item.itemContrato.valorUnitario
+                        ).toFixed(2)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -418,12 +503,18 @@ export function RelatorioEstoque() {
                   {dados.movimentacoes.map((mov) => (
                     <TableRow key={mov.id}>
                       <TableCell>
-                        {new Date(mov.dataMovimentacao).toLocaleDateString("pt-BR")}
+                        {new Date(mov.dataMovimentacao).toLocaleDateString(
+                          "pt-BR"
+                        )}
                       </TableCell>
-                      <TableCell>{getTipoMovimentacaoBadge(mov.tipo)}</TableCell>
+                      <TableCell>
+                        {getTipoMovimentacaoBadge(mov.tipo)}
+                      </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{mov.estoque.itemContrato.nome}</p>
+                          <p className="font-medium">
+                            {mov.estoque.itemContrato.nome}
+                          </p>
                           {mov.recibo && (
                             <p className="text-xs text-muted-foreground">
                               Recibo: {mov.recibo.numero}
@@ -431,10 +522,19 @@ export function RelatorioEstoque() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{mov.estoque.unidadeEducacional.nome}</TableCell>
                       <TableCell>
-                        <span className={mov.tipo === "saida" ? "text-destructive" : "text-success"}>
-                          {mov.tipo === "saida" ? "-" : "+"}{mov.quantidade}{" "}
+                        {mov.estoque.unidadeEducacional.nome}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={
+                            mov.tipo === "saida"
+                              ? "text-destructive"
+                              : "text-success"
+                          }
+                        >
+                          {mov.tipo === "saida" ? "-" : "+"}
+                          {mov.quantidade}{" "}
                           {mov.estoque.itemContrato.unidadeMedida.sigla}
                         </span>
                       </TableCell>

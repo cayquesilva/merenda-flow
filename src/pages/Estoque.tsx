@@ -50,8 +50,63 @@ import {
   BarChart3,
   Loader2,
 } from "lucide-react";
-import { Estoque, MovimentacaoEstoque, UnidadeEducacional } from "@/types";
+// Importar todas as interfaces necessárias do seu arquivo de tipos
+import {
+  Contrato,
+  Fornecedor,
+  ItemContrato,
+  UnidadeMedida,
+  UnidadeEducacional,
+  Recibo as BaseRecibo,
+} from "@/types";
 import { useToast } from "@/hooks/use-toast";
+
+// Refinando a interface Estoque para refletir os includes do backend
+interface EstoqueDetalhado {
+  id: string;
+  itemContratoId: string;
+  unidadeEducacionalId: string;
+  quantidadeAtual: number;
+  quantidadeMinima: number;
+  ultimaAtualizacao: string;
+  createdAt: string;
+  updatedAt: string;
+
+  itemContrato: ItemContrato & {
+    unidadeMedida: UnidadeMedida;
+    contrato: Contrato & {
+      fornecedor: Fornecedor;
+    };
+  };
+  unidadeEducacional: UnidadeEducacional;
+}
+
+// Refinando a interface MovimentacaoEstoque para refletir os includes do backend
+interface MovimentacaoEstoqueDetalhada {
+  id: string;
+  estoqueId: string;
+  dataMovimentacao: string;
+  tipo: "entrada" | "saida" | "ajuste";
+  quantidade: number;
+  quantidadeAnterior: number;
+  quantidadeNova: number;
+  motivo: string;
+  responsavel: string;
+  reciboId: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  estoque: {
+    id: string;
+    itemContrato: ItemContrato & {
+      unidadeMedida: UnidadeMedida;
+    };
+    unidadeEducacional: UnidadeEducacional;
+  };
+  recibo: {
+    numero: string;
+  } | null; // Pode ser nulo se não houver recibo associado
+}
 
 function useDebounce(value: string, delay: number) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -63,7 +118,7 @@ function useDebounce(value: string, delay: number) {
 }
 
 interface MovimentacaoDialogProps {
-  estoque: Estoque | null;
+  estoque: EstoqueDetalhado | null; // Usar a interface detalhada
   onSuccess: () => void;
 }
 
@@ -79,7 +134,12 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
   const { toast } = useToast();
 
   const handleSubmit = async () => {
-    if (!estoque || !formData.quantidade || !formData.motivo || !formData.responsavel) {
+    if (
+      !estoque ||
+      !formData.quantidade ||
+      !formData.motivo ||
+      !formData.responsavel
+    ) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
@@ -109,15 +169,18 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("http://localhost:3001/api/estoque/movimentacao", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          estoqueId: estoque.id,
-          ...formData,
-          quantidade,
-        }),
-      });
+      const response = await fetch(
+        "http://localhost:3001/api/estoque/movimentacao",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            estoqueId: estoque.id,
+            ...formData,
+            quantidade,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -140,7 +203,8 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
     } catch (error) {
       toast({
         title: "Erro",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -160,7 +224,8 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
         <DialogHeader>
           <DialogTitle>Registrar Movimentação</DialogTitle>
           <DialogDescription>
-            {estoque && `${estoque.itemContrato.nome} - ${estoque.unidadeEducacional.nome}`}
+            {estoque &&
+              `${estoque.itemContrato.nome} - ${estoque.unidadeEducacional.nome}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -192,12 +257,15 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
               min="0"
               step="0.01"
               value={formData.quantidade}
-              onChange={(e) => setFormData({ ...formData, quantidade: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, quantidade: e.target.value })
+              }
               placeholder="0"
             />
             {estoque && (
               <p className="text-xs text-muted-foreground mt-1">
-                Estoque atual: {estoque.quantidadeAtual} {estoque.itemContrato.unidadeMedida.sigla}
+                Estoque atual: {estoque.quantidadeAtual}{" "}
+                {estoque.itemContrato.unidadeMedida.sigla}
               </p>
             )}
           </div>
@@ -207,7 +275,9 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
             <Input
               id="responsavel"
               value={formData.responsavel}
-              onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, responsavel: e.target.value })
+              }
               placeholder="Nome do responsável"
             />
           </div>
@@ -217,7 +287,9 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
             <Textarea
               id="motivo"
               value={formData.motivo}
-              onChange={(e) => setFormData({ ...formData, motivo: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, motivo: e.target.value })
+              }
               placeholder="Descreva o motivo da movimentação"
               rows={3}
             />
@@ -244,8 +316,10 @@ export default function Estoque() {
   const [unidadeSelecionada, setUnidadeSelecionada] = useState("todas");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const [estoque, setEstoque] = useState<Estoque[]>([]);
-  const [movimentacoes, setMovimentacoes] = useState<MovimentacaoEstoque[]>([]);
+  const [estoque, setEstoque] = useState<EstoqueDetalhado[]>([]); // Usar a interface detalhada
+  const [movimentacoes, setMovimentacoes] = useState<
+    MovimentacaoEstoqueDetalhada[]
+  >([]); // Usar a interface detalhada
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -260,7 +334,9 @@ export default function Estoque() {
   useEffect(() => {
     const fetchUnidades = async () => {
       try {
-        const response = await fetch("http://localhost:3001/api/unidades-ativas");
+        const response = await fetch(
+          "http://localhost:3001/api/unidades-ativas"
+        );
         if (response.ok) {
           setUnidades(await response.json());
         }
@@ -277,7 +353,8 @@ export default function Estoque() {
       try {
         const params = new URLSearchParams();
         if (debouncedBusca) params.append("q", debouncedBusca);
-        if (unidadeSelecionada !== "todas") params.append("unidadeId", unidadeSelecionada);
+        if (unidadeSelecionada !== "todas")
+          params.append("unidadeId", unidadeSelecionada);
 
         const [estoqueRes, movimentacoesRes] = await Promise.all([
           fetch(`http://localhost:3001/api/estoque/consolidado?${params}`),
@@ -288,20 +365,25 @@ export default function Estoque() {
           throw new Error("Falha ao buscar dados do estoque");
         }
 
-        const estoqueData = await estoqueRes.json();
-        const movimentacoesData = await movimentacoesRes.json();
+        const estoqueData: EstoqueDetalhado[] = await estoqueRes.json(); // Tipagem aqui
+        const movimentacoesData: MovimentacaoEstoqueDetalhada[] =
+          await movimentacoesRes.json(); // Tipagem aqui
 
         setEstoque(estoqueData);
         setMovimentacoes(movimentacoesData);
 
         // Calcular estatísticas
         const totalItens = estoqueData.length;
-        const itensComEstoque = estoqueData.filter((e: Estoque) => e.quantidadeAtual > 0).length;
-        const itensAbaixoMinimo = estoqueData.filter((e: Estoque) => 
-          e.quantidadeMinima > 0 && e.quantidadeAtual < e.quantidadeMinima
+        const itensComEstoque = estoqueData.filter(
+          (e) => e.quantidadeAtual > 0
         ).length;
-        const valorTotalEstoque = estoqueData.reduce((sum: number, e: Estoque) => 
-          sum + (e.quantidadeAtual * e.itemContrato.valorUnitario), 0
+        const itensAbaixoMinimo = estoqueData.filter(
+          (e) =>
+            e.quantidadeMinima > 0 && e.quantidadeAtual < e.quantidadeMinima
+        ).length;
+        const valorTotalEstoque = estoqueData.reduce(
+          (sum, e) => sum + e.quantidadeAtual * e.itemContrato.valorUnitario,
+          0
         );
 
         setStats({
@@ -329,12 +411,19 @@ export default function Estoque() {
     setRefreshKey((prev) => prev + 1);
   };
 
-  const getStatusBadge = (estoque: Estoque) => {
+  const getStatusBadge = (estoque: EstoqueDetalhado) => {
     if (estoque.quantidadeAtual === 0) {
       return <Badge variant="destructive">Sem Estoque</Badge>;
     }
-    if (estoque.quantidadeMinima > 0 && estoque.quantidadeAtual < estoque.quantidadeMinima) {
-      return <Badge variant="outline" className="border-warning text-warning">Abaixo do Mínimo</Badge>;
+    if (
+      estoque.quantidadeMinima > 0 &&
+      estoque.quantidadeAtual < estoque.quantidadeMinima
+    ) {
+      return (
+        <Badge variant="outline" className="border-warning text-warning">
+          Abaixo do Mínimo
+        </Badge>
+      );
     }
     return <Badge variant="default">Normal</Badge>;
   };
@@ -364,7 +453,9 @@ export default function Estoque() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Controle de Estoque</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Controle de Estoque
+          </h2>
           <p className="text-muted-foreground">
             Gerencie o estoque de cada unidade educacional
           </p>
@@ -380,7 +471,9 @@ export default function Estoque() {
                 <Package className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Itens</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total de Itens
+                </p>
                 <p className="text-2xl font-bold">{stats.totalItens}</p>
               </div>
             </div>
@@ -394,7 +487,9 @@ export default function Estoque() {
                 <TrendingUp className="h-6 w-6 text-success" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Com Estoque</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Com Estoque
+                </p>
                 <p className="text-2xl font-bold">{stats.itensComEstoque}</p>
               </div>
             </div>
@@ -408,7 +503,9 @@ export default function Estoque() {
                 <AlertTriangle className="h-6 w-6 text-warning" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Abaixo do Mínimo</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Abaixo do Mínimo
+                </p>
                 <p className="text-2xl font-bold">{stats.itensAbaixoMinimo}</p>
               </div>
             </div>
@@ -422,7 +519,9 @@ export default function Estoque() {
                 <BarChart3 className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Valor Total</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Valor Total
+                </p>
                 <p className="text-2xl font-bold">
                   R$ {stats.valorTotalEstoque.toFixed(2)}
                 </p>
@@ -448,7 +547,10 @@ export default function Estoque() {
               </div>
             </div>
             <div className="w-full md:w-64">
-              <Select value={unidadeSelecionada} onValueChange={setUnidadeSelecionada}>
+              <Select
+                value={unidadeSelecionada}
+                onValueChange={setUnidadeSelecionada}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar unidade" />
                 </SelectTrigger>
@@ -494,7 +596,9 @@ export default function Estoque() {
               ) : estoque.length === 0 ? (
                 <div className="text-center py-8">
                   <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium">Nenhum item em estoque</h3>
+                  <h3 className="text-lg font-medium">
+                    Nenhum item em estoque
+                  </h3>
                   <p className="text-muted-foreground">
                     {busca || unidadeSelecionada !== "todas"
                       ? "Tente ajustar os filtros"
@@ -521,7 +625,9 @@ export default function Estoque() {
                       <TableRow key={item.id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{item.itemContrato.nome}</p>
+                            <p className="font-medium">
+                              {item.itemContrato.nome}
+                            </p>
                             <p className="text-xs text-muted-foreground">
                               {item.itemContrato.contrato.numero}
                             </p>
@@ -530,7 +636,9 @@ export default function Estoque() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Building2 className="h-3 w-3" />
-                            <span className="text-sm">{item.unidadeEducacional.nome}</span>
+                            <span className="text-sm">
+                              {item.unidadeEducacional.nome}
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -538,21 +646,32 @@ export default function Estoque() {
                         </TableCell>
                         <TableCell>
                           <span className="font-medium">
-                            {item.quantidadeAtual} {item.itemContrato.unidadeMedida.sigla}
+                            {item.quantidadeAtual}{" "}
+                            {item.itemContrato.unidadeMedida.sigla}
                           </span>
                         </TableCell>
                         <TableCell>
-                          {item.quantidadeMinima} {item.itemContrato.unidadeMedida.sigla}
+                          {item.quantidadeMinima}{" "}
+                          {item.itemContrato.unidadeMedida.sigla}
                         </TableCell>
                         <TableCell>{getStatusBadge(item)}</TableCell>
                         <TableCell className="font-medium">
-                          R$ {(item.quantidadeAtual * item.itemContrato.valorUnitario).toFixed(2)}
+                          R${" "}
+                          {(
+                            item.quantidadeAtual *
+                            item.itemContrato.valorUnitario
+                          ).toFixed(2)}
                         </TableCell>
                         <TableCell>
-                          {new Date(item.ultimaAtualizacao).toLocaleDateString("pt-BR")}
+                          {new Date(item.ultimaAtualizacao).toLocaleDateString(
+                            "pt-BR"
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <MovimentacaoDialog estoque={item} onSuccess={handleSuccess} />
+                          <MovimentacaoDialog
+                            estoque={item}
+                            onSuccess={handleSuccess}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -579,7 +698,9 @@ export default function Estoque() {
               ) : movimentacoes.length === 0 ? (
                 <div className="text-center py-8">
                   <History className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium">Nenhuma movimentação encontrada</h3>
+                  <h3 className="text-lg font-medium">
+                    Nenhuma movimentação encontrada
+                  </h3>
                   <p className="text-muted-foreground">
                     As movimentações aparecerão aqui conforme forem registradas
                   </p>
@@ -603,12 +724,18 @@ export default function Estoque() {
                     {movimentacoes.map((mov) => (
                       <TableRow key={mov.id}>
                         <TableCell>
-                          {new Date(mov.dataMovimentacao).toLocaleDateString("pt-BR")}
+                          {new Date(mov.dataMovimentacao).toLocaleDateString(
+                            "pt-BR"
+                          )}
                         </TableCell>
-                        <TableCell>{getTipoMovimentacaoBadge(mov.tipo)}</TableCell>
+                        <TableCell>
+                          {getTipoMovimentacaoBadge(mov.tipo)}
+                        </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{mov.estoque.itemContrato.nome}</p>
+                            <p className="font-medium">
+                              {mov.estoque.itemContrato.nome}
+                            </p>
                             {mov.recibo && (
                               <p className="text-xs text-muted-foreground">
                                 Recibo: {mov.recibo.numero}
@@ -616,18 +743,29 @@ export default function Estoque() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>{mov.estoque.unidadeEducacional.nome}</TableCell>
                         <TableCell>
-                          <span className={mov.tipo === "saida" ? "text-destructive" : "text-success"}>
-                            {mov.tipo === "saida" ? "-" : "+"}{mov.quantidade}{" "}
+                          {mov.estoque.unidadeEducacional.nome}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={
+                              mov.tipo === "saida"
+                                ? "text-destructive"
+                                : "text-success"
+                            }
+                          >
+                            {mov.tipo === "saida" ? "-" : "+"}
+                            {mov.quantidade}{" "}
                             {mov.estoque.itemContrato.unidadeMedida.sigla}
                           </span>
                         </TableCell>
                         <TableCell>
-                          {mov.quantidadeAnterior} {mov.estoque.itemContrato.unidadeMedida.sigla}
+                          {mov.quantidadeAnterior}{" "}
+                          {mov.estoque.itemContrato.unidadeMedida.sigla}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {mov.quantidadeNova} {mov.estoque.itemContrato.unidadeMedida.sigla}
+                          {mov.quantidadeNova}{" "}
+                          {mov.estoque.itemContrato.unidadeMedida.sigla}
                         </TableCell>
                         <TableCell>{mov.responsavel}</TableCell>
                         <TableCell>
