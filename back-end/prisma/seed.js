@@ -19,26 +19,26 @@ async function main() {
 
   // 1. Criar Unidades de Medida
   const kg = await prisma.unidadeMedida.create({
-    data: { nome: "Quilograma", sigla: "kg" },
+    data: { nome: "Quilograma", sigla: "Kg" },
   });
   const g = await prisma.unidadeMedida.create({
     data: { nome: "Gramas", sigla: "g" },
   });
   const pct = await prisma.unidadeMedida.create({
-    data: { nome: "Pacote", sigla: "pct" },
+    data: { nome: "Pacote", sigla: "Pct" },
   });
   const l = await prisma.unidadeMedida.create({
-    data: { nome: "Litro", sigla: "l" },
+    data: { nome: "Litro", sigla: "L" },
   });
   const un = await prisma.unidadeMedida.create({
-    data: { nome: "Unidade", sigla: "un" },
+    data: { nome: "Unidade", sigla: "Un" },
   });
   const cx = await prisma.unidadeMedida.create({
-    data: { nome: "Caixa", sigla: "cx" },
+    data: { nome: "Caixa", sigla: "Cx" },
   });
   console.log("Unidades de medida criadas.");
 
-  // 2. Criar Fornecedores
+  /* 2. Criar Fornecedores - comentado para produção...
   const fornecedor1 = await prisma.fornecedor.create({
     data: {
       nome: "Alimentos Frescos Ltda",
@@ -169,7 +169,7 @@ async function main() {
     },
   });
   console.log("Recibo 1 e seus itens criados.");
-
+*/
   console.log("Seeding finalizado com sucesso!");
 }
 

@@ -350,7 +350,19 @@ export default function Confirmacoes() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {consolidacoesFiltradas.length === 0 && !isLoading ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium">
+                    Nenhum pedido encontrado
+                  </h3>
+                  <p className="text-muted-foreground">
+                    {busca
+                      ? "Tente ajustar os filtros de busca"
+                      : "As confirmações aparecerão aqui quando os pedidos forem processados"}
+                  </p>
+                </div>
+              ) : isLoading ? (
                 <div className="text-center py-8">
                   <Loader2 className="h-12 w-12 mx-auto animate-spin" />
                 </div>
