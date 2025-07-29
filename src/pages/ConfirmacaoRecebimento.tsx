@@ -22,8 +22,8 @@ import {
   FileText,
   Loader2,
   Camera, // Adicionado para a câmera/foto
-  RotateCcw, // Adicionado para limpar a assinatura
-  XCircle,
+  RotateCcw,
+  XCircle, // Adicionado para limpar a assinatura
 } from "lucide-react";
 // Removido Recibo de "@/types" para usar a interface local ReciboDetalhadoConfirmacao
 import { useToast } from "@/hooks/use-toast";
@@ -139,32 +139,26 @@ export default function ConfirmacaoRecebimento() {
           const response = await fetch(
             `http://localhost:3001/api/recibos/confirmacao/${id}`
           );
-
           const data = await response.json();
 
           if (!response.ok) {
-            // data provavelmente é { error: string }, mas pode não ser
-            const errorMessage =
-              typeof data.error === "string"
-                ? data.error
-                : "Falha ao carregar recibo.";
-            throw new Error(errorMessage);
+            // data aqui é do tipo { error: string }
+            throw new Error(data.error || "Falha ao carregar recibo.");
           }
 
-          // A partir daqui, podemos assumir que data é ReciboConfirmacaoBackend
-          const reciboData = data as ReciboConfirmacaoBackend;
+          const recibo = data as ReciboConfirmacaoBackend;
 
-          setRecibo(reciboData);
+          setRecibo(recibo);
           setItensConfirmacao(
-            reciboData.itens.map((item) => ({
+            recibo.itens.map((item) => ({
               itemId: item.id,
               conforme: true,
               quantidadeRecebida: item.quantidadeSolicitada,
               observacoes: item.observacoes || "",
             }))
           );
-          setAssinaturaDigital(reciboData.assinaturaDigital || null);
-          setFotoReciboAssinado(reciboData.fotoReciboAssinado || null);
+          setAssinaturaDigital(recibo.assinaturaDigital || null);
+          setFotoReciboAssinado(recibo.fotoReciboAssinado || null);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Ocorreu um erro.");
         } finally {
@@ -281,7 +275,8 @@ export default function ConfirmacaoRecebimento() {
       if (!response.ok) throw new Error(data.error || "Falha ao confirmar.");
 
       toast({ title: "Recebimento confirmado!", description: data.message });
-      navigate(`/recibos/imprimir/${recibo?.id}`); // Redireciona para a página de impressão
+      //navigate(`/recibos/imprimir/${recibo?.id}`); // Redireciona para a página de impressão
+      navigate(`/recibos`);
     } catch (err) {
       toast({
         title: "Erro",

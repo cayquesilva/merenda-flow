@@ -24,31 +24,31 @@ model UnidadeMedida {
 }
 
 model Fornecedor {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   nome      String
-  cnpj      String    @unique
+  cnpj      String   @unique
   telefone  String?
-  email     String    @unique
+  email     String   @unique
   endereco  String?
-  ativo     Boolean   @default(true)
-  createdAt DateTime  @default(now()) @map("created_at")
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
 
   // Relações
   contratos Contrato[]
 }
 
 model UnidadeEducacional {
-  id       String   @id @default(uuid())
+  id       String  @id @default(uuid())
   nome     String
-  codigo   String   @unique
+  codigo   String  @unique
   endereco String?
   telefone String?
-  email    String   @unique
-  ativo    Boolean  @default(true)
+  email    String  @unique
+  ativo    Boolean @default(true)
 
   // Relações
-  pedidos ItemPedido[]
-  recibos Recibo[]
+  pedidos  ItemPedido[]
+  recibos  Recibo[]
   estoques Estoque[]
 }
 
@@ -70,7 +70,7 @@ model Contrato {
   fornecedorId String     @map("fornecedor_id")
 
   // Relação com Itens do Contrato
-  itens  ItemContrato[]
+  itens   ItemContrato[]
   // Relação com Pedidos
   pedidos Pedido[]
 }
@@ -93,24 +93,24 @@ model ItemContrato {
   // Relação com Itens de Pedido
   itensPedido ItemPedido[]
   // Relação com Estoque
-  estoques Estoque[]
+  estoques    Estoque[]
 }
 
 model Pedido {
-  id                 String   @id @default(uuid())
-  numero             String   @unique
-  dataPedido         DateTime @map("data_pedido")
+  id                  String   @id @default(uuid())
+  numero              String   @unique
+  dataPedido          DateTime @map("data_pedido")
   dataEntregaPrevista DateTime @map("data_entrega_prevista")
-  status             String // Ex: 'pendente', 'entregue', 'cancelado'
-  valorTotal         Float    @map("valor_total")
-  createdAt          DateTime @default(now()) @map("created_at")
+  status              String // Ex: 'pendente', 'entregue', 'cancelado'
+  valorTotal          Float    @map("valor_total")
+  createdAt           DateTime @default(now()) @map("created_at")
 
   // Relação com Contrato
   contrato   Contrato @relation(fields: [contratoId], references: [id])
   contratoId String   @map("contrato_id")
 
   // Relações
-  itens  ItemPedido[]
+  itens   ItemPedido[]
   recibos Recibo[] // Um pedido pode ter um recibo
 }
 
@@ -135,21 +135,19 @@ model ItemPedido {
 }
 
 model Recibo {
-  id                      String   @id @default(uuid())
-  numero                  String   @unique
-  dataEntrega             DateTime @map("data_entrega")
-  responsavelEntrega      String   @map("responsavel_entrega")
-  responsavelRecebimento  String   @map("responsavel_recebimento")
-  status                  String // Ex: 'confirmado', 'pendente', 'rejeitado'
-  qrcode                  String?
-  observacoes             String?
-  createdAt               DateTime @default(now()) @map("created_at")
-  assinaturaDigital  String? @db.Text // Para armazenar a assinatura digital como base64
-  fotoReciboAssinado String? @db.Text // Para armazenar a foto do recibo assinado como base64
+  id                     String   @id @default(uuid())
+  numero                 String   @unique
+  dataEntrega            DateTime @map("data_entrega")
+  responsavelEntrega     String   @map("responsavel_entrega")
+  responsavelRecebimento String   @map("responsavel_recebimento")
+  status                 String // Ex: 'confirmado', 'pendente', 'rejeitado'
+  qrcode                 String?
+  observacoes            String?
+  createdAt              DateTime @default(now()) @map("created_at")
 
   // Relação com Pedido (um recibo pertence a um pedido)
   pedido   Pedido @relation(fields: [pedidoId], references: [id])
-  pedidoId String  @map("pedido_id")
+  pedidoId String @map("pedido_id")
 
   // Relação com Unidade Educacional (quem recebeu)
   unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
@@ -157,10 +155,32 @@ model Recibo {
 
   // Relação com Itens do Recibo
   itens ItemRecibo[]
+
   // Relação com Movimentações de Estoque
   movimentacoesEstoque MovimentacaoEstoque[]
 
+  //relação de imagens base64
+  assinaturaDigital   AssinaturaDigital? @relation(fields: [assinaturaDigitalId], references: [id])
+  assinaturaDigitalId String?            @unique
+
+  fotoReciboAssinado   FotoReciboAssinado? @relation(fields: [fotoReciboAssinadoId], references: [id])
+  fotoReciboAssinadoId String?             @unique
+
   @@unique([pedidoId, unidadeEducacionalId])
+}
+
+model AssinaturaDigital {
+  id           String   @id @default(uuid())
+  imagemBase64 String
+  criadoEm     DateTime @default(now())
+  recibo       Recibo?  @relation
+}
+
+model FotoReciboAssinado {
+  id       String   @id @default(uuid())
+  url      String
+  criadoEm DateTime @default(now())
+  recibo   Recibo?  @relation
 }
 
 model ItemRecibo {
@@ -184,10 +204,10 @@ model ItemRecibo {
 // ===================================
 
 model Estoque {
-  id                     String   @id @default(uuid())
-  quantidadeAtual        Float    @map("quantidade_atual") @default(0)
-  quantidadeMinima       Float    @map("quantidade_minima") @default(0)
-  ultimaAtualizacao      DateTime @default(now()) @map("ultima_atualizacao")
+  id                String   @id @default(uuid())
+  quantidadeAtual   Float    @default(0) @map("quantidade_atual")
+  quantidadeMinima  Float    @default(0) @map("quantidade_minima")
+  ultimaAtualizacao DateTime @default(now()) @map("ultima_atualizacao")
 
   // Relação com Unidade Educacional
   unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])

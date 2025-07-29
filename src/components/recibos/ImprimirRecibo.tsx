@@ -16,9 +16,11 @@ import {
   User,
   Package,
   Building2,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Recibo } from "@/types"; // Importar Recibo do seu arquivo de tipos
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 
 // Definindo a interface para o ItemRecibo do backend (para impressão)
 interface ItemReciboImpressao {

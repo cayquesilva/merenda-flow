@@ -842,7 +842,6 @@ app.post(
   "/api/recibos/confirmacao/:id",
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    // NOVO: Coleta assinaturaDigital e fotoReciboAssinado do corpo da requisição
     const {
       responsavel,
       observacoes,
@@ -851,12 +850,27 @@ app.post(
       fotoReciboAssinado,
     } = req.body;
 
+    if (!Array.isArray(itensConfirmacao)) {
+      return res
+        .status(400)
+        .json({ error: "itensConfirmacao deve ser um array" });
+    }
+
     try {
       const result = await prisma.$transaction(async (tx) => {
         let todosConformes = true;
         let algumRecebido = false;
 
-        // 1. Atualizar cada item do recibo com as quantidades recebidas.
+        const recibo = await tx.recibo.findUnique({
+          where: { id },
+          select: { unidadeEducacionalId: true },
+        });
+
+        if (!recibo) {
+          throw new Error("Recibo não encontrado");
+        }
+
+        // Loop para atualizar os itens do recibo
         for (const item of itensConfirmacao) {
           const itemRecibo = await tx.itemRecibo.update({
             where: { id: item.itemId },
@@ -868,16 +882,12 @@ app.post(
             include: { itemPedido: true },
           });
 
-          if (!item.conforme) {
-            todosConformes = false;
-          }
-          if (Number(item.quantidadeRecebida) > 0) {
-            algumRecebido = true;
-          }
+          if (!item.conforme) todosConformes = false;
+          if (Number(item.quantidadeRecebida) > 0) algumRecebido = true;
 
-          // 2. Se a quantidade recebida for menor que a solicitada, devolver o saldo ao contrato.
           const diferenca =
             itemRecibo.itemPedido.quantidade - Number(item.quantidadeRecebida);
+
           if (diferenca > 0) {
             await tx.itemContrato.update({
               where: { id: itemRecibo.itemPedido.itemContratoId },
@@ -889,85 +899,92 @@ app.post(
             });
           }
 
-          // 3. NOVO: Atualizar o estoque da unidade educacional
+          // Controle de estoque e movimentação
           if (Number(item.quantidadeRecebida) > 0) {
-            // Buscar o recibo para obter a unidade educacional
-            const recibo = await tx.recibo.findUnique({
-              where: { id },
-              select: { unidadeEducacionalId: true },
+            const quantidadeRecebida = Number(item.quantidadeRecebida);
+
+            const estoqueExistente = await tx.estoque.findUnique({
+              where: {
+                unidadeEducacionalId_itemContratoId: {
+                  unidadeEducacionalId: recibo.unidadeEducacionalId,
+                  itemContratoId: itemRecibo.itemPedido.itemContratoId,
+                },
+              },
             });
 
-            if (recibo) {
-              // Verificar se já existe um registro de estoque para este item nesta unidade
-              const estoqueExistente = await tx.estoque.findUnique({
-                where: {
-                  unidadeEducacionalId_itemContratoId: {
-                    unidadeEducacionalId: recibo.unidadeEducacionalId,
-                    itemContratoId: itemRecibo.itemPedido.itemContratoId,
+            let estoqueAtualizado;
+
+            if (estoqueExistente) {
+              estoqueAtualizado = await tx.estoque.update({
+                where: { id: estoqueExistente.id },
+                data: {
+                  quantidadeAtual: {
+                    increment: quantidadeRecebida,
                   },
+                  ultimaAtualizacao: new Date(),
                 },
               });
-
-              const quantidadeRecebida = Number(item.quantidadeRecebida);
-              let estoqueAtualizado;
-
-              if (estoqueExistente) {
-                // Atualizar estoque existente
-                estoqueAtualizado = await tx.estoque.update({
-                  where: { id: estoqueExistente.id },
-                  data: {
-                    quantidadeAtual: {
-                      increment: quantidadeRecebida,
-                    },
-                    ultimaAtualizacao: new Date(),
-                  },
-                });
-              } else {
-                // Criar novo registro de estoque
-                estoqueAtualizado = await tx.estoque.create({
-                  data: {
-                    unidadeEducacionalId: recibo.unidadeEducacionalId,
-                    itemContratoId: itemRecibo.itemPedido.itemContratoId,
-                    quantidadeAtual: quantidadeRecebida,
-                    quantidadeMinima: 0,
-                    ultimaAtualizacao: new Date(),
-                  },
-                });
-              }
-
-              // Registrar a movimentação de estoque
-              await tx.movimentacaoEstoque.create({
+            } else {
+              estoqueAtualizado = await tx.estoque.create({
                 data: {
-                  estoqueId: estoqueAtualizado.id,
-                  tipo: "entrada",
-                  quantidade: quantidadeRecebida,
-                  quantidadeAnterior: estoqueExistente?.quantidadeAtual || 0,
-                  quantidadeNova: estoqueAtualizado.quantidadeAtual,
-                  motivo: `Recebimento confirmado - Recibo ${itemRecibo.itemPedido.quantidade}`,
-                  reciboId: id,
-                  responsavel: responsavel,
-                  dataMovimentacao: new Date(),
+                  unidadeEducacionalId: recibo.unidadeEducacionalId,
+                  itemContratoId: itemRecibo.itemPedido.itemContratoId,
+                  quantidadeAtual: quantidadeRecebida,
+                  quantidadeMinima: 0,
+                  ultimaAtualizacao: new Date(),
                 },
               });
             }
+
+            await tx.movimentacaoEstoque.create({
+              data: {
+                estoqueId: estoqueAtualizado.id,
+                tipo: "entrada",
+                quantidade: quantidadeRecebida,
+                quantidadeAnterior: estoqueExistente?.quantidadeAtual || 0,
+                quantidadeNova: estoqueAtualizado.quantidadeAtual,
+                motivo: `Recebimento confirmado - Recibo ${id}`,
+                reciboId: id,
+                responsavel,
+                dataMovimentacao: new Date(),
+              },
+            });
           }
         }
 
-        // 3. Determinar o status final do recibo.
+        // Define status final do recibo
         let statusFinal = "rejeitado";
         if (algumRecebido) {
           statusFinal = todosConformes ? "confirmado" : "parcial";
         }
 
-        // 4. Atualizar o recibo principal com o responsável, observações e o novo status.
+        // Atualiza o recibo com informações e imagens
         const reciboAtualizado = await tx.recibo.update({
           where: { id },
           data: {
             responsavelRecebimento: responsavel,
             observacoes,
             status: statusFinal,
-            assinaturaDigital: assinaturaDigital || null, // Salva a assinatura
-            fotoReciboAssinado: fotoReciboAssinado || null, // Salva a foto
+
+            // Assinatura digital: cria, atualiza ou desconecta
+            assinaturaDigital: assinaturaDigital
+              ? {
+                  upsert: {
+                    create: { imagemBase64: assinaturaDigital },
+                    update: { imagemBase64: assinaturaDigital },
+                  },
+                }
+              : { disconnect: true },
+
+            // Foto do recibo assinado: cria, atualiza ou desconecta
+            fotoReciboAssinado: fotoReciboAssinado
+              ? {
+                  upsert: {
+                    create: { url: fotoReciboAssinado },
+                    update: { url: fotoReciboAssinado },
+                  },
+                }
+              : { disconnect: true },
           },
         });
 
@@ -978,11 +995,12 @@ app.post(
         message: "Recebimento confirmado com sucesso!",
         recibo: result,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao confirmar recebimento:", error);
-      res
-        .status(500)
-        .json({ error: "Não foi possível processar a confirmação." });
+      res.status(500).json({
+        error: "Não foi possível processar a confirmação.",
+        detalhe: error.message || error,
+      });
     }
   }
 );
