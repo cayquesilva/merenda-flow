@@ -108,7 +108,7 @@ model Pedido {
 
   // Relações
   itens  ItemPedido[]
-  recibo Recibo? // Um pedido pode ter um recibo
+  recibos Recibo[] // Um pedido pode ter um recibo
 }
 
 model ItemPedido {
@@ -144,7 +144,7 @@ model Recibo {
 
   // Relação com Pedido (um recibo pertence a um pedido)
   pedido   Pedido @relation(fields: [pedidoId], references: [id])
-  pedidoId String @unique @map("pedido_id")
+  pedidoId String  @map("pedido_id")
 
   // Relação com Unidade Educacional (quem recebeu)
   unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
@@ -152,6 +152,8 @@ model Recibo {
 
   // Relação com Itens do Recibo
   itens ItemRecibo[]
+
+  @@unique([pedidoId, unidadeEducacionalId])
 }
 
 model ItemRecibo {

@@ -1,59 +1,124 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  Search, 
-  QrCode, 
-  FileText, 
-  Calendar,
-  Package,
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Search,
+  FileText,
   CheckCircle,
   Clock,
   AlertTriangle,
-  Eye,
-  Download,
-  ExternalLink
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
-import { recibos } from "@/data/mockData";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
+import { Recibo } from "@/types";
+
+// ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
+// Isto resolve o erro de tipagem.
+interface ReciboDaLista {
+  id: string;
+  numero: string;
+  dataEntrega: string;
+  responsavelEntrega: string;
+  status: string;
+  pedido: {
+    numero: string;
+    contrato: {
+      fornecedor: {
+        nome: string;
+      };
+    };
+  };
+  _count: {
+    itens: number;
+  };
+}
+
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function Recibos() {
   const [busca, setBusca] = useState("");
+  const debouncedBusca = useDebounce(busca, 300);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const recibosFiltrados = recibos.filter(recibo => {
-    const matchBusca = recibo.numero.toLowerCase().includes(busca.toLowerCase()) ||
-                      recibo.pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
-                      recibo.pedido.contrato.fornecedor.nome.toLowerCase().includes(busca.toLowerCase());
-    const matchStatus = statusFilter === "todos" || recibo.status === statusFilter;
-    return matchBusca && matchStatus;
+  const [recibos, setRecibos] = useState<ReciboDaLista[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total: 0,
+    pendentes: 0,
+    confirmados: 0,
+    parciais: 0,
   });
+
+  useEffect(() => {
+    const fetchRecibosEStats = async () => {
+      setIsLoading(true);
+      try {
+        const [recibosRes, statsRes] = await Promise.all([
+          fetch(
+            `http://localhost:3001/api/recibos?q=${debouncedBusca}&status=${statusFilter}`
+          ),
+          fetch(`http://localhost:3001/api/recibos/stats`),
+        ]);
+        if (!recibosRes.ok || !statsRes.ok)
+          throw new Error("Falha ao buscar dados dos recibos.");
+
+        setRecibos(await recibosRes.json());
+        setStats(await statsRes.json());
+      } catch (error) {
+        console.error("Erro:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRecibosEStats();
+  }, [debouncedBusca, statusFilter, refreshKey]);
 
   const getStatusBadge = (status: string) => {
     const variants = {
       pendente: "secondary",
       confirmado: "default",
-      parcial: "outline", 
-      rejeitado: "destructive"
+      parcial: "outline",
+      rejeitado: "destructive",
     } as const;
-    
+
     const labels = {
       pendente: "Pendente",
       confirmado: "Confirmado",
       parcial: "Parcial",
-      rejeitado: "Rejeitado"
+      rejeitado: "Rejeitado",
     };
 
     const icons = {
       pendente: <Clock className="h-3 w-3 mr-1" />,
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
-      rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />
+      rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
     };
 
     return (
@@ -65,22 +130,24 @@ export default function Recibos() {
   };
 
   const handleSuccess = () => {
-    setRefreshKey(prev => prev + 1);
+    setRefreshKey((prev) => prev + 1);
   };
 
   const abrirQRCode = (qrcode: string) => {
-    window.open(qrcode, '_blank');
+    window.open(qrcode, "_blank");
   };
 
   const abrirConfirmacao = (reciboId: string) => {
-    window.open(`/confirmacao-recebimento/${reciboId}`, '_blank');
+    window.open(`/confirmacao-recebimento/${reciboId}`, "_blank");
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Recibos de Entrega</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Recibos de Entrega
+          </h2>
           <p className="text-muted-foreground">
             Gerencie os recibos de entrega com QR Code
           </p>
@@ -88,7 +155,6 @@ export default function Recibos() {
         <GerarReciboDialog onSuccess={handleSuccess} />
       </div>
 
-      {/* Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
@@ -97,63 +163,61 @@ export default function Recibos() {
                 <FileText className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Recibos</p>
-                <p className="text-2xl font-bold">{recibos.length}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total de Recibos
+                </p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Clock className="h-6 w-6 text-warning" />
+              <div className="p-2 bg-yellow-500/10 rounded-lg">
+                <Clock className="h-6 w-6 text-yellow-500" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
-                <p className="text-2xl font-bold">
-                  {recibos.filter(r => r.status === 'pendente').length}
+                <p className="text-sm font-medium text-muted-foreground">
+                  Pendentes
                 </p>
+                <p className="text-2xl font-bold">{stats.pendentes}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-success" />
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-green-500" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Confirmados</p>
-                <p className="text-2xl font-bold">
-                  {recibos.filter(r => r.status === 'confirmado').length}
+                <p className="text-sm font-medium text-muted-foreground">
+                  Confirmados
                 </p>
+                <p className="text-2xl font-bold">{stats.confirmados}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <AlertTriangle className="h-6 w-6 text-warning" />
+              <div className="p-2 bg-orange-500/10 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-orange-500" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Parciais</p>
-                <p className="text-2xl font-bold">
-                  {recibos.filter(r => r.status === 'parcial').length}
+                <p className="text-sm font-medium text-muted-foreground">
+                  Parciais
                 </p>
+                <p className="text-2xl font-bold">{stats.parciais}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filtros */}
       <Card>
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-4">
@@ -202,7 +266,6 @@ export default function Recibos() {
         </CardContent>
       </Card>
 
-      {/* Lista de Recibos */}
       <Card>
         <CardHeader>
           <CardTitle>Lista de Recibos</CardTitle>
@@ -211,12 +274,18 @@ export default function Recibos() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {recibosFiltrados.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-12 w-12 text-muted-foreground mx-auto animate-spin" />
+            </div>
+          ) : recibos.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium">Nenhum recibo encontrado</h3>
               <p className="text-muted-foreground">
-                {busca ? "Tente ajustar os filtros de busca" : "Comece gerando seu primeiro recibo"}
+                {busca || statusFilter !== "todos"
+                  ? "Tente ajustar os filtros"
+                  : "Comece gerando seu primeiro recibo"}
               </p>
             </div>
           ) : (
@@ -234,40 +303,37 @@ export default function Recibos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recibosFiltrados.map((recibo) => (
+                {recibos.map((recibo) => (
                   <TableRow key={recibo.id}>
                     <TableCell className="font-mono">{recibo.numero}</TableCell>
-                    <TableCell className="font-mono">{recibo.pedido.numero}</TableCell>
-                    <TableCell>{recibo.pedido.contrato.fornecedor.nome}</TableCell>
+                    <TableCell className="font-mono">
+                      {recibo.pedido.numero}
+                    </TableCell>
                     <TableCell>
-                      {new Date(recibo.dataEntrega).toLocaleDateString('pt-BR')}
+                      {recibo.pedido.contrato.fornecedor.nome}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell>{recibo.responsavelEntrega}</TableCell>
                     <TableCell>{getStatusBadge(recibo.status)}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {recibo.itens.length} {recibo.itens.length === 1 ? 'item' : 'itens'}
+                        {recibo._count.itens}{" "}
+                        {recibo._count.itens === 1 ? "item" : "itens"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => abrirQRCode(recibo.qrcode)}
-                        >
-                          <QrCode className="h-3 w-3 mr-1" />
-                          QR Code
-                        </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => abrirConfirmacao(recibo.id)}
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
                           Confirmar
                         </Button>
-                        <ReciboDetailDialog recibo={recibo} />
+                        <ReciboDetailDialog reciboId={recibo.id} />
                       </div>
                     </TableCell>
                   </TableRow>

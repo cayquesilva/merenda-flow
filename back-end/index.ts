@@ -359,7 +359,6 @@ app.delete("/api/unidades/:id", async (req: Request, res: Response) => {
 
 // --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
 
-
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
 
 // COMENTÁRIO: Retorna uma lista simplificada de contratos ativos.
@@ -375,7 +374,7 @@ app.get("/api/contratos-ativos", async (req: Request, res: Response) => {
           select: { nome: true },
         },
       },
-      orderBy: { numero: 'asc' },
+      orderBy: { numero: "asc" },
     });
     res.json(contratos);
   } catch (error) {
@@ -391,7 +390,7 @@ app.get("/api/unidades-ativas", async (req: Request, res: Response) => {
     const unidades = await prisma.unidadeEducacional.findMany({
       where: { ativo: true },
       select: { id: true, nome: true, codigo: true },
-      orderBy: { nome: 'asc' },
+      orderBy: { nome: "asc" },
     });
     res.json(unidades);
   } catch (error) {
@@ -400,30 +399,33 @@ app.get("/api/unidades-ativas", async (req: Request, res: Response) => {
   }
 });
 
-
 // --- INÍCIO DAS ROTAS DE PEDIDOS (CRUD) ---
 
 // COMENTÁRIO: Retorna as estatísticas principais para os cards no topo da página de Pedidos.
 // UTILIZAÇÃO: Chamada pela página `Pedidos.tsx` para obter os totais.
 app.get("/api/pedidos/stats", async (req: Request, res: Response) => {
-    try {
-        const totalCount = await prisma.pedido.count();
-        const pendingCount = await prisma.pedido.count({ where: { status: 'pendente' } });
-        const deliveredCount = await prisma.pedido.count({ where: { status: 'entregue' } });
-        const totalValue = await prisma.pedido.aggregate({
-            _sum: { valorTotal: true },
-        });
+  try {
+    const totalCount = await prisma.pedido.count();
+    const pendingCount = await prisma.pedido.count({
+      where: { status: "pendente" },
+    });
+    const deliveredCount = await prisma.pedido.count({
+      where: { status: "entregue" },
+    });
+    const totalValue = await prisma.pedido.aggregate({
+      _sum: { valorTotal: true },
+    });
 
-        res.json({
-            total: totalCount,
-            pendentes: pendingCount,
-            entregues: deliveredCount,
-            valorTotal: totalValue._sum.valorTotal || 0,
-        });
-    } catch (error) {
-        console.error("Erro ao buscar estatísticas dos pedidos:", error);
-        res.status(500).json({ error: "Não foi possível buscar as estatísticas." });
-    }
+    res.json({
+      total: totalCount,
+      pendentes: pendingCount,
+      entregues: deliveredCount,
+      valorTotal: totalValue._sum.valorTotal || 0,
+    });
+  } catch (error) {
+    console.error("Erro ao buscar estatísticas dos pedidos:", error);
+    res.status(500).json({ error: "Não foi possível buscar as estatísticas." });
+  }
 });
 
 // COMENTÁRIO: Lista todos os pedidos com filtros.
@@ -435,20 +437,28 @@ app.get("/api/pedidos", async (req: Request, res: Response) => {
     const pedidos = await prisma.pedido.findMany({
       where: {
         AND: [
-          status && status !== 'todos' ? { status: status as string } : {},
-          q ? {
-            OR: [
-              { numero: { contains: q as string, mode: "insensitive" } },
-              { contrato: { fornecedor: { nome: { contains: q as string, mode: "insensitive" } } } },
-            ],
-          } : {},
+          status && status !== "todos" ? { status: status as string } : {},
+          q
+            ? {
+                OR: [
+                  { numero: { contains: q as string, mode: "insensitive" } },
+                  {
+                    contrato: {
+                      fornecedor: {
+                        nome: { contains: q as string, mode: "insensitive" },
+                      },
+                    },
+                  },
+                ],
+              }
+            : {},
         ],
       },
       include: {
         contrato: { select: { fornecedor: { select: { nome: true } } } },
         _count: { select: { itens: true } },
       },
-      orderBy: { dataPedido: 'desc' },
+      orderBy: { dataPedido: "desc" },
     });
     res.json(pedidos);
   } catch (error) {
@@ -460,36 +470,41 @@ app.get("/api/pedidos", async (req: Request, res: Response) => {
 // COMENTÁRIO: Busca os detalhes completos de um único pedido.
 // UTILIZAÇÃO: Chamada pelo `PedidoDetailDialog.tsx` quando o utilizador clica para ver um pedido.
 app.get("/api/pedidos/:id", async (req: Request, res: Response) => {
-    const { id } = req.params;
-    try {
-        const pedido = await prisma.pedido.findUnique({
-            where: { id },
-            include: {
-                contrato: { include: { fornecedor: true } },
-                itens: {
-                    include: {
-                        itemContrato: { include: { unidadeMedida: true } },
-                        unidadeEducacional: true,
-                    },
-                    orderBy: { itemContrato: { nome: 'asc' } },
-                },
-            },
-        });
-        if (!pedido) return res.status(404).json({ error: "Pedido não encontrado." });
-        res.json(pedido);
-    } catch (error) {
-        console.error("Erro ao buscar detalhes do pedido:", error);
-        res.status(500).json({ error: "Não foi possível buscar os detalhes do pedido." });
-    }
+  const { id } = req.params;
+  try {
+    const pedido = await prisma.pedido.findUnique({
+      where: { id },
+      include: {
+        contrato: { include: { fornecedor: true } },
+        itens: {
+          include: {
+            itemContrato: { include: { unidadeMedida: true } },
+            unidadeEducacional: true,
+          },
+          orderBy: { itemContrato: { nome: "asc" } },
+        },
+      },
+    });
+    if (!pedido)
+      return res.status(404).json({ error: "Pedido não encontrado." });
+    res.json(pedido);
+  } catch (error) {
+    console.error("Erro ao buscar detalhes do pedido:", error);
+    res
+      .status(500)
+      .json({ error: "Não foi possível buscar os detalhes do pedido." });
+  }
 });
 
 // COMENTÁRIO: Cria um novo pedido e atualiza os saldos dos itens do contrato.
 // UTILIZAÇÃO: Chamada pelo `NovoPedidoDialog.tsx` ao submeter o formulário.
 app.post("/api/pedidos", async (req: Request, res: Response) => {
   const { contratoId, dataEntregaPrevista, valorTotal, itens } = req.body;
-  
+
   // Gera um número de pedido único.
-  const numeroPedido = `PD-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+  const numeroPedido = `PD-${new Date().getFullYear()}-${String(
+    Date.now()
+  ).slice(-6)}`;
 
   try {
     // Usa uma transação para garantir que todas as operações (criar pedido, criar itens, atualizar saldos)
@@ -503,7 +518,7 @@ app.post("/api/pedidos", async (req: Request, res: Response) => {
           dataPedido: new Date(),
           dataEntregaPrevista: new Date(dataEntregaPrevista),
           valorTotal,
-          status: 'pendente',
+          status: "pendente",
         },
       });
 
@@ -541,7 +556,6 @@ app.post("/api/pedidos", async (req: Request, res: Response) => {
 
 // --- FIM DAS ROTAS DE PEDIDOS ---
 
-
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA RECIBOS ---
 
 // COMENTÁRIO: Retorna uma lista de pedidos com o status 'confirmado' ou 'pendente'.
@@ -551,8 +565,8 @@ app.get("/api/pedidos-para-recibo", async (req: Request, res: Response) => {
     const pedidos = await prisma.pedido.findMany({
       where: {
         status: {
-          in: ['confirmado', 'pendente']
-        }
+          in: ["confirmado", "pendente"],
+        },
       },
       select: {
         id: true,
@@ -565,7 +579,7 @@ app.get("/api/pedidos-para-recibo", async (req: Request, res: Response) => {
           },
         },
       },
-      orderBy: { dataPedido: 'desc' },
+      orderBy: { dataPedido: "desc" },
     });
     res.json(pedidos);
   } catch (error) {
@@ -574,28 +588,33 @@ app.get("/api/pedidos-para-recibo", async (req: Request, res: Response) => {
   }
 });
 
-
 // --- INÍCIO DAS ROTAS DE RECIBOS (CRUD) ---
 
 // COMENTÁRIO: Retorna as estatísticas principais para os cards no topo da página de Recibos.
 // UTILIZAÇÃO: Chamada pela página `Recibos.tsx` para obter os totais.
 app.get("/api/recibos/stats", async (req: Request, res: Response) => {
-    try {
-        const totalCount = await prisma.recibo.count();
-        const pendingCount = await prisma.recibo.count({ where: { status: 'pendente' } });
-        const confirmedCount = await prisma.recibo.count({ where: { status: 'confirmado' } });
-        const partialCount = await prisma.recibo.count({ where: { status: 'parcial' } });
+  try {
+    const totalCount = await prisma.recibo.count();
+    const pendingCount = await prisma.recibo.count({
+      where: { status: "pendente" },
+    });
+    const confirmedCount = await prisma.recibo.count({
+      where: { status: "confirmado" },
+    });
+    const partialCount = await prisma.recibo.count({
+      where: { status: "parcial" },
+    });
 
-        res.json({
-            total: totalCount,
-            pendentes: pendingCount,
-            confirmados: confirmedCount,
-            parciais: partialCount,
-        });
-    } catch (error) {
-        console.error("Erro ao buscar estatísticas dos recibos:", error);
-        res.status(500).json({ error: "Não foi possível buscar as estatísticas." });
-    }
+    res.json({
+      total: totalCount,
+      pendentes: pendingCount,
+      confirmados: confirmedCount,
+      parciais: partialCount,
+    });
+  } catch (error) {
+    console.error("Erro ao buscar estatísticas dos recibos:", error);
+    res.status(500).json({ error: "Não foi possível buscar as estatísticas." });
+  }
 });
 
 // COMENTÁRIO: Lista todos os recibos com filtros.
@@ -607,14 +626,28 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
     const recibos = await prisma.recibo.findMany({
       where: {
         AND: [
-          status && status !== 'todos' ? { status: status as string } : {},
-          q ? {
-            OR: [
-              { numero: { contains: q as string, mode: "insensitive" } },
-              { pedido: { numero: { contains: q as string, mode: "insensitive" } } },
-              { pedido: { contrato: { fornecedor: { nome: { contains: q as string, mode: "insensitive" } } } } },
-            ],
-          } : {},
+          status && status !== "todos" ? { status: status as string } : {},
+          q
+            ? {
+                OR: [
+                  { numero: { contains: q as string, mode: "insensitive" } },
+                  {
+                    pedido: {
+                      numero: { contains: q as string, mode: "insensitive" },
+                    },
+                  },
+                  {
+                    pedido: {
+                      contrato: {
+                        fornecedor: {
+                          nome: { contains: q as string, mode: "insensitive" },
+                        },
+                      },
+                    },
+                  },
+                ],
+              }
+            : {},
         ],
       },
       include: {
@@ -626,7 +659,7 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
         },
         _count: { select: { itens: true } },
       },
-      orderBy: { dataEntrega: 'desc' },
+      orderBy: { dataEntrega: "desc" },
     });
     res.json(recibos);
   } catch (error) {
@@ -638,31 +671,34 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
 // COMENTÁRIO: Busca os detalhes completos de um único recibo.
 // UTILIZAÇÃO: Chamada pelo `ReciboDetailDialog.tsx` quando o utilizador clica para ver um recibo.
 app.get("/api/recibos/:id", async (req: Request, res: Response) => {
-    const { id } = req.params;
-    try {
-        const recibo = await prisma.recibo.findUnique({
-            where: { id },
-            include: {
-                pedido: { include: { contrato: { include: { fornecedor: true } } } },
+  const { id } = req.params;
+  try {
+    const recibo = await prisma.recibo.findUnique({
+      where: { id },
+      include: {
+        pedido: { include: { contrato: { include: { fornecedor: true } } } },
+        unidadeEducacional: true,
+        itens: {
+          include: {
+            itemPedido: {
+              include: {
+                itemContrato: { include: { unidadeMedida: true } },
                 unidadeEducacional: true,
-                itens: {
-                    include: {
-                        itemPedido: {
-                            include: {
-                                itemContrato: { include: { unidadeMedida: true } },
-                                unidadeEducacional: true,
-                            }
-                        }
-                    },
-                },
+              },
             },
-        });
-        if (!recibo) return res.status(404).json({ error: "Recibo não encontrado." });
-        res.json(recibo);
-    } catch (error) {
-        console.error("Erro ao buscar detalhes do recibo:", error);
-        res.status(500).json({ error: "Não foi possível buscar os detalhes do recibo." });
-    }
+          },
+        },
+      },
+    });
+    if (!recibo)
+      return res.status(404).json({ error: "Recibo não encontrado." });
+    res.json(recibo);
+  } catch (error) {
+    console.error("Erro ao buscar detalhes do recibo:", error);
+    res
+      .status(500)
+      .json({ error: "Não foi possível buscar os detalhes do recibo." });
+  }
 });
 
 // COMENTÁRIO: Cria um ou mais recibos a partir de um pedido.
@@ -679,7 +715,7 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
       });
 
       if (!pedido) throw new Error("Pedido não encontrado.");
-      if (pedido.status === 'entregue' || pedido.status === 'cancelado') {
+      if (pedido.status === "entregue" || pedido.status === "cancelado") {
         throw new Error(`Este pedido já foi ${pedido.status}.`);
       }
 
@@ -697,9 +733,15 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
       const recibosCriados = [];
       for (const unidadeId in itensPorUnidade) {
         const itensDaUnidade = itensPorUnidade[unidadeId];
-        const numeroRecibo = `RB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}-${unidadeId.slice(0, 4)}`;
-        const urlConfirmacao = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/confirmacao-recebimento/${numeroRecibo}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(urlConfirmacao)}`;
+        const numeroRecibo = `RB-${new Date().getFullYear()}-${String(
+          Date.now()
+        ).slice(-6)}-${unidadeId.slice(0, 4)}`;
+        const urlConfirmacao = `${
+          process.env.FRONTEND_URL || "http://localhost:5173"
+        }/confirmacao-recebimento/${numeroRecibo}`;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+          urlConfirmacao
+        )}`;
 
         const novoRecibo = await tx.recibo.create({
           data: {
@@ -708,10 +750,11 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
             unidadeEducacionalId: unidadeId,
             dataEntrega: new Date(dataEntrega),
             responsavelEntrega,
-            status: 'pendente',
+            responsavelRecebimento: "",
+            status: "pendente",
             qrcode: qrCodeUrl,
             itens: {
-              create: itensDaUnidade.map(itemPedido => ({
+              create: itensDaUnidade.map((itemPedido) => ({
                 itemPedidoId: itemPedido.id,
                 quantidadeSolicitada: itemPedido.quantidade,
                 quantidadeRecebida: 0, // Inicia como 0
@@ -726,21 +769,24 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
       // 4. Atualizar o status do pedido para 'entregue'.
       await tx.pedido.update({
         where: { id: pedidoId },
-        data: { status: 'entregue' },
+        data: { status: "entregue" },
       });
 
       return recibosCriados;
     });
 
-    res.status(201).json({ message: `${result.length} recibo(s) gerado(s) com sucesso.` });
+    res
+      .status(201)
+      .json({ message: `${result.length} recibo(s) gerado(s) com sucesso.` });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
+    const errorMessage =
+      error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
     console.error("Erro ao gerar recibo:", error);
-    res.status(500).json({ error: `Não foi possível gerar o recibo: ${errorMessage}` });
+    res
+      .status(500)
+      .json({ error: `Não foi possível gerar o recibo: ${errorMessage}` });
   }
 });
-
-
 
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {
