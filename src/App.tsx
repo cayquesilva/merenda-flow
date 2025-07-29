@@ -16,6 +16,7 @@ import Recibos from "./pages/Recibos";
 import Confirmacoes from "./pages/Confirmacoes";
 import Relatorios from "./pages/Relatorios";
 import Usuarios from "./pages/Usuarios";
+import Estoque from "./pages/Estoque";
 import ConfirmacaoRecebimento from "./pages/ConfirmacaoRecebimento";
 import NotFound from "./pages/NotFound";
 import { useState, useEffect } from "react";
@@ -147,6 +148,14 @@ function AppContent() {
           element={
             <ProtectedRoute module="confirmacoes">
               <Confirmacoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/estoque"
+          element={
+            <ProtectedRoute module="estoque">
+              <Estoque />
             </ProtectedRoute>
           }
         />

@@ -49,6 +49,7 @@ model UnidadeEducacional {
   // Relações
   pedidos ItemPedido[]
   recibos Recibo[]
+  estoques Estoque[]
 }
 
 // ===================================
@@ -91,6 +92,8 @@ model ItemContrato {
 
   // Relação com Itens de Pedido
   itensPedido ItemPedido[]
+  // Relação com Estoque
+  estoques Estoque[]
 }
 
 model Pedido {
@@ -152,6 +155,8 @@ model Recibo {
 
   // Relação com Itens do Recibo
   itens ItemRecibo[]
+  // Relação com Movimentações de Estoque
+  movimentacoesEstoque MovimentacaoEstoque[]
 
   @@unique([pedidoId, unidadeEducacionalId])
 }
@@ -170,4 +175,47 @@ model ItemRecibo {
   // Relação com Item do Pedido (para saber o que foi recebido)
   itemPedido   ItemPedido @relation(fields: [itemPedidoId], references: [id])
   itemPedidoId String     @unique @map("item_pedido_id")
+}
+
+// ===================================
+// MODELOS DE ESTOQUE
+// ===================================
+
+model Estoque {
+  id                     String   @id @default(uuid())
+  quantidadeAtual        Float    @map("quantidade_atual") @default(0)
+  quantidadeMinima       Float    @map("quantidade_minima") @default(0)
+  ultimaAtualizacao      DateTime @default(now()) @map("ultima_atualizacao")
+
+  // Relação com Unidade Educacional
+  unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
+  unidadeEducacionalId String             @map("unidade_educacional_id")
+
+  // Relação com Item do Contrato
+  itemContrato   ItemContrato @relation(fields: [itemContratoId], references: [id])
+  itemContratoId String       @map("item_contrato_id")
+
+  // Relação com Movimentações
+  movimentacoes MovimentacaoEstoque[]
+
+  @@unique([unidadeEducacionalId, itemContratoId])
+}
+
+model MovimentacaoEstoque {
+  id                 String   @id @default(uuid())
+  tipo               String // 'entrada', 'saida', 'ajuste'
+  quantidade         Float
+  quantidadeAnterior Float    @map("quantidade_anterior")
+  quantidadeNova     Float    @map("quantidade_nova")
+  motivo             String
+  responsavel        String
+  dataMovimentacao   DateTime @default(now()) @map("data_movimentacao")
+
+  // Relação com Estoque
+  estoque   Estoque @relation(fields: [estoqueId], references: [id])
+  estoqueId String  @map("estoque_id")
+
+  // Relação opcional com Recibo (para movimentações automáticas)
+  recibo   Recibo? @relation(fields: [reciboId], references: [id])
+  reciboId String? @map("recibo_id")
 }

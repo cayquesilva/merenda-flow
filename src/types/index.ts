@@ -109,3 +109,29 @@ export interface ConsolidacaoPedido {
   unidadesConfirmadas: number;
   percentualConfirmacao: number;
 }
+
+export interface Estoque {
+  id: string;
+  unidadeEducacionalId: string;
+  unidadeEducacional: UnidadeEducacional;
+  itemContratoId: string;
+  itemContrato: ItemContrato;
+  quantidadeAtual: number;
+  quantidadeMinima: number;
+  ultimaAtualizacao: string;
+}
+
+export interface MovimentacaoEstoque {
+  id: string;
+  estoqueId: string;
+  estoque: Estoque;
+  tipo: 'entrada' | 'saida' | 'ajuste';
+  quantidade: number;
+  quantidadeAnterior: number;
+  quantidadeNova: number;
+  motivo: string;
+  reciboId?: string;
+  recibo?: Recibo;
+  responsavel: string;
+  dataMovimentacao: string;
+}

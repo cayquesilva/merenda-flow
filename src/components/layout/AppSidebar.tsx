@@ -11,7 +11,8 @@ import {
   Shield,
   LogOut,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Package
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,7 @@ export function AppSidebar() {
         { title: "Pedidos", url: "/pedidos", icon: ShoppingCart, module: "pedidos" },
         { title: "Recibos", url: "/recibos", icon: Receipt, module: "recibos" },
         { title: "Confirmações", url: "/confirmacoes", icon: CheckCircle, module: "confirmacoes" },
+        { title: "Estoque", url: "/estoque", icon: Package, module: "estoque" },
       ]
     },
     {

@@ -6,6 +6,7 @@ import { RelatorioConsolidadoPedidos } from "@/components/relatorios/RelatorioCo
 import { RelatorioEntregas } from "@/components/relatorios/RelatorioEntregas";
 import { RelatorioConformidade } from "@/components/relatorios/RelatorioConformidade";
 import { RelatorioGastosFornecedor } from "@/components/relatorios/RelatorioGastosFornecedor";
+import { RelatorioEstoque } from "@/components/relatorios/RelatorioEstoque";
 
 export default function Relatorios() {
   return (
@@ -37,6 +38,10 @@ export default function Relatorios() {
             <FileText className="mr-2 h-4 w-4" />
             Gastos por Fornecedor
           </TabsTrigger>
+          <TabsTrigger value="estoque">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Relatório de Estoque
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="consolidado">
@@ -53,6 +58,10 @@ export default function Relatorios() {
 
         <TabsContent value="gastos">
           <RelatorioGastosFornecedor />
+        </TabsContent>
+
+        <TabsContent value="estoque">
+          <RelatorioEstoque />
         </TabsContent>
       </Tabs>
     </div>
