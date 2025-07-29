@@ -1,46 +1,127 @@
+import { useEffect, useState } from "react";
 import { MetricCard } from "@/components/ui/metric-card";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  FileText, 
-  Users, 
-  ShoppingCart, 
+import {
+  FileText,
+  Users,
+  ShoppingCart,
   AlertTriangle,
   TrendingUp,
   Calendar,
-  DollarSign
+  DollarSign,
+  Loader2, // Adicionado para o estado de carregamento
 } from "lucide-react";
-import { contratos, pedidos, fornecedores } from "@/data/mockData";
+
+// Importando as interfaces dos seus tipos para tipagem precisa
+import { Contrato, Fornecedor, ItemContrato, UnidadeMedida } from "@/types";
+import { Button } from "@/components/ui/button";
+
+// Definindo as interfaces para os dados que vêm do backend
+interface DashboardMetrics {
+  totalContratos: number;
+  contratosAtivos: number;
+  totalFornecedores: number;
+  totalPedidos: number;
+  valorTotalContratos: number;
+  consolidacoesPendentes: number;
+  eficienciaEntrega: number;
+}
+
+interface ItemComSaldoBaixo extends ItemContrato {
+  unidadeMedida: UnidadeMedida; // Incluindo a unidade de medida para exibição
+}
+
+// Corrigido: Usando Omit para sobrescrever a propriedade 'fornecedor'
+interface ContratoVencendo extends Omit<Contrato, "fornecedor"> {
+  fornecedor: { nome: string }; // Apenas o nome do fornecedor é necessário aqui
+}
+
+// Corrigido: Usando Omit para sobrescrever a propriedade 'fornecedor'
+interface ContratoRecente extends Omit<Contrato, "fornecedor"> {
+  fornecedor: { nome: string };
+  _count: { itens: number }; // Contagem de itens para exibir
+}
+
+interface DashboardData {
+  metrics: DashboardMetrics;
+  alerts: {
+    itensComSaldoBaixo: ItemComSaldoBaixo[];
+    contratosVencendo: ContratoVencendo[];
+  };
+  recentContracts: ContratoRecente[];
+}
 
 export default function Dashboard() {
-  // Simulação de dados de consolidação
-  const consolidacoesPendentes = 2; // Pedidos com recibos pendentes de confirmação
-  const eficienciaEntrega = 85; // Percentual médio de conformidade
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
+    null
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Cálculos das métricas
-  const totalContratos = contratos.length;
-  const contratosAtivos = contratos.filter(c => c.status === 'ativo').length;
-  const totalFornecedores = fornecedores.filter(f => f.ativo).length;
-  const totalPedidos = pedidos.length;
-  
-  const valorTotalContratos = contratos
-    .filter(c => c.status === 'ativo')
-    .reduce((sum, c) => sum + c.valorTotal, 0);
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          "http://localhost:3001/api/dashboard-data"
+        );
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || "Falha ao carregar dados do dashboard."
+          );
+        }
+        const data: DashboardData = await response.json();
+        setDashboardData(data);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Ocorreu um erro ao carregar o dashboard."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  // Itens com saldo baixo (menos de 20% do original)
-  const itensComSaldoBaixo = contratos
-    .flatMap(c => c.itens)
-    .filter(item => (item.saldoAtual / item.quantidadeOriginal) < 0.2);
+    fetchDashboardData();
+  }, []);
 
-  // Contratos próximos do vencimento (30 dias)
-  const contratosVencendo = contratos.filter(c => {
-    const dataFim = new Date(c.dataFim);
-    const hoje = new Date();
-    const diffTime = dataFim.getTime() - hoje.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 30 && diffDays > 0;
-  });
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-20">
+        <Loader2 className="h-12 w-12 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 text-center p-4">
+        <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
+        <h3 className="text-xl font-semibold">Erro ao Carregar Dashboard</h3>
+        <p className="text-muted-foreground">{error}</p>
+        <Button onClick={() => window.location.reload()}>
+          Tentar Novamente
+        </Button>
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return null; // Ou um estado vazio / placeholder
+  }
+
+  const { metrics, alerts, recentContracts } = dashboardData;
 
   return (
     <div className="space-y-6">
@@ -55,39 +136,39 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <MetricCard
           title="Contratos Ativos"
-          value={contratosAtivos}
-          description={`${totalContratos} contratos no total`}
+          value={metrics.contratosAtivos}
+          description={`${metrics.totalContratos} contratos no total`}
           icon={FileText}
           variant="success"
         />
-        
+
         <MetricCard
           title="Fornecedores Ativos"
-          value={totalFornecedores}
+          value={metrics.totalFornecedores}
           description="Fornecedores cadastrados"
           icon={Users}
         />
-        
+
         <MetricCard
-          title="Pedidos Este Mês"
-          value={totalPedidos}
+          title="Pedidos Total" // Alterado para "Total Pedidos" pois não filtramos por mês no backend ainda
+          value={metrics.totalPedidos}
           description="Pedidos processados"
           icon={ShoppingCart}
-          trend={{ value: 12, label: "vs mês anterior" }}
+          // trend={{ value: 12, label: "vs mês anterior" }} // Removido, pois não temos essa métrica ainda
         />
-        
+
         <MetricCard
           title="Valor Total Contratos"
-          value={`R$ ${valorTotalContratos.toLocaleString('pt-BR')}`}
+          value={`R$ ${metrics.valorTotalContratos.toLocaleString("pt-BR")}`}
           description="Contratos ativos"
           icon={DollarSign}
           variant="success"
         />
 
         <MetricCard
-          title="Consolidações Pendentes"
-          value={consolidacoesPendentes}
-          description="Pedidos aguardando confirmação"
+          title="Recibos Pendentes" // Alterado para refletir o nome da métrica
+          value={metrics.consolidacoesPendentes}
+          description="Recibos aguardando confirmação"
           icon={AlertTriangle}
           variant="warning"
         />
@@ -107,34 +188,34 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {itensComSaldoBaixo.length === 0 ? (
+            {alerts.itensComSaldoBaixo.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nenhum item com saldo baixo
               </p>
             ) : (
               <div className="space-y-3">
-                {itensComSaldoBaixo.slice(0, 3).map((item) => {
-                  const percentual = (item.saldoAtual / item.quantidadeOriginal) * 100;
+                {alerts.itensComSaldoBaixo.map((item) => {
+                  const percentual =
+                    (item.saldoAtual / item.quantidadeOriginal) * 100;
                   return (
                     <div key={item.id} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">{item.nome}</span>
-                        <Badge variant="outline" className="text-warning border-warning">
+                        <Badge
+                          variant="outline"
+                          className="text-warning border-warning"
+                        >
                           {percentual.toFixed(0)}%
                         </Badge>
                       </div>
                       <Progress value={percentual} className="h-2" />
                       <p className="text-xs text-muted-foreground">
-                        {item.saldoAtual} de {item.quantidadeOriginal} {item.unidadeMedida.sigla}
+                        {item.saldoAtual} de {item.quantidadeOriginal}{" "}
+                        {item.unidadeMedida.sigla}
                       </p>
                     </div>
                   );
                 })}
-                {itensComSaldoBaixo.length > 3 && (
-                  <p className="text-xs text-muted-foreground">
-                    +{itensComSaldoBaixo.length - 3} itens com saldo baixo
-                  </p>
-                )}
               </div>
             )}
           </CardContent>
@@ -152,26 +233,34 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {contratosVencendo.length === 0 ? (
+            {alerts.contratosVencendo.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nenhum contrato vencendo em breve
               </p>
             ) : (
               <div className="space-y-3">
-                {contratosVencendo.map((contrato) => {
+                {alerts.contratosVencendo.map((contrato) => {
                   const dataFim = new Date(contrato.dataFim);
                   const hoje = new Date();
-                  const diffDays = Math.ceil((dataFim.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
-                  
+                  const diffDays = Math.ceil(
+                    (dataFim.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)
+                  );
+
                   return (
-                    <div key={contrato.id} className="flex items-center justify-between">
+                    <div
+                      key={contrato.id}
+                      className="flex items-center justify-between"
+                    >
                       <div>
                         <p className="text-sm font-medium">{contrato.numero}</p>
                         <p className="text-xs text-muted-foreground">
                           {contrato.fornecedor.nome}
                         </p>
                       </div>
-                      <Badge variant="outline" className="text-warning border-warning">
+                      <Badge
+                        variant="outline"
+                        className="text-warning border-warning"
+                      >
                         {diffDays} dias
                       </Badge>
                     </div>
@@ -196,26 +285,37 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {contratos.slice(0, 5).map((contrato) => (
-              <div key={contrato.id} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{contrato.numero}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {contrato.fornecedor.nome} • {contrato.itens.length} itens
-                  </p>
+            {recentContracts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum contrato recente encontrado.
+              </p>
+            ) : (
+              recentContracts.map((contrato) => (
+                <div
+                  key={contrato.id}
+                  className="flex items-center justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{contrato.numero}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {contrato.fornecedor.nome} • {contrato._count.itens} itens
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">
+                      R$ {contrato.valorTotal.toLocaleString("pt-BR")}
+                    </p>
+                    <Badge
+                      variant={
+                        contrato.status === "ativo" ? "default" : "secondary"
+                      }
+                    >
+                      {contrato.status}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium">
-                    R$ {contrato.valorTotal.toLocaleString('pt-BR')}
-                  </p>
-                  <Badge 
-                    variant={contrato.status === 'ativo' ? 'default' : 'secondary'}
-                  >
-                    {contrato.status}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

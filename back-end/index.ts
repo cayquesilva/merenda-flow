@@ -1288,6 +1288,139 @@ app.get(
   }
 );
 
+// COMENTÁRIO: Rota para buscar todos os dados do Dashboard
+app.get("/api/dashboard-data", async (req: Request, res: Response) => {
+  try {
+    // Métricas Principais
+    const totalContratos = await prisma.contrato.count();
+    const contratosAtivos = await prisma.contrato.count({
+      where: { status: "ativo" },
+    });
+    const totalFornecedores = await prisma.fornecedor.count({
+      where: { ativo: true },
+    });
+    const totalPedidos = await prisma.pedido.count();
+
+    const valorTotalContratosResult = await prisma.contrato.aggregate({
+      _sum: { valorTotal: true },
+      where: { status: "ativo" },
+    });
+    const valorTotalContratos = valorTotalContratosResult._sum.valorTotal || 0;
+
+    const consolidacoesPendentes = await prisma.recibo.count({
+      where: { status: "pendente" },
+    });
+
+    // Cálculo da Eficiência de Entrega (Média de Conformidade)
+    const allRecibosForConformity = await prisma.recibo.findMany({
+      where: {
+        status: {
+          in: ["confirmado", "parcial", "rejeitado"],
+        },
+      },
+      include: {
+        itens: true,
+      },
+    });
+
+    let mediaConformidade = 0;
+    if (allRecibosForConformity.length > 0) {
+      const totalPercent = allRecibosForConformity.reduce((sum, recibo) => {
+        const itensConformes = recibo.itens.filter(
+          (item) => item.conforme
+        ).length;
+        const totalItens = recibo.itens.length;
+        return sum + (totalItens > 0 ? (itensConformes / totalItens) * 100 : 0);
+      }, 0);
+      mediaConformidade = totalPercent / allRecibosForConformity.length;
+    }
+
+    // Alertas e Informações Importantes
+    // Itens com Saldo Baixo
+    const allItemsContrato = await prisma.itemContrato.findMany({
+      where: {
+        quantidadeOriginal: { gt: 0 },
+      },
+      include: {
+        unidadeMedida: true,
+        // Adicionado include para contrato e fornecedor
+        contrato: {
+          select: {
+            fornecedor: {
+              select: {
+                nome: true, // Apenas o nome do fornecedor é necessário
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const itensComSaldoBaixo = allItemsContrato
+      .filter((item) => {
+        return item.saldoAtual / item.quantidadeOriginal < 0.2;
+      })
+      .sort(
+        (a, b) =>
+          a.saldoAtual / a.quantidadeOriginal -
+          b.saldoAtual / b.quantidadeOriginal
+      )
+      .slice(0, 3); // Limitar a 3 para o dashboard
+
+    // Contratos Próximos do Vencimento (30 dias)
+    const today = new Date();
+    const thirtyDaysLater = new Date();
+    thirtyDaysLater.setDate(today.getDate() + 30);
+
+    const contratosVencendo = await prisma.contrato.findMany({
+      where: {
+        dataFim: {
+          lte: thirtyDaysLater,
+          gte: today,
+        },
+        status: "ativo",
+      },
+      include: {
+        fornecedor: { select: { nome: true } },
+      },
+      orderBy: { dataFim: "asc" },
+      take: 3, // Limitar a 3 para o dashboard
+    });
+
+    // Contratos Recentes
+    const contratosRecentes = await prisma.contrato.findMany({
+      include: {
+        fornecedor: { select: { nome: true } },
+        _count: { select: { itens: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+
+    res.json({
+      metrics: {
+        totalContratos,
+        contratosAtivos,
+        totalFornecedores,
+        totalPedidos,
+        valorTotalContratos,
+        consolidacoesPendentes,
+        eficienciaEntrega: mediaConformidade,
+      },
+      alerts: {
+        itensComSaldoBaixo,
+        contratosVencendo,
+      },
+      recentContracts: contratosRecentes,
+    });
+  } catch (error) {
+    console.error("Erro ao buscar dados do dashboard:", error);
+    res
+      .status(500)
+      .json({ error: "Não foi possível carregar os dados do dashboard." });
+  }
+});
+
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {
   try {
