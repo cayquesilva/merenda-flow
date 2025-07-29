@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,65 +12,149 @@ import {
   Building2,
   DollarSign,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  Loader2 // Adicionado para o estado de carregamento
 } from "lucide-react";
-import { contratos, pedidos } from "@/data/mockData";
-import { useToast } from "@/hooks/use-toast";
+// Importar tipos necessários do seu arquivo de types
+import { Contrato, Pedido, ItemContrato, UnidadeMedida, UnidadeEducacional, Fornecedor, ItemPedido } from "@/types"; // Adicionado ItemPedido aqui
+import { useToast } from "../ui/use-toast";
+
+// Interfaces para os dados retornados pela API
+interface ItemContratoConsolidado extends ItemContrato {
+  unidadeMedida: UnidadeMedida;
+  quantidadePedida: number;
+  valorConsumido: number;
+  percentualConsumido: number;
+  saldoRestante: number;
+}
+
+// Nova interface para ItemPedido com os includes detalhados que a API retorna
+interface ItemPedidoConsolidadoDetalhado extends ItemPedido {
+  itemContrato: ItemContrato & { // ItemContrato completo
+    unidadeMedida: UnidadeMedida;
+  };
+  unidadeEducacional: UnidadeEducacional; // UnidadeEducacional completa
+}
+
+// PedidoConsolidado agora estende Pedido e usa a nova interface para 'itens'
+interface PedidoConsolidado extends Pedido {
+  itens: ItemPedidoConsolidadoDetalhado[];
+}
+
+interface ConsolidacaoData {
+  contrato: Contrato & { // O contrato completo, como vem do backend
+    fornecedor: Fornecedor;
+    itens: ItemContrato[]; // Itens originais do contrato, não os consolidados
+  };
+  itensPorContrato: ItemContratoConsolidado[]; // Adicionado à raiz da interface
+  pedidos: PedidoConsolidado[];
+  totalPedidos: number;
+  valorTotalPedidos: number;
+  unidadesAtendidas: string[]; // Nomes das unidades
+  pedidosPorStatus: {
+    pendente: number;
+    confirmado: number;
+    entregue: number;
+    cancelado: number;
+  };
+}
+
+// Interface para a lista de contratos simplificada (para o Select)
+interface ContratoLista {
+  id: string;
+  numero: string;
+  fornecedor: {
+    nome: string;
+  };
+}
 
 export function RelatorioConsolidadoPedidos() {
   const [contratoSelecionado, setContratoSelecionado] = useState<string>("");
+  const [contratosDisponiveis, setContratosDisponiveis] = useState<ContratoLista[]>([]);
+  const [consolidacao, setConsolidacao] = useState<ConsolidacaoData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const { toast } = useToast();
 
-  const contrato = contratos.find(c => c.id === contratoSelecionado);
-  const pedidosDoContrato = pedidos.filter(p => p.contratoId === contratoSelecionado);
+  // Efeito para buscar a lista de contratos disponíveis
+  useEffect(() => {
+    const fetchContratos = async () => {
+      setIsLoading(true);
+      try {
+        // Busca todos os contratos para popular o Select
+        const response = await fetch("http://localhost:3001/api/contratos");
+        if (!response.ok) throw new Error("Falha ao buscar contratos.");
+        const data: ContratoLista[] = await response.json();
+        setContratosDisponiveis(data);
+      } catch (error) {
+        console.error("Erro ao carregar contratos:", error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar a lista de contratos.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchContratos();
+  }, [toast]);
 
-  // Consolidação dos dados
-  const consolidacao = contrato ? {
-    totalPedidos: pedidosDoContrato.length,
-    valorTotalPedidos: pedidosDoContrato.reduce((sum, p) => sum + p.valorTotal, 0),
-    itensPorContrato: contrato.itens.map(itemContrato => {
-      const quantidadePedida = pedidosDoContrato
-        .flatMap(p => p.itens)
-        .filter(item => item.itemContratoId === itemContrato.id)
-        .reduce((sum, item) => sum + item.quantidade, 0);
-      
-      const valorConsumido = quantidadePedida * itemContrato.valorUnitario;
-      const percentualConsumido = (quantidadePedida / itemContrato.quantidadeOriginal) * 100;
-      
-      return {
-        ...itemContrato,
-        quantidadePedida,
-        valorConsumido,
-        percentualConsumido,
-        saldoRestante: itemContrato.quantidadeOriginal - quantidadePedida
+  // Efeito para buscar os dados consolidados quando um contrato é selecionado
+  useEffect(() => {
+    if (contratoSelecionado) {
+      const fetchConsolidacao = async () => {
+        setIsLoading(true);
+        setConsolidacao(null); // Limpa dados anteriores
+        try {
+          const response = await fetch(`http://localhost:3001/api/relatorios/consolidado-pedidos-data/${contratoSelecionado}`);
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Falha ao buscar dados consolidados.");
+          }
+          const data: ConsolidacaoData = await response.json();
+          setConsolidacao(data);
+        } catch (error) {
+          console.error("Erro ao buscar consolidação:", error);
+          toast({
+            title: "Erro",
+            description: "Não foi possível carregar os dados consolidados do contrato.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(false);
+        }
       };
-    }),
-    unidadesAtendidas: [...new Set(pedidosDoContrato.flatMap(p => p.itens.map(i => i.unidadeEducacional.nome)))],
-    pedidosPorStatus: {
-      pendente: pedidosDoContrato.filter(p => p.status === 'pendente').length,
-      confirmado: pedidosDoContrato.filter(p => p.status === 'confirmado').length,
-      entregue: pedidosDoContrato.filter(p => p.status === 'entregue').length,
-      cancelado: pedidosDoContrato.filter(p => p.status === 'cancelado').length,
+      fetchConsolidacao();
+    } else {
+      setConsolidacao(null); // Limpa a consolidação se nenhum contrato for selecionado
     }
-  } : null;
+  }, [contratoSelecionado, toast]);
+
 
   const gerarRelatorio = async () => {
-    if (!consolidacao) return;
+    if (!consolidacao || !contratoSelecionado) return;
 
+    setIsGeneratingPdf(true);
     try {
+      // A rota POST já gera o JSON, mas você mencionou PDF.
+      // Se o backend realmente gerar um PDF, o tipo de resposta seria 'application/pdf'.
+      // Se for apenas JSON, o download de PDF precisa ser feito no frontend (ex: com jsPDF)
+      // Por enquanto, manterei a lógica de download de blob, assumindo que o backend envia um PDF.
       const response = await fetch(`http://localhost:3001/api/relatorios/consolidado-pedidos/${contratoSelecionado}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json', // Ou 'application/pdf' se o backend estiver configurado para isso
         }
       });
 
       if (response.ok) {
+        // Se o backend retornar um BLOB (como PDF), faça o download
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `relatorio-consolidado-${contrato!.numero}.pdf`;
+        a.download = `relatorio-consolidado-${consolidacao.contrato.numero}.pdf`; // Nome do arquivo
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -78,22 +162,25 @@ export function RelatorioConsolidadoPedidos() {
 
         toast({
           title: "Relatório gerado!",
-          description: "O relatório consolidado foi gerado com sucesso",
+          description: "O relatório consolidado foi gerado com sucesso.",
         });
       } else {
-        throw new Error('Falha ao gerar relatório');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao gerar relatório');
       }
     } catch (error) {
       toast({
         title: "Erro ao gerar relatório",
-        description: "Não foi possível gerar o relatório. Tente novamente.",
+        description: error instanceof Error ? error.message : "Não foi possível gerar o relatório. Tente novamente.",
         variant: "destructive",
       });
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -107,22 +194,32 @@ export function RelatorioConsolidadoPedidos() {
         <CardContent>
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <Select value={contratoSelecionado} onValueChange={setContratoSelecionado}>
+              <Select value={contratoSelecionado} onValueChange={setContratoSelecionado} disabled={isLoading}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um contrato" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contratos.map(contrato => (
-                    <SelectItem key={contrato.id} value={contrato.id}>
-                      {contrato.numero} - {contrato.fornecedor.nome}
+                  {isLoading ? (
+                    <SelectItem value="loading" disabled>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Carregando contratos...
                     </SelectItem>
-                  ))}
+                  ) : (
+                    contratosDisponiveis.map(contrato => (
+                      <SelectItem key={contrato.id} value={contrato.id}>
+                        {contrato.numero} - {contrato.fornecedor.nome}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
             {consolidacao && (
-              <Button onClick={gerarRelatorio}>
-                <Download className="mr-2 h-4 w-4" />
+              <Button onClick={gerarRelatorio} disabled={isGeneratingPdf}>
+                {isGeneratingPdf ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
                 Exportar PDF
               </Button>
             )}
@@ -130,7 +227,12 @@ export function RelatorioConsolidadoPedidos() {
         </CardContent>
       </Card>
 
-      {consolidacao && (
+      {isLoading && !consolidacao ? (
+        <div className="text-center py-8">
+          <Loader2 className="h-12 w-12 mx-auto animate-spin" />
+          <p className="text-muted-foreground mt-2">Carregando dados do relatório...</p>
+        </div>
+      ) : consolidacao ? (
         <>
           {/* Resumo Geral */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -185,7 +287,7 @@ export function RelatorioConsolidadoPedidos() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">% Contrato Utilizado</p>
                     <p className="text-2xl font-bold">
-                      {((consolidacao.valorTotalPedidos / contrato!.valorTotal) * 100).toFixed(1)}%
+                      {((consolidacao.valorTotalPedidos / consolidacao.contrato.valorTotal) * 100).toFixed(1)}%
                     </p>
                   </div>
                 </div>
@@ -264,7 +366,7 @@ export function RelatorioConsolidadoPedidos() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span>{item.percentualConsumido.toFixed(1)}%</span>
-                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="w-16 h-2 bg-primary rounded-full overflow-hidden">
                             <div 
                               className="h-full bg-primary transition-all"
                               style={{ width: `${Math.min(item.percentualConsumido, 100)}%` }}
@@ -308,7 +410,7 @@ export function RelatorioConsolidadoPedidos() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pedidosDoContrato.map((pedido) => (
+                  {consolidacao.pedidos.map((pedido) => (
                     <TableRow key={pedido.id}>
                       <TableCell className="font-mono">{pedido.numero}</TableCell>
                       <TableCell>
@@ -328,6 +430,10 @@ export function RelatorioConsolidadoPedidos() {
             </CardContent>
           </Card>
         </>
+      ) : (
+        <div className="text-center py-8 text-muted-foreground">
+          Selecione um contrato para visualizar o relatório consolidado de pedidos.
+        </div>
       )}
     </div>
   );

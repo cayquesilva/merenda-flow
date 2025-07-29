@@ -1809,6 +1809,78 @@ app.post(
   }
 );
 
+// NOVA ROTA: Rota para buscar dados consolidados de pedidos para exibição no frontend
+app.get("/api/relatorios/consolidado-pedidos-data/:contratoId", async (req: Request, res: Response) => {
+  const { contratoId } = req.params;
+  try {
+    const contrato = await prisma.contrato.findUnique({
+      where: { id: contratoId },
+      include: {
+        fornecedor: true,
+        itens: { include: { unidadeMedida: true } } // Inclui unidadeMedida para o cálculo
+      }
+    });
+
+    if (!contrato) {
+      return res.status(404).json({ error: "Contrato não encontrado." });
+    }
+
+    const pedidos = await prisma.pedido.findMany({
+      where: { contratoId },
+      include: {
+        itens: {
+          include: {
+            itemContrato: { include: { unidadeMedida: true } },
+            unidadeEducacional: true
+          }
+        }
+      }
+    });
+
+    // Consolidação dos dados (movida do frontend para o backend)
+    const itensPorContrato = contrato.itens.map(itemContrato => {
+      const quantidadePedida = pedidos
+        .flatMap(p => p.itens)
+        .filter(item => item.itemContratoId === itemContrato.id)
+        .reduce((sum, item) => sum + item.quantidade, 0);
+      
+      const valorConsumido = quantidadePedida * itemContrato.valorUnitario;
+      const percentualConsumido = itemContrato.quantidadeOriginal > 0 ? (quantidadePedida / itemContrato.quantidadeOriginal) * 100 : 0;
+      
+      return {
+        ...itemContrato,
+        quantidadePedida,
+        valorConsumido,
+        percentualConsumido,
+        saldoRestante: itemContrato.quantidadeOriginal - quantidadePedida
+      };
+    });
+
+    const unidadesAtendidas = [...new Set(pedidos.flatMap(p => p.itens.map(i => i.unidadeEducacional.nome)))];
+
+    const pedidosPorStatus = {
+      pendente: pedidos.filter(p => p.status === 'pendente').length,
+      confirmado: pedidos.filter(p => p.status === 'confirmado').length,
+      entregue: pedidos.filter(p => p.status === 'entregue').length,
+      cancelado: pedidos.filter(p => p.status === 'cancelado').length,
+    };
+
+    res.json({
+      contrato,
+      pedidos, // Inclui os pedidos para a tabela de histórico
+      totalPedidos: pedidos.length,
+      valorTotalPedidos: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
+      unidadesAtendidas,
+      pedidosPorStatus,
+      itensPorContrato // Dados consolidados por item
+    });
+
+  } catch (error) {
+    console.error("Erro ao buscar dados consolidados do relatório:", error);
+    res.status(500).json({ error: "Não foi possível carregar os dados consolidados do relatório." });
+  }
+});
+
 // COMENTÁRIO: Relatório de entregas por período
 app.get("/api/relatorios/entregas", async (req: Request, res: Response) => {
   const { dataInicio, dataFim, unidadeId } = req.query;
