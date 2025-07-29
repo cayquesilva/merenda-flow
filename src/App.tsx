@@ -25,7 +25,7 @@ import { Badge } from "./components/ui/badge";
 import SaidaEstoqueQRCode from "./pages/SaidaEstoqueQRCode";
 import QRCodeCatalog from "./pages/QRCodeCatalog";
 import RelatorioMovimentacaoResponsavel from "./components/relatorios/RelatorioMovimentacaoResponsavel";
-import ImprimirRecibo from "./components/recibos/ImprimirRecibosPedido";
+import ImprimirRecibo from "./components/recibos/ImprimirRecibo";
 import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
 
 const queryClient = new QueryClient();

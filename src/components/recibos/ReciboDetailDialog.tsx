@@ -2,6 +2,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -22,6 +23,7 @@ import {
   MapPin,
   Phone,
   Loader2,
+  Printer,
 } from "lucide-react";
 import { Recibo } from "@/types";
 import { useEffect, useState } from "react";
@@ -84,6 +86,12 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   const abrirConfirmacao = () => {
     if (recibo?.id)
       window.open(`/confirmacao-recebimento/${recibo.id}`, "_blank");
+  };
+  // Nova função para imprimir o recibo
+  const handlePrintRecibo = () => {
+    if (recibo?.id) {
+      window.open(`/recibos/imprimir/${recibo.id}`, "_self");
+    }
   };
 
   return (
@@ -324,6 +332,20 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
         ) : (
           <p>Não foi possível carregar os dados do recibo.</p>
         )}
+        <DialogFooter>
+          {/* Botão de Imprimir Recibo */}
+          <Button
+            onClick={handlePrintRecibo}
+            variant="outline"
+            disabled={isLoading}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimir Recibo
+          </Button>
+          <Button onClick={() => setOpen(false)} variant="secondary">
+            Fechar
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
