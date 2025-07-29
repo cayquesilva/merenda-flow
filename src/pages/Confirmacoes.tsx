@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // Importar useNavigate
 import {
   Card,
   CardContent,
@@ -35,8 +36,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { ConsolidacaoPedido, Recibo } from "@/types";
-import { ConsolidacaoDetailDialog } from "@/components/confirmacoes/ConsolidacaoDetailDialog";
-import { ReciboConfirmacaoDialog } from "@/components/confirmacoes/ReciboConfirmacaoDialog";
 
 interface ConfirmacaoDetalhada extends Recibo {
   percentualConformidade: number;
@@ -56,8 +55,6 @@ export default function Confirmacoes() {
   const [isLoading, setIsLoading] = useState(true);
   const [consolidacoes, setConsolidacoes] = useState<ConsolidacaoPedido[]>([]);
   const [confirmacoes, setConfirmacoes] = useState<ConfirmacaoDetalhada[]>([]);
-  const [consolidacaoSelecionada, setConsolidacaoSelecionada] = useState<ConsolidacaoPedido | null>(null);
-  const [reciboSelecionado, setReciboSelecionado] = useState<ConfirmacaoDetalhada | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     pendentes: 0,
@@ -65,6 +62,8 @@ export default function Confirmacoes() {
     parciais: 0,
     mediaConformidade: 0,
   });
+
+  const navigate = useNavigate(); // Inicializa o hook de navegação
 
   useEffect(() => {
     const fetchData = async () => {
@@ -81,11 +80,11 @@ export default function Confirmacoes() {
         const pendentes = data.confirmacoesDetalhadas.filter(
           (c) => c.status === "pendente"
         ).length;
-        const confirmados = data.confirmacoesDetalhadas.filter(
-          (c) => c.status === "confirmado"
+        const confirmados = data.consolidacoes.filter( // Use consolidacoes para status completo/parcial
+          (c) => c.statusConsolidacao === "completo"
         ).length;
-        const parciais = data.confirmacoesDetalhadas.filter(
-          (c) => c.status === "parcial"
+        const parciais = data.consolidacoes.filter(
+          (c) => c.statusConsolidacao === "parcial"
         ).length;
 
         const mediaConformidade =
@@ -248,6 +247,22 @@ export default function Confirmacoes() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
+              <div className="p-2 bg-success/10 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-success" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Parciais
+                </p>
+                <p className="text-2xl font-bold">{stats.parciais}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <BarChart3 className="h-6 w-6 text-primary" />
               </div>
@@ -399,13 +414,14 @@ export default function Confirmacoes() {
                           R$ {consolidacao.pedido.valorTotal.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right">
+                          {/* Botão para imprimir todos os recibos do pedido */}
                           <Button 
                             variant="outline" 
-                            size="sm"
-                            onClick={() => setConsolidacaoSelecionada(consolidacao)}
+                            size="sm" 
+                            onClick={() => navigate(`/recibos/imprimir-pedido/${consolidacao.pedidoId}`)}
                           >
-                            <Eye className="h-3 w-3 mr-1" />
-                            Ver Detalhes
+                            <FileText className="h-3 w-3 mr-1" />
+                            Imprimir Recibos
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -522,11 +538,7 @@ export default function Confirmacoes() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => setReciboSelecionado(confirmacao)}
-                            >
+                            <Button variant="outline" size="sm" onClick={() => navigate(`/recibos/imprimir/${confirmacao.id}`)}>
                               <Eye className="h-3 w-3 mr-1" />
                               Detalhes
                             </Button>
@@ -541,19 +553,6 @@ export default function Confirmacoes() {
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Dialogs */}
-      <ConsolidacaoDetailDialog
-        open={!!consolidacaoSelecionada}
-        onOpenChange={(open) => !open && setConsolidacaoSelecionada(null)}
-        consolidacao={consolidacaoSelecionada}
-      />
-
-      <ReciboConfirmacaoDialog
-        open={!!reciboSelecionado}
-        onOpenChange={(open) => !open && setReciboSelecionado(null)}
-        recibo={reciboSelecionado}
-      />
     </div>
   );
 }

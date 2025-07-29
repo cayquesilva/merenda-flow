@@ -1034,16 +1034,51 @@ app.get("/api/recibos/imprimir/:id", async (req: Request, res: Response) => {
     });
 
     if (!recibo) {
-      return res
-        .status(404)
-        .json({ error: "Recibo não encontrado para impressão." });
+      return res.status(404).json({ error: "Recibo não encontrado para impressão." });
     }
     res.json(recibo);
   } catch (error) {
     console.error("Erro ao buscar recibo para impressão:", error);
-    res
-      .status(500)
-      .json({ error: "Não foi possível carregar o recibo para impressão." });
+    res.status(500).json({ error: "Não foi possível carregar o recibo para impressão." });
+  }
+});
+
+// NOVA ROTA: Rota para buscar todos os recibos de um pedido específico para impressão em lote
+app.get("/api/recibos/imprimir-pedido/:pedidoId", async (req: Request, res: Response) => {
+  const { pedidoId } = req.params;
+  try {
+    const recibosDoPedido = await prisma.recibo.findMany({
+      where: { pedidoId },
+      include: {
+        pedido: {
+          include: {
+            contrato: { include: { fornecedor: true } },
+          },
+        },
+        unidadeEducacional: true,
+        itens: {
+          include: {
+            itemPedido: {
+              include: {
+                itemContrato: { include: { unidadeMedida: true } },
+                unidadeEducacional: true,
+              },
+            },
+          },
+        },
+        assinaturaDigital: true,
+        fotoReciboAssinado: true,
+      },
+      orderBy: { unidadeEducacional: { nome: 'asc' } }, // Ordena por unidade para impressão
+    });
+
+    if (recibosDoPedido.length === 0) {
+      return res.status(404).json({ error: "Nenhum recibo encontrado para este pedido." });
+    }
+    res.json(recibosDoPedido);
+  } catch (error) {
+    console.error("Erro ao buscar recibos do pedido para impressão em lote:", error);
+    res.status(500).json({ error: "Não foi possível carregar os recibos para impressão em lote." });
   }
 });
 

@@ -25,6 +25,8 @@ import { Badge } from "./components/ui/badge";
 import SaidaEstoqueQRCode from "./pages/SaidaEstoqueQRCode";
 import QRCodeCatalog from "./pages/QRCodeCatalog";
 import RelatorioMovimentacaoResponsavel from "./components/relatorios/RelatorioMovimentacaoResponsavel";
+import ImprimirRecibo from "./components/recibos/ImprimirRecibo";
+import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibo";
 
 const queryClient = new QueryClient();
 
@@ -190,6 +192,11 @@ function AppContent() {
         <Route
           path="/relatorios/movimentacao-responsavel"
           element={<RelatorioMovimentacaoResponsavel />}
+        />
+        <Route path="/recibos/imprimir/:id" element={<ImprimirRecibo />} />
+        <Route
+          path="/recibos/imprimir-pedido/:pedidoId"
+          element={<ImprimirRecibosPedido />}
         />
         <Route path="*" element={<NotFound />} />
       </Routes>
