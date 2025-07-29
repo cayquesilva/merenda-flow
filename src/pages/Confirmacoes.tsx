@@ -1,14 +1,27 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Search, 
-  CheckCircle, 
+import {
+  Search,
+  CheckCircle,
   AlertTriangle,
   Clock,
   Package,
@@ -18,72 +31,103 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Layers
+  Layers,
+  Loader2,
 } from "lucide-react";
-import { recibos, pedidos } from "@/data/mockData";
-import { ConsolidacaoPedido } from "@/types";
+import { ConsolidacaoPedido, Recibo } from "@/types";
+
+interface ConfirmacaoDetalhada extends Recibo {
+  percentualConformidade: number;
+  eficienciaEntrega: number;
+  totalRecebido: number;
+  totalSolicitado: number;
+}
+
+interface ConfirmacoesData {
+  consolidacoes: ConsolidacaoPedido[];
+  confirmacoesDetalhadas: ConfirmacaoDetalhada[];
+}
 
 export default function Confirmacoes() {
   const [busca, setBusca] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
-
-  // Simulação de consolidações de pedidos
-  const consolidacoes: ConsolidacaoPedido[] = pedidos.map(pedido => {
-    const recibosDoPedido = recibos.filter(r => r.pedidoId === pedido.id);
-    const unidadesEnvolvidas = [...new Set(pedido.itens.map(item => item.unidadeEducacional.id))];
-    const unidadesConfirmadas = recibosDoPedido.filter(r => r.status === 'confirmado').length;
-    
-    let statusConsolidacao: 'pendente' | 'parcial' | 'completo' = 'pendente';
-    if (unidadesConfirmadas === unidadesEnvolvidas.length) {
-      statusConsolidacao = 'completo';
-    } else if (unidadesConfirmadas > 0) {
-      statusConsolidacao = 'parcial';
-    }
-
-    return {
-      pedidoId: pedido.id,
-      pedido,
-      recibos: recibosDoPedido,
-      statusConsolidacao,
-      totalUnidades: unidadesEnvolvidas.length,
-      unidadesConfirmadas,
-      percentualConfirmacao: (unidadesConfirmadas / unidadesEnvolvidas.length) * 100
-    };
+  const [isLoading, setIsLoading] = useState(true);
+  const [consolidacoes, setConsolidacoes] = useState<ConsolidacaoPedido[]>([]);
+  const [confirmacoes, setConfirmacoes] = useState<ConfirmacaoDetalhada[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    pendentes: 0,
+    confirmados: 0,
+    parciais: 0,
+    mediaConformidade: 0,
   });
 
-  const confirmacoesDetalhadas = recibos.map(recibo => {
-    const itensConformes = recibo.itens.filter(item => item.conforme).length;
-    const totalItens = recibo.itens.length;
-    const percentualConformidade = totalItens > 0 ? (itensConformes / totalItens) * 100 : 0;
-    
-    const totalSolicitado = recibo.itens.reduce((sum, item) => sum + item.quantidadeSolicitada, 0);
-    const totalRecebido = recibo.itens.reduce((sum, item) => sum + (item.quantidadeRecebida || 0), 0);
-    const eficienciaEntrega = totalSolicitado > 0 ? (totalRecebido / totalSolicitado) * 100 : 0;
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch("http://localhost:3001/api/confirmacoes");
+        if (!response.ok) throw new Error("Falha ao buscar dados.");
+        const data: ConfirmacoesData = await response.json();
+        setConsolidacoes(data.consolidacoes);
+        setConfirmacoes(data.confirmacoesDetalhadas);
 
-    return {
-      ...recibo,
-      itensConformes,
-      totalItens,
-      percentualConformidade,
-      totalSolicitado,
-      totalRecebido,
-      eficienciaEntrega,
-      unidadesPrincipais: [recibo.unidadeEducacional.nome]
+        // Calculate stats
+        const totalConfirmacoes = data.confirmacoesDetalhadas.length;
+        const pendentes = data.confirmacoesDetalhadas.filter(
+          (c) => c.status === "pendente"
+        ).length;
+        const confirmados = data.confirmacoesDetalhadas.filter(
+          (c) => c.status === "confirmado"
+        ).length;
+        const parciais = data.confirmacoesDetalhadas.filter(
+          (c) => c.status === "parcial"
+        ).length;
+
+        const mediaConformidade =
+          totalConfirmacoes > 0
+            ? data.confirmacoesDetalhadas.reduce(
+                (sum, conf) => sum + conf.percentualConformidade,
+                0
+              ) / totalConfirmacoes
+            : 0;
+
+        setStats({
+          total: totalConfirmacoes,
+          pendentes,
+          confirmados,
+          parciais,
+          mediaConformidade,
+        });
+      } catch (error) {
+        console.error("Erro:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
-  });
+    fetchData();
+  }, []);
 
-  const confirmacoesFiltradas = confirmacoesDetalhadas.filter(confirmacao => {
-    const matchBusca = confirmacao.numero.toLowerCase().includes(busca.toLowerCase()) ||
-                      confirmacao.pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
-                      confirmacao.pedido.contrato.fornecedor.nome.toLowerCase().includes(busca.toLowerCase());
-    const matchStatus = statusFilter === "todos" || confirmacao.status === statusFilter;
+  // Lógica de filtragem no frontend
+  const confirmacoesFiltradas = confirmacoes.filter((c) => {
+    const matchBusca =
+      c.numero.toLowerCase().includes(busca.toLowerCase()) ||
+      c.pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
+      c.pedido.contrato.fornecedor.nome
+        .toLowerCase()
+        .includes(busca.toLowerCase());
+    const matchStatus = statusFilter === "todos" || c.status === statusFilter;
     return matchBusca && matchStatus;
   });
 
-  const consolidacoesFiltradas = consolidacoes.filter(consolidacao => {
-    const matchBusca = consolidacao.pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
-                      consolidacao.pedido.contrato.fornecedor.nome.toLowerCase().includes(busca.toLowerCase());
-    const matchStatus = statusFilter === "todos" || consolidacao.statusConsolidacao === statusFilter;
+  const consolidacoesFiltradas = consolidacoes.filter((c) => {
+    const matchBusca =
+      c.pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
+      c.pedido.contrato.fornecedor.nome
+        .toLowerCase()
+        .includes(busca.toLowerCase());
+    const matchStatus =
+      statusFilter === "todos" || c.statusConsolidacao === statusFilter;
     return matchBusca && matchStatus;
   });
 
@@ -91,17 +135,17 @@ export default function Confirmacoes() {
     const variants = {
       pendente: "secondary",
       confirmado: "default",
-      parcial: "outline", 
+      parcial: "outline",
       rejeitado: "destructive",
-      completo: "default"
+      completo: "default",
     } as const;
-    
+
     const labels = {
       pendente: "Pendente",
       confirmado: "Confirmado",
       parcial: "Parcial",
       rejeitado: "Rejeitado",
-      completo: "Completo"
+      completo: "Completo",
     };
 
     const icons = {
@@ -109,7 +153,7 @@ export default function Confirmacoes() {
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
       rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
-      completo: <CheckCircle className="h-3 w-3 mr-1" />
+      completo: <CheckCircle className="h-3 w-3 mr-1" />,
     };
 
     return (
@@ -122,7 +166,11 @@ export default function Confirmacoes() {
 
   const getConformidadeBadge = (percentual: number) => {
     if (percentual === 100) {
-      return <Badge variant="default" className="bg-success text-success-foreground">100% Conforme</Badge>;
+      return (
+        <Badge variant="default" className="bg-success text-success-foreground">
+          100% Conforme
+        </Badge>
+      );
     } else if (percentual >= 80) {
       return <Badge variant="outline">Parcialmente Conforme</Badge>;
     } else {
@@ -130,21 +178,13 @@ export default function Confirmacoes() {
     }
   };
 
-  // Estatísticas
-  const totalConfirmacoes = recibos.length;
-  const pendentes = recibos.filter(r => r.status === 'pendente').length;
-  const conformes = recibos.filter(r => r.status === 'confirmado').length;
-  const parciais = recibos.filter(r => r.status === 'parcial').length;
-
-  const mediaConformidade = confirmacoesDetalhadas.length > 0 
-    ? confirmacoesDetalhadas.reduce((sum, conf) => sum + conf.percentualConformidade, 0) / confirmacoesDetalhadas.length 
-    : 0;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Confirmações de Recebimento</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Confirmações de Recebimento
+          </h2>
           <p className="text-muted-foreground">
             Acompanhe as confirmações de recebimento e conformidade das entregas
           </p>
@@ -160,8 +200,10 @@ export default function Confirmacoes() {
                 <FileText className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Recibos</p>
-                <p className="text-2xl font-bold">{totalConfirmacoes}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total Recibos
+                </p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -174,8 +216,10 @@ export default function Confirmacoes() {
                 <Clock className="h-6 w-6 text-warning" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
-                <p className="text-2xl font-bold">{pendentes}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Pendentes
+                </p>
+                <p className="text-2xl font-bold">{stats.pendentes}</p>
               </div>
             </div>
           </CardContent>
@@ -188,8 +232,26 @@ export default function Confirmacoes() {
                 <CheckCircle className="h-6 w-6 text-success" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Confirmadas</p>
-                <p className="text-2xl font-bold">{conformes}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Confirmadas
+                </p>
+                <p className="text-2xl font-bold">{stats.confirmados}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-success/10 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-success" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Parciais
+                </p>
+                <p className="text-2xl font-bold">{stats.parciais}</p>
               </div>
             </div>
           </CardContent>
@@ -202,8 +264,12 @@ export default function Confirmacoes() {
                 <BarChart3 className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Conformidade Média</p>
-                <p className="text-2xl font-bold">{mediaConformidade.toFixed(1)}%</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Conformidade Média
+                </p>
+                <p className="text-2xl font-bold">
+                  {stats.mediaConformidade.toFixed(1)}%
+                </p>
               </div>
             </div>
           </CardContent>
@@ -276,17 +342,14 @@ export default function Confirmacoes() {
             <CardHeader>
               <CardTitle>Consolidações de Pedidos</CardTitle>
               <CardDescription>
-                Acompanhe o status de confirmação de cada pedido por unidade educacional
+                Acompanhe o status de confirmação de cada pedido por unidade
+                educacional
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {consolidacoesFiltradas.length === 0 ? (
+              {isLoading ? (
                 <div className="text-center py-8">
-                  <Layers className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium">Nenhuma consolidação encontrada</h3>
-                  <p className="text-muted-foreground">
-                    {busca ? "Tente ajustar os filtros de busca" : "As consolidações aparecerão aqui quando os pedidos forem processados"}
-                  </p>
+                  <Loader2 className="h-12 w-12 mx-auto animate-spin" />
                 </div>
               ) : (
                 <Table>
@@ -306,24 +369,38 @@ export default function Confirmacoes() {
                       <TableRow key={consolidacao.pedidoId}>
                         <TableCell>
                           <div>
-                            <span className="font-mono text-sm">{consolidacao.pedido.numero}</span>
+                            <span className="font-mono text-sm">
+                              {consolidacao.pedido.numero}
+                            </span>
                             <p className="text-xs text-muted-foreground">
-                              {consolidacao.recibos.length} recibo(s) gerado(s)
+                              {consolidacao.totalUnidades} recibo(s) gerado(s)
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell>{consolidacao.pedido.contrato.fornecedor.nome}</TableCell>
                         <TableCell>
-                          {new Date(consolidacao.pedido.dataPedido).toLocaleDateString('pt-BR')}
+                          {consolidacao.pedido.contrato.fornecedor.nome}
                         </TableCell>
-                        <TableCell>{getStatusBadge(consolidacao.statusConsolidacao)}</TableCell>
+                        <TableCell>
+                          {new Date(
+                            consolidacao.pedido.dataPedido
+                          ).toLocaleDateString("pt-BR")}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(consolidacao.statusConsolidacao)}
+                        </TableCell>
                         <TableCell>
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 text-sm">
-                              <span>{consolidacao.unidadesConfirmadas}/{consolidacao.totalUnidades} unidades</span>
+                              <span>
+                                {consolidacao.unidadesConfirmadas}/
+                                {consolidacao.totalUnidades} unidades
+                              </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Progress value={consolidacao.percentualConfirmacao} className="w-20 h-2" />
+                              <Progress
+                                value={consolidacao.percentualConfirmacao}
+                                className="w-20 h-2"
+                              />
                               <span className="text-xs text-muted-foreground">
                                 {consolidacao.percentualConfirmacao.toFixed(0)}%
                               </span>
@@ -357,13 +434,21 @@ export default function Confirmacoes() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {confirmacoesFiltradas.length === 0 ? (
+              {confirmacoesFiltradas.length === 0 && !isLoading ? (
                 <div className="text-center py-8">
                   <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium">Nenhuma confirmação encontrada</h3>
+                  <h3 className="text-lg font-medium">
+                    Nenhuma confirmação encontrada
+                  </h3>
                   <p className="text-muted-foreground">
-                    {busca ? "Tente ajustar os filtros de busca" : "As confirmações aparecerão aqui quando os recibos forem processados"}
+                    {busca
+                      ? "Tente ajustar os filtros de busca"
+                      : "As confirmações aparecerão aqui quando os recibos forem processados"}
                   </p>
+                </div>
+              ) : isLoading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="h-12 w-12 mx-auto animate-spin" />
                 </div>
               ) : (
                 <Table>
@@ -384,7 +469,9 @@ export default function Confirmacoes() {
                       <TableRow key={confirmacao.id}>
                         <TableCell>
                           <div>
-                            <span className="font-mono text-sm">{confirmacao.numero}</span>
+                            <span className="font-mono text-sm">
+                              {confirmacao.numero}
+                            </span>
                             <p className="text-xs text-muted-foreground">
                               Pedido: {confirmacao.pedido.numero}
                             </p>
@@ -393,20 +480,35 @@ export default function Confirmacoes() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Building2 className="h-3 w-3" />
-                            <span className="text-sm">{confirmacao.unidadeEducacional.nome}</span>
+                            <span className="text-sm">
+                              {confirmacao.unidadeEducacional.nome}
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell>{confirmacao.pedido.contrato.fornecedor.nome}</TableCell>
                         <TableCell>
-                          {new Date(confirmacao.dataEntrega).toLocaleDateString('pt-BR')}
+                          {confirmacao.pedido.contrato.fornecedor.nome}
                         </TableCell>
-                        <TableCell>{getStatusBadge(confirmacao.status)}</TableCell>
+                        <TableCell>
+                          {new Date(confirmacao.dataEntrega).toLocaleDateString(
+                            "pt-BR"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(confirmacao.status)}
+                        </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            {getConformidadeBadge(confirmacao.percentualConformidade)}
+                            {getConformidadeBadge(
+                              confirmacao.percentualConformidade
+                            )}
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Progress value={confirmacao.percentualConformidade} className="w-16 h-1" />
-                              <span>{confirmacao.percentualConformidade.toFixed(0)}%</span>
+                              <Progress
+                                value={confirmacao.percentualConformidade}
+                                className="w-16 h-1"
+                              />
+                              <span>
+                                {confirmacao.percentualConformidade.toFixed(0)}%
+                              </span>
                             </div>
                           </div>
                         </TableCell>
@@ -422,7 +524,8 @@ export default function Confirmacoes() {
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {confirmacao.totalRecebido}/{confirmacao.totalSolicitado}
+                            {confirmacao.totalRecebido}/
+                            {confirmacao.totalSolicitado}
                           </p>
                         </TableCell>
                         <TableCell className="text-right">

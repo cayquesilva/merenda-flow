@@ -788,6 +788,186 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
   }
 });
 
+// --- INÍCIO DAS ROTAS DE CONFIRMAÇÃO DE RECEBIMENTO ---
+
+// COMENTÁRIO: Retorna os dados para a página de confirmação de um recibo específico.
+// UTILIZAÇÃO: Usada pela página pública `ConfirmacaoRecebimento.tsx` para carregar os dados do recibo.
+app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const recibo = await prisma.recibo.findUnique({
+      where: { id },
+      include: {
+        unidadeEducacional: true,
+        pedido: {
+          select: { numero: true, dataEntregaPrevista: true }
+        },
+        itens: {
+          include: {
+            itemPedido: {
+              include: {
+                itemContrato: {
+                  select: { nome: true, unidadeMedida: { select: { sigla: true } } }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!recibo) {
+      return res.status(404).json({ error: "Recibo não encontrado." });
+    }
+    if (recibo.status !== 'pendente') {
+        return res.status(409).json({ error: "Este recibo já foi processado." });
+    }
+    res.json(recibo);
+  } catch (error) {
+    console.error("Erro ao buscar recibo para confirmação:", error);
+    res.status(500).json({ error: "Não foi possível carregar os dados do recibo." });
+  }
+});
+
+
+// COMENTÁRIO: Processa a submissão de uma confirmação de recebimento.
+// UTILIZAÇÃO: Chamada pelo `ConfirmacaoRecebimento.tsx` ao clicar em "Confirmar Recebimento".
+app.post("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { responsavel, observacoes, itensConfirmacao } = req.body;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      let todosConformes = true;
+      let algumRecebido = false;
+
+      // 1. Atualizar cada item do recibo com as quantidades recebidas.
+      for (const item of itensConfirmacao) {
+        const itemRecibo = await tx.itemRecibo.update({
+          where: { id: item.itemId },
+          data: {
+            conforme: item.conforme,
+            quantidadeRecebida: Number(item.quantidadeRecebida),
+            observacoes: item.observacoes,
+          },
+          include: { itemPedido: true }
+        });
+
+        if (!item.conforme) {
+          todosConformes = false;
+        }
+        if (Number(item.quantidadeRecebida) > 0) {
+            algumRecebido = true;
+        }
+
+        // 2. Se a quantidade recebida for menor que a solicitada, devolver o saldo ao contrato.
+        const diferenca = itemRecibo.itemPedido.quantidade - Number(item.quantidadeRecebida);
+        if (diferenca > 0) {
+          await tx.itemContrato.update({
+            where: { id: itemRecibo.itemPedido.itemContratoId },
+            data: {
+              saldoAtual: {
+                increment: diferenca,
+              },
+            },
+          });
+        }
+      }
+
+      // 3. Determinar o status final do recibo.
+      let statusFinal = 'rejeitado';
+      if (algumRecebido) {
+          statusFinal = todosConformes ? 'confirmado' : 'parcial';
+      }
+
+      // 4. Atualizar o recibo principal com o responsável, observações e o novo status.
+      const reciboAtualizado = await tx.recibo.update({
+        where: { id },
+        data: {
+          responsavelRecebimento: responsavel,
+          observacoes,
+          status: statusFinal,
+        },
+      });
+
+      return reciboAtualizado;
+    });
+
+    res.status(200).json({ message: "Recebimento confirmado com sucesso!", recibo: result });
+  } catch (error) {
+    console.error("Erro ao confirmar recebimento:", error);
+    res.status(500).json({ error: "Não foi possível processar a confirmação." });
+  }
+});
+
+
+// COMENTÁRIO: Retorna os dados para a página de dashboard de Confirmações.
+// UTILIZAÇÃO: Chamada pela página `Confirmacoes.tsx` para popular as tabelas.
+app.get("/api/confirmacoes", async (req: Request, res: Response) => {
+  try {
+    // Dados para a tabela de consolidações
+    const pedidos = await prisma.pedido.findMany({
+      include: {
+        contrato: { select: { fornecedor: { select: { nome: true } } } },
+        _count: { select: { itens: true } },
+        recibos: {
+          select: { status: true }
+        }
+      },
+      orderBy: { dataPedido: 'desc' }
+    });
+
+    const consolidacoes = pedidos.map(pedido => {
+      const totalRecibos = pedido.recibos.length;
+      const recibosConfirmados = pedido.recibos.filter(r => r.status === 'confirmado' || r.status === 'parcial').length;
+      
+      let statusConsolidacao: 'pendente' | 'parcial' | 'completo' = 'pendente';
+      if (totalRecibos > 0) {
+        if (recibosConfirmados === totalRecibos) {
+          statusConsolidacao = 'completo';
+        } else if (recibosConfirmados > 0) {
+          statusConsolidacao = 'parcial';
+        }
+      }
+
+      return {
+        pedidoId: pedido.id,
+        pedido,
+        statusConsolidacao,
+        totalUnidades: totalRecibos, // Simplificação: um recibo por unidade
+        unidadesConfirmadas: recibosConfirmados,
+        percentualConfirmacao: totalRecibos > 0 ? (recibosConfirmados / totalRecibos) * 100 : 0
+      };
+    });
+
+    // Dados para a tabela de recibos individuais
+    const recibos = await prisma.recibo.findMany({
+      include: {
+        unidadeEducacional: { select: { nome: true } },
+        pedido: { include: { contrato: { select: { fornecedor: { select: { nome: true } } } } } },
+        itens: true
+      },
+      orderBy: { dataEntrega: 'desc' }
+    });
+
+    const confirmacoesDetalhadas = recibos.map(recibo => {
+      const itensConformes = recibo.itens.filter(item => item.conforme).length;
+      const totalItens = recibo.itens.length;
+      const percentualConformidade = totalItens > 0 ? (itensConformes / totalItens) * 100 : 0;
+      const totalSolicitado = recibo.itens.reduce((sum, item) => sum + item.quantidadeSolicitada, 0);
+      const totalRecebido = recibo.itens.reduce((sum, item) => sum + item.quantidadeRecebida, 0);
+      const eficienciaEntrega = totalSolicitado > 0 ? (totalRecebido / totalSolicitado) * 100 : 0;
+
+      return { ...recibo, percentualConformidade, eficienciaEntrega, totalRecebido, totalSolicitado };
+    });
+
+    res.json({ consolidacoes, confirmacoesDetalhadas });
+  } catch (error) {
+    console.error("Erro ao buscar dados de confirmações:", error);
+    res.status(500).json({ error: "Não foi possível buscar os dados." });
+  }
+});
+
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {
   try {
