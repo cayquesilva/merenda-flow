@@ -737,7 +737,7 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
           Date.now()
         ).slice(-6)}-${unidadeId.slice(0, 4)}`;
         const urlConfirmacao = `${
-          process.env.FRONTEND_URL || "http://localhost:5173"
+          process.env.FRONTEND_URL || "http://localhost:8080"
         }/confirmacao-recebimento/${numeroRecibo}`;
         const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
           urlConfirmacao
@@ -1034,53 +1034,69 @@ app.get("/api/recibos/imprimir/:id", async (req: Request, res: Response) => {
     });
 
     if (!recibo) {
-      return res.status(404).json({ error: "Recibo não encontrado para impressão." });
+      return res
+        .status(404)
+        .json({ error: "Recibo não encontrado para impressão." });
     }
     res.json(recibo);
   } catch (error) {
     console.error("Erro ao buscar recibo para impressão:", error);
-    res.status(500).json({ error: "Não foi possível carregar o recibo para impressão." });
+    res
+      .status(500)
+      .json({ error: "Não foi possível carregar o recibo para impressão." });
   }
 });
 
 // NOVA ROTA: Rota para buscar todos os recibos de um pedido específico para impressão em lote
-app.get("/api/recibos/imprimir-pedido/:pedidoId", async (req: Request, res: Response) => {
-  const { pedidoId } = req.params;
-  try {
-    const recibosDoPedido = await prisma.recibo.findMany({
-      where: { pedidoId },
-      include: {
-        pedido: {
-          include: {
-            contrato: { include: { fornecedor: true } },
+app.get(
+  "/api/recibos/imprimir-pedido/:pedidoId",
+  async (req: Request, res: Response) => {
+    const { pedidoId } = req.params;
+    try {
+      const recibosDoPedido = await prisma.recibo.findMany({
+        where: { pedidoId },
+        include: {
+          pedido: {
+            include: {
+              contrato: { include: { fornecedor: true } },
+            },
           },
-        },
-        unidadeEducacional: true,
-        itens: {
-          include: {
-            itemPedido: {
-              include: {
-                itemContrato: { include: { unidadeMedida: true } },
-                unidadeEducacional: true,
+          unidadeEducacional: true,
+          itens: {
+            include: {
+              itemPedido: {
+                include: {
+                  itemContrato: { include: { unidadeMedida: true } },
+                  unidadeEducacional: true,
+                },
               },
             },
           },
+          assinaturaDigital: true,
+          fotoReciboAssinado: true,
         },
-        assinaturaDigital: true,
-        fotoReciboAssinado: true,
-      },
-      orderBy: { unidadeEducacional: { nome: 'asc' } }, // Ordena por unidade para impressão
-    });
+        orderBy: { unidadeEducacional: { nome: "asc" } }, // Ordena por unidade para impressão
+      });
 
-    if (recibosDoPedido.length === 0) {
-      return res.status(404).json({ error: "Nenhum recibo encontrado para este pedido." });
+      if (recibosDoPedido.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "Nenhum recibo encontrado para este pedido." });
+      }
+      res.json(recibosDoPedido);
+    } catch (error) {
+      console.error(
+        "Erro ao buscar recibos do pedido para impressão em lote:",
+        error
+      );
+      res
+        .status(500)
+        .json({
+          error: "Não foi possível carregar os recibos para impressão em lote.",
+        });
     }
-    res.json(recibosDoPedido);
-  } catch (error) {
-    console.error("Erro ao buscar recibos do pedido para impressão em lote:", error);
-    res.status(500).json({ error: "Não foi possível carregar os recibos para impressão em lote." });
   }
-});
+);
 
 // COMENTÁRIO: Retorna os dados para a página de dashboard de Confirmações.
 // UTILIZAÇÃO: Chamada pela página `Confirmacoes.tsx` para popular as tabelas.

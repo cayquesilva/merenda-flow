@@ -115,6 +115,6 @@ Terminal 2 - Iniciar o Frontend:
 
 npm run dev
 
-A aplicação frontend estará acessível no seu navegador, geralmente em http://localhost:5173.
+A aplicação frontend estará acessível no seu navegador, geralmente em http://localhost:8080.
 
 Pronto! O ambiente de desenvolvimento do Merenda Flow está totalmente configurado e em execução.
