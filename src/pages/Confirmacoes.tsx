@@ -248,22 +248,6 @@ export default function Confirmacoes() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Parciais
-                </p>
-                <p className="text-2xl font-bold">{stats.parciais}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <BarChart3 className="h-6 w-6 text-primary" />
               </div>
