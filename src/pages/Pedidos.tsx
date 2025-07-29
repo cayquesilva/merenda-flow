@@ -1,49 +1,120 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  Search, 
-  ShoppingCart, 
-  Calendar, 
-  DollarSign, 
-  Package, 
-  Building2,
-  Eye,
-  FileText,
-  Filter
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Search,
+  ShoppingCart,
+  Calendar,
+  DollarSign,
+  Package,
+  Loader2,
 } from "lucide-react";
-import { pedidos } from "@/data/mockData";
 import { NovoPedidoDialog } from "@/components/pedidos/NovoPedidoDialog";
 import { PedidoDetailDialog } from "@/components/pedidos/PedidoDetailDialog";
+// COMENTÁRIO: O tipo 'Pedido' global pode ser removido se não for mais usado aqui.
+
+// ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
+// Isto resolve o erro de tipagem.
+interface PedidoDaLista {
+  id: string;
+  numero: string;
+  dataPedido: string;
+  dataEntregaPrevista: string;
+  status: string;
+  valorTotal: number;
+  contrato: {
+    fornecedor: {
+      nome: string;
+    };
+  };
+  _count: {
+    itens: number;
+  };
+}
+
+// COMENTÁRIO: Hook para "debouncing", que evita chamadas excessivas à API ao digitar na busca.
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function Pedidos() {
   const [busca, setBusca] = useState("");
+  const debouncedBusca = useDebounce(busca, 300);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const pedidosFiltrados = pedidos.filter(pedido => {
-    const matchBusca = pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
-                      pedido.contrato.fornecedor.nome.toLowerCase().includes(busca.toLowerCase());
-    const matchStatus = statusFilter === "todos" || pedido.status === statusFilter;
-    return matchBusca && matchStatus;
+  // ALTERAÇÃO: O estado agora usa o nosso novo tipo 'PedidoDaLista'.
+  const [pedidos, setPedidos] = useState<PedidoDaLista[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total: 0,
+    pendentes: 0,
+    entregues: 0,
+    valorTotal: 0,
   });
 
+  const handleSuccess = () => setRefreshKey((prev) => prev + 1);
+
+  // COMENTÁRIO: Efeito que busca os pedidos e as estatísticas da API.
+  useEffect(() => {
+    const fetchPedidosEStats = async () => {
+      setIsLoading(true);
+      try {
+        const [pedidosRes, statsRes] = await Promise.all([
+          fetch(
+            `http://localhost:3001/api/pedidos?q=${debouncedBusca}&status=${statusFilter}`
+          ),
+          fetch(`http://localhost:3001/api/pedidos/stats`),
+        ]);
+        if (!pedidosRes.ok || !statsRes.ok)
+          throw new Error("Falha ao buscar dados dos pedidos.");
+
+        setPedidos(await pedidosRes.json());
+        setStats(await statsRes.json());
+      } catch (error) {
+        console.error("Erro:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPedidosEStats();
+  }, [debouncedBusca, statusFilter, refreshKey]);
+
+  // COMENTÁRIO: Função de ajuda para renderizar o badge de status.
   const getStatusBadge = (status: string) => {
     const variants = {
       pendente: "secondary",
-      confirmado: "default", 
+      confirmado: "default",
       entregue: "default",
-      cancelado: "destructive"
+      cancelado: "destructive",
     } as const;
-    
+
     const labels = {
       pendente: "Pendente",
       confirmado: "Confirmado",
-      entregue: "Entregue", 
-      cancelado: "Cancelado"
+      entregue: "Entregue",
+      cancelado: "Cancelado",
     };
 
     return (
@@ -51,10 +122,6 @@ export default function Pedidos() {
         {labels[status as keyof typeof labels] || status}
       </Badge>
     );
-  };
-
-  const handleSuccess = () => {
-    setRefreshKey(prev => prev + 1);
   };
 
   return (
@@ -69,8 +136,8 @@ export default function Pedidos() {
         <NovoPedidoDialog onSuccess={handleSuccess} />
       </div>
 
-      {/* Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Cards de Estatísticas */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -78,45 +145,44 @@ export default function Pedidos() {
                 <ShoppingCart className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Pedidos</p>
-                <p className="text-2xl font-bold">{pedidos.length}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total de Pedidos
+                </p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Calendar className="h-6 w-6 text-warning" />
+              <div className="p-2 bg-yellow-500/10 rounded-lg">
+                <Calendar className="h-6 w-6 text-yellow-500" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
-                <p className="text-2xl font-bold">
-                  {pedidos.filter(p => p.status === 'pendente').length}
+                <p className="text-sm font-medium text-muted-foreground">
+                  Pendentes
                 </p>
+                <p className="text-2xl font-bold">{stats.pendentes}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <Package className="h-6 w-6 text-success" />
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <Package className="h-6 w-6 text-green-500" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Entregues</p>
-                <p className="text-2xl font-bold">
-                  {pedidos.filter(p => p.status === 'entregue').length}
+                <p className="text-sm font-medium text-muted-foreground">
+                  Entregues
                 </p>
+                <p className="text-2xl font-bold">{stats.entregues}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -124,9 +190,14 @@ export default function Pedidos() {
                 <DollarSign className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Valor Total</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Valor Total
+                </p>
                 <p className="text-2xl font-bold">
-                  R$ {pedidos.reduce((sum, p) => sum + p.valorTotal, 0).toFixed(2)}
+                  {stats.valorTotal.toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  })}
                 </p>
               </div>
             </div>
@@ -134,7 +205,6 @@ export default function Pedidos() {
         </Card>
       </div>
 
-      {/* Filtros */}
       <Card>
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-4">
@@ -165,25 +235,24 @@ export default function Pedidos() {
                 Pendentes
               </Button>
               <Button
-                variant={statusFilter === "confirmado" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("confirmado")}
-              >
-                Confirmados
-              </Button>
-              <Button
                 variant={statusFilter === "entregue" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setStatusFilter("entregue")}
               >
                 Entregues
               </Button>
+              <Button
+                variant={statusFilter === "cancelado" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("cancelado")}
+              >
+                Cancelados
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Lista de Pedidos */}
       <Card>
         <CardHeader>
           <CardTitle>Lista de Pedidos</CardTitle>
@@ -192,12 +261,18 @@ export default function Pedidos() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {pedidosFiltrados.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-12 w-12 text-muted-foreground mx-auto animate-spin" />
+            </div>
+          ) : pedidos.length === 0 ? (
             <div className="text-center py-8">
               <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium">Nenhum pedido encontrado</h3>
               <p className="text-muted-foreground">
-                {busca ? "Tente ajustar os filtros de busca" : "Comece criando seu primeiro pedido"}
+                {busca || statusFilter !== "todos"
+                  ? "Tente ajustar os filtros"
+                  : "Comece criando seu primeiro pedido"}
               </p>
             </div>
           ) : (
@@ -215,34 +290,36 @@ export default function Pedidos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pedidosFiltrados.map((pedido) => (
+                {pedidos.map((pedido) => (
                   <TableRow key={pedido.id}>
                     <TableCell className="font-mono">{pedido.numero}</TableCell>
+                    {/* ALTERAÇÃO: Removido o 'as any'. Agora é seguro aceder diretamente. */}
                     <TableCell>{pedido.contrato.fornecedor.nome}</TableCell>
                     <TableCell>
-                      {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
+                      {new Date(pedido.dataPedido).toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell>
-                      {new Date(pedido.dataEntregaPrevista).toLocaleDateString('pt-BR')}
+                      {new Date(pedido.dataEntregaPrevista).toLocaleDateString(
+                        "pt-BR"
+                      )}
                     </TableCell>
                     <TableCell>{getStatusBadge(pedido.status)}</TableCell>
                     <TableCell className="font-medium">
-                      R$ {pedido.valorTotal.toFixed(2)}
+                      {pedido.valorTotal.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      })}
                     </TableCell>
+                    {/* ALTERAÇÃO: Removido o 'as any'. Agora é seguro aceder diretamente. */}
                     <TableCell>
                       <Badge variant="outline">
-                        {pedido.itens.length} {pedido.itens.length === 1 ? 'item' : 'itens'}
+                        {pedido._count.itens}{" "}
+                        {pedido._count.itens === 1 ? "item" : "itens"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <PedidoDetailDialog pedido={pedido} />
-                        {pedido.status === 'confirmado' && (
-                          <Button variant="outline" size="sm">
-                            <FileText className="h-3 w-3 mr-1" />
-                            Recibo
-                          </Button>
-                        )}
+                        <PedidoDetailDialog pedidoId={pedido.id} />
                       </div>
                     </TableCell>
                   </TableRow>
