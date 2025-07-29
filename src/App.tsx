@@ -19,6 +19,8 @@ import Usuarios from "./pages/Usuarios";
 import ConfirmacaoRecebimento from "./pages/ConfirmacaoRecebimento";
 import NotFound from "./pages/NotFound";
 import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
+import { Badge } from "./components/ui/badge";
 
 const queryClient = new QueryClient();
 
@@ -26,34 +28,58 @@ function DatabaseConnectionTest() {
   const [dbStatus, setDbStatus] = useState(
     "Testando conexão com o banco de dados..."
   );
+  const [isLoading, setIsLoading] = useState(true); // Novo estado para controlar o carregamento
 
   useEffect(() => {
     // Função para chamar a API
     const testConnection = async () => {
+      setIsLoading(true); // Inicia o carregamento
       try {
         const response = await fetch("http://localhost:3001/api/test-db");
         if (!response.ok) {
           throw new Error("A resposta da rede não foi OK");
         }
         const data = await response.json();
-        setDbStatus(
-          `${data.message} - Horário do servidor DB: ${data.horario_do_banco}`
-        );
+        // Verifica se a resposta do backend indica sucesso
+        if (data.status === "sucesso") {
+          setDbStatus(`Sistema Online`);
+        } else {
+          setDbStatus(
+            `Falha na conexão: ${data.message || "Erro desconhecido."}`
+          );
+        }
       } catch (error) {
         console.error("Erro ao buscar dados da API:", error);
         setDbStatus(
-          `Falha na conexão: ${error.message}. Verifique se a API e o DB estão rodando.`
+          `Falha na conexão: Verifique se a API e o DB estão rodando.`
         );
+      } finally {
+        setIsLoading(false); // Finaliza o carregamento
       }
     };
 
     testConnection();
   }, []); // O array vazio garante que o useEffect rode apenas uma vez
 
+  // Determina se a conexão está online com base na mensagem de status
+  const isOnline = dbStatus === "Sistema Online";
+
   return (
-    <div>
-      <h1>Status da Conexão</h1>
-      <p>{dbStatus}</p>
+    <div className="flex flex-col items-center justify-center min-h-[50px] p-4">
+      <div className="flex items-center gap-2">
+        {isLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+        ) : (
+          <Badge variant="outline" className="flex items-center gap-1">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                isOnline ? "bg-green-500" : "bg-red-500"
+              }`}
+            ></div>
+            {isOnline ? "Online" : "Offline"}
+          </Badge>
+        )}
+      </div>
     </div>
   );
 }
