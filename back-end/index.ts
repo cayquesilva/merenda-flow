@@ -1787,12 +1787,43 @@ app.post(
       });
 
       // Simular geração de PDF (em produção, usar biblioteca como puppeteer ou PDFKit)
+      // NOVO: A lógica de consolidação de dados para o PDF foi movida para esta rota
+      const itensPorContrato = contrato.itens.map(itemContrato => {
+        const quantidadePedida = pedidos
+          .flatMap(p => p.itens)
+          .filter(item => item.itemContratoId === itemContrato.id)
+          .reduce((sum, item) => sum + item.quantidade, 0);
+        
+        const valorConsumido = quantidadePedida * itemContrato.valorUnitario;
+        const percentualConsumido = itemContrato.quantidadeOriginal > 0 ? (quantidadePedida / itemContrato.quantidadeOriginal) * 100 : 0;
+        
+        return {
+          ...itemContrato,
+          quantidadePedida,
+          valorConsumido,
+          percentualConsumido,
+          saldoRestante: itemContrato.quantidadeOriginal - quantidadePedida
+        };
+      });
+
+      const unidadesAtendidas = [...new Set(pedidos.flatMap(p => p.itens.map(i => i.unidadeEducacional.nome)))];
+
+      const pedidosPorStatus = {
+        pendente: pedidos.filter(p => p.status === 'pendente').length,
+        confirmado: pedidos.filter(p => p.status === 'confirmado').length,
+        entregue: pedidos.filter(p => p.status === 'entregue').length,
+        cancelado: pedidos.filter(p => p.status === 'cancelado').length,
+      };
+
       const reportData = {
         contrato,
         pedidos,
         totalPedidos: pedidos.length,
-        valorTotal: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
+        valorTotalPedidos: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
         dataGeracao: new Date(),
+        itensPorContrato, // Incluir dados consolidados por item
+        unidadesAtendidas,
+        pedidosPorStatus
       };
 
       // Por enquanto, retornar JSON (em produção seria um PDF)
