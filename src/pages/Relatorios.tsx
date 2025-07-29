@@ -7,6 +7,7 @@ import { RelatorioEntregas } from "@/components/relatorios/RelatorioEntregas";
 import { RelatorioConformidade } from "@/components/relatorios/RelatorioConformidade";
 import { RelatorioGastosFornecedor } from "@/components/relatorios/RelatorioGastosFornecedor";
 import { RelatorioEstoque } from "@/components/relatorios/RelatorioEstoque";
+import RelatorioMovimentacaoResponsavel from "@/components/relatorios/RelatorioMovimentacaoResponsavel";
 
 export default function Relatorios() {
   return (
@@ -42,6 +43,10 @@ export default function Relatorios() {
             <BarChart3 className="mr-2 h-4 w-4" />
             Relatório de Estoque
           </TabsTrigger>
+          <TabsTrigger value="movimentacao">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Relatório de Movimentação
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="consolidado">
@@ -62,6 +67,10 @@ export default function Relatorios() {
 
         <TabsContent value="estoque">
           <RelatorioEstoque />
+        </TabsContent>
+
+        <TabsContent value="movimentacao">
+          <RelatorioMovimentacaoResponsavel />
         </TabsContent>
       </Tabs>
     </div>

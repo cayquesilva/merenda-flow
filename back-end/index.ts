@@ -1386,9 +1386,151 @@ app.post(
   }
 );
 
+// COMENTÁRIO: NOVA ROTA: Retorna todos os itens de estoque de uma unidade para o catálogo de QR Code
+app.get(
+  "/api/estoque/catalogo-qrcode/:unidadeId",
+  async (req: Request, res: Response) => {
+    const { unidadeId } = req.params;
+    try {
+      const itensEstoque = await prisma.estoque.findMany({
+        where: {
+          unidadeEducacionalId: unidadeId,
+          quantidadeAtual: { gt: 0 }, // Apenas itens com estoque
+        },
+        select: {
+          id: true,
+          itemContrato: {
+            select: {
+              nome: true,
+              unidadeMedida: { select: { sigla: true } },
+            },
+          },
+          unidadeEducacional: {
+            select: { nome: true },
+          },
+        },
+        orderBy: { itemContrato: { nome: "asc" } },
+      });
+
+      res.json(itensEstoque);
+    } catch (error) {
+      console.error("Erro ao buscar itens para catálogo de QR Code:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o catálogo de QR Code." });
+    }
+  }
+);
+
 /// --- FIM ROTA ESTOQUES --- ///
 
 /// --- ROTAS DE RELATÓRIOS --- ///
+
+// COMENTÁRIO: Relatório de movimentação por responsável
+app.get(
+  "/api/relatorios/movimentacao-responsavel",
+  async (req: Request, res: Response) => {
+    const { responsavel, dataInicio, dataFim } = req.query;
+
+    try {
+      const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
+
+      if (responsavel && responsavel !== "all") {
+        whereClause.responsavel = responsavel as string;
+      }
+
+      if (dataInicio && dataFim) {
+        whereClause.dataMovimentacao = {
+          gte: new Date(dataInicio as string),
+          lte: new Date(dataFim as string),
+        };
+      }
+
+      const movimentacoes = await prisma.movimentacaoEstoque.findMany({
+        where: whereClause,
+        include: {
+          estoque: {
+            include: {
+              itemContrato: {
+                select: {
+                  nome: true,
+                  unidadeMedida: { select: { sigla: true } },
+                  contrato: {
+                    select: {
+                      numero: true,
+                      fornecedor: { select: { nome: true } },
+                    },
+                  },
+                },
+              },
+              unidadeEducacional: { select: { nome: true } },
+            },
+          },
+          recibo: { select: { numero: true } },
+        },
+        orderBy: { dataMovimentacao: "desc" },
+      });
+
+      // Calcular estatísticas
+      const totalMovimentacoes = movimentacoes.length;
+      const totalEntradas = movimentacoes
+        .filter((m) => m.tipo === "entrada")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalSaidas = movimentacoes
+        .filter((m) => m.tipo === "saida")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalAjustes = movimentacoes
+        .filter((m) => m.tipo === "ajuste")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+
+      res.json({
+        movimentacoes,
+        estatisticas: {
+          totalMovimentacoes,
+          totalEntradas,
+          totalSaidas,
+          totalAjustes,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao gerar relatório de movimentação por responsável:",
+        error
+      );
+      res
+        .status(500)
+        .json({
+          error:
+            "Não foi possível gerar o relatório de movimentação por responsável.",
+        });
+    }
+  }
+);
+
+// COMENTÁRIO: Retorna uma lista de todos os responsáveis por movimentações de estoque
+app.get(
+  "/api/movimentacoes/responsaveis",
+  async (req: Request, res: Response) => {
+    try {
+      const responsaveis = await prisma.movimentacaoEstoque.findMany({
+        distinct: ["responsavel"],
+        select: { responsavel: true },
+        where: {
+          responsavel: {
+            not: "",
+          },
+        },
+        orderBy: { responsavel: "asc" },
+      });
+      res.json(responsaveis.map((r) => r.responsavel));
+    } catch (error) {
+      console.error("Erro ao buscar responsáveis por movimentação:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível buscar a lista de responsáveis." });
+    }
+  }
+);
 
 // COMENTÁRIO: Relatório de estoque por unidade
 app.get(

@@ -23,6 +23,8 @@ import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Badge } from "./components/ui/badge";
 import SaidaEstoqueQRCode from "./pages/SaidaEstoqueQRCode";
+import QRCodeCatalog from "./pages/QRCodeCatalog";
+import RelatorioMovimentacaoResponsavel from "./components/relatorios/RelatorioMovimentacaoResponsavel";
 
 const queryClient = new QueryClient();
 
@@ -183,6 +185,11 @@ function AppContent() {
         <Route
           path="/saida-estoque-qrcode/:estoqueId"
           element={<SaidaEstoqueQRCode />}
+        />
+        <Route path="/catalogo-qrcode" element={<QRCodeCatalog />} />
+        <Route
+          path="/relatorios/movimentacao-responsavel"
+          element={<RelatorioMovimentacaoResponsavel />}
         />
         <Route path="*" element={<NotFound />} />
       </Routes>

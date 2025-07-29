@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // Importar useNavigate
 import {
   Card,
   CardContent,
@@ -526,6 +527,12 @@ export default function Estoque() {
     setIsQRCodeDialogOpen(true);
   };
 
+  // Função para navegar para a página do catálogo de QR Codes
+  const navigate = useNavigate(); // Inicializa o hook useNavigate
+  const handleNavigateToQRCodeCatalog = () => {
+    navigate("/catalogo-qrcode");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -537,6 +544,11 @@ export default function Estoque() {
             Gerencie o estoque de cada unidade educacional
           </p>
         </div>
+        {/* Botão para Gerar Catálogo de QR Codes */}
+        <Button onClick={handleNavigateToQRCodeCatalog} variant="outline">
+          <QrCode className="mr-2 h-4 w-4" />
+          Gerar Catálogo QR
+        </Button>
       </div>
 
       {/* Estatísticas */}
@@ -694,7 +706,7 @@ export default function Estoque() {
                       <TableHead>Status</TableHead>
                       <TableHead>Valor Total</TableHead>
                       <TableHead>Última Atualização</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="text-center">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -756,6 +768,7 @@ export default function Estoque() {
                               onClick={() => handleGenerateQRCode(item)}
                             >
                               <QrCode className="h-3 w-3" />
+                              {" Gerar QRCode"}
                             </Button>
                           </div>
                         </TableCell>
