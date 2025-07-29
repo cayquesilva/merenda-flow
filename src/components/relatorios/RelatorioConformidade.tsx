@@ -1,10 +1,23 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import {
   CheckCircle,
@@ -13,12 +26,20 @@ import {
   BarChart3,
   TrendingUp,
   Filter,
-  Target
+  Target,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Recibo } from "@/types"; // Importando a interface Recibo do seu arquivo de tipos
+
+// Interface para os itens do relatório de conformidade, estendendo Recibo
+interface ReciboConformidadeDetalhado extends Recibo {
+  totalItens: number;
+  itensConformes: number;
+  percentualConformidade: number;
+}
 
 interface RelatorioConformidadeData {
-  analiseConformidade: any[];
+  analiseConformidade: ReciboConformidadeDetalhado[]; // Tipagem ajustada aqui
   estatisticas: {
     totalRecibos: number;
     mediaConformidade: number;
@@ -48,22 +69,29 @@ export function RelatorioConformidade() {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({ dataInicio, dataFim });
-      const response = await fetch(`http://localhost:3001/api/relatorios/conformidade?${params}`);
-      
+      const response = await fetch(
+        `http://localhost:3001/api/relatorios/conformidade?${params}`
+      );
+
       if (response.ok) {
-        const data = await response.json();
+        const data: RelatorioConformidadeData = await response.json(); // Tipagem aqui
         setDados(data);
         toast({
           title: "Relatório gerado!",
           description: "Relatório de conformidade gerado com sucesso",
         });
       } else {
-        throw new Error('Falha ao gerar relatório');
+        // Se a resposta não for OK, tente ler a mensagem de erro do backend
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao gerar relatório");
       }
     } catch (error) {
       toast({
         title: "Erro ao gerar relatório",
-        description: "Não foi possível gerar o relatório. Tente novamente.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível gerar o relatório. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -152,8 +180,12 @@ export function RelatorioConformidade() {
                     <BarChart3 className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Recibos</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.totalRecibos}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Total Recibos
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.totalRecibos}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -166,8 +198,12 @@ export function RelatorioConformidade() {
                     <TrendingUp className="h-6 w-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Média Conformidade</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.mediaConformidade.toFixed(1)}%</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Média Conformidade
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.mediaConformidade.toFixed(1)}%
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -180,8 +216,12 @@ export function RelatorioConformidade() {
                     <CheckCircle className="h-6 w-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Totalmente Conformes</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.recibosConformes}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Totalmente Conformes
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.recibosConformes}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -194,8 +234,12 @@ export function RelatorioConformidade() {
                     <AlertTriangle className="h-6 w-6 text-destructive" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Não Conformes</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.recibosNaoConformes}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Não Conformes
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.recibosNaoConformes}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -211,30 +255,54 @@ export function RelatorioConformidade() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="space-y-2">
-                    <p className="text-2xl font-bold text-success">{dados.estatisticas.recibosConformes}</p>
-                    <p className="text-sm text-muted-foreground">Totalmente Conformes</p>
-                    <Progress 
-                      value={(dados.estatisticas.recibosConformes / dados.estatisticas.totalRecibos) * 100} 
+                    <p className="text-2xl font-bold text-success">
+                      {dados.estatisticas.recibosConformes}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Totalmente Conformes
+                    </p>
+                    <Progress
+                      value={
+                        (dados.estatisticas.recibosConformes /
+                          dados.estatisticas.totalRecibos) *
+                        100
+                      }
                       className="h-2"
                     />
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="space-y-2">
-                    <p className="text-2xl font-bold text-warning">{dados.estatisticas.recibosParciais}</p>
-                    <p className="text-sm text-muted-foreground">Parcialmente Conformes</p>
-                    <Progress 
-                      value={(dados.estatisticas.recibosParciais / dados.estatisticas.totalRecibos) * 100} 
+                    <p className="text-2xl font-bold text-warning">
+                      {dados.estatisticas.recibosParciais}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Parcialmente Conformes
+                    </p>
+                    <Progress
+                      value={
+                        (dados.estatisticas.recibosParciais /
+                          dados.estatisticas.totalRecibos) *
+                        100
+                      }
                       className="h-2"
                     />
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="space-y-2">
-                    <p className="text-2xl font-bold text-destructive">{dados.estatisticas.recibosNaoConformes}</p>
-                    <p className="text-sm text-muted-foreground">Não Conformes</p>
-                    <Progress 
-                      value={(dados.estatisticas.recibosNaoConformes / dados.estatisticas.totalRecibos) * 100} 
+                    <p className="text-2xl font-bold text-destructive">
+                      {dados.estatisticas.recibosNaoConformes}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Não Conformes
+                    </p>
+                    <Progress
+                      value={
+                        (dados.estatisticas.recibosNaoConformes /
+                          dados.estatisticas.totalRecibos) *
+                        100
+                      }
                       className="h-2"
                     />
                   </div>
@@ -264,11 +332,17 @@ export function RelatorioConformidade() {
                 <TableBody>
                   {dados.analiseConformidade.map((recibo) => (
                     <TableRow key={recibo.id}>
-                      <TableCell className="font-mono">{recibo.numero}</TableCell>
+                      <TableCell className="font-mono">
+                        {recibo.numero}
+                      </TableCell>
                       <TableCell>{recibo.unidadeEducacional.nome}</TableCell>
-                      <TableCell>{recibo.pedido.contrato.fornecedor.nome}</TableCell>
                       <TableCell>
-                        {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
+                        {recibo.pedido.contrato.fornecedor.nome}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(recibo.dataEntrega).toLocaleDateString(
+                          "pt-BR"
+                        )}
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">
@@ -278,8 +352,13 @@ export function RelatorioConformidade() {
                       <TableCell>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <Progress value={recibo.percentualConformidade} className="w-16 h-2" />
-                            <span className="text-sm">{recibo.percentualConformidade.toFixed(0)}%</span>
+                            <Progress
+                              value={recibo.percentualConformidade}
+                              className="w-16 h-2"
+                            />
+                            <span className="text-sm">
+                              {recibo.percentualConformidade.toFixed(0)}%
+                            </span>
                           </div>
                         </div>
                       </TableCell>

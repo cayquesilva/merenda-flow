@@ -1,9 +1,29 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import {
   DollarSign,
@@ -11,17 +31,20 @@ import {
   Building,
   TrendingUp,
   Filter,
-  Users
+  Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+// Interface para o objeto de gastos por fornecedor (reflete o que o backend retorna)
+interface GastoFornecedor {
+  fornecedorId: string;
+  fornecedorNome: string;
+  totalGasto: number;
+  totalPedidos: number;
+}
+
 interface RelatorioGastosData {
-  gastosPorFornecedor: {
-    fornecedorId: string;
-    fornecedorNome: string;
-    totalGasto: number;
-    totalPedidos: number;
-  }[];
+  gastosPorFornecedor: GastoFornecedor[]; // Tipagem ajustada aqui
   estatisticas: {
     totalFornecedores: number;
     gastoTotal: number;
@@ -29,12 +52,46 @@ interface RelatorioGastosData {
   };
 }
 
+// Interface simplificada para o fornecedor (usada no Select)
+interface FornecedorSimplificado {
+  id: string;
+  nome: string;
+}
+
 export function RelatorioGastosFornecedor() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [fornecedorSelecionado, setFornecedorSelecionado] = useState("all"); // Valor inicial 'all'
   const [dados, setDados] = useState<RelatorioGastosData | null>(null);
+  const [fornecedores, setFornecedores] = useState<FornecedorSimplificado[]>(
+    []
+  ); // Estado para a lista de fornecedores
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Efeito para buscar a lista de fornecedores ativos ao carregar o componente
+  useEffect(() => {
+    const fetchFornecedores = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:3001/api/fornecedores/lista"
+        );
+        if (response.ok) {
+          const data: FornecedorSimplificado[] = await response.json();
+          setFornecedores(data);
+        } else {
+          const errorData = await response.json();
+          console.error(
+            "Erro ao buscar fornecedores:",
+            errorData.error || "Falha ao buscar fornecedores."
+          );
+        }
+      } catch (error) {
+        console.error("Erro ao buscar fornecedores:", error);
+      }
+    };
+    fetchFornecedores();
+  }, []);
 
   const gerarRelatorio = async () => {
     if (!dataInicio || !dataFim) {
@@ -48,23 +105,37 @@ export function RelatorioGastosFornecedor() {
 
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({ dataInicio, dataFim });
-      const response = await fetch(`http://localhost:3001/api/relatorios/gastos-fornecedor?${params}`);
-      
+      const params = new URLSearchParams({
+        dataInicio,
+        dataFim,
+        // Adiciona fornecedorId aos parâmetros se um fornecedor específico for selecionado
+        ...(fornecedorSelecionado !== "all" && {
+          fornecedorId: fornecedorSelecionado,
+        }),
+      });
+
+      const response = await fetch(
+        `http://localhost:3001/api/relatorios/gastos-fornecedor?${params}`
+      );
+
       if (response.ok) {
-        const data = await response.json();
+        const data: RelatorioGastosData = await response.json(); // Tipagem ajustada aqui
         setDados(data);
         toast({
           title: "Relatório gerado!",
           description: "Relatório de gastos por fornecedor gerado com sucesso",
         });
       } else {
-        throw new Error('Falha ao gerar relatório');
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao gerar relatório");
       }
     } catch (error) {
       toast({
         title: "Erro ao gerar relatório",
-        description: "Não foi possível gerar o relatório. Tente novamente.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível gerar o relatório. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -93,7 +164,9 @@ export function RelatorioGastosFornecedor() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {" "}
+            {/* Alterado para 4 colunas */}
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
               <Input
@@ -111,6 +184,26 @@ export function RelatorioGastosFornecedor() {
                 value={dataFim}
                 onChange={(e) => setDataFim(e.target.value)}
               />
+            </div>
+            <div>
+              <Label htmlFor="fornecedor">Fornecedor (Opcional)</Label>
+              <Select
+                value={fornecedorSelecionado}
+                onValueChange={setFornecedorSelecionado}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os fornecedores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os fornecedores</SelectItem>{" "}
+                  {/* Valor 'all' */}
+                  {fornecedores.map((fornecedor) => (
+                    <SelectItem key={fornecedor.id} value={fornecedor.id}>
+                      {fornecedor.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-end gap-2">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
@@ -139,8 +232,12 @@ export function RelatorioGastosFornecedor() {
                     <DollarSign className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Gasto Total</p>
-                    <p className="text-2xl font-bold">R$ {dados.estatisticas.gastoTotal.toFixed(2)}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Gasto Total
+                    </p>
+                    <p className="text-2xl font-bold">
+                      R$ {dados.estatisticas.gastoTotal.toFixed(2)}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -153,8 +250,12 @@ export function RelatorioGastosFornecedor() {
                     <Users className="h-6 w-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Fornecedores</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.totalFornecedores}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Fornecedores
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.totalFornecedores}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -167,8 +268,12 @@ export function RelatorioGastosFornecedor() {
                     <Building className="h-6 w-6 text-warning" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Pedidos</p>
-                    <p className="text-2xl font-bold">{dados.estatisticas.pedidosTotal}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Total Pedidos
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.pedidosTotal}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -198,14 +303,23 @@ export function RelatorioGastosFornecedor() {
                 </TableHeader>
                 <TableBody>
                   {dados.gastosPorFornecedor.map((fornecedor, index) => {
-                    const ticketMedio = fornecedor.totalGasto / fornecedor.totalPedidos;
-                    const percentualParticipacao = (fornecedor.totalGasto / dados.estatisticas.gastoTotal) * 100;
-                    
+                    const ticketMedio =
+                      fornecedor.totalGasto / fornecedor.totalPedidos;
+                    // Garante que dados.estatisticas.gastoTotal não é zero para evitar divisão por zero
+                    const percentualParticipacao =
+                      dados.estatisticas.gastoTotal > 0
+                        ? (fornecedor.totalGasto /
+                            dados.estatisticas.gastoTotal) *
+                          100
+                        : 0;
+
                     return (
                       <TableRow key={fornecedor.fornecedorId}>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {index === 0 && <TrendingUp className="h-4 w-4 text-success" />}
+                            {index === 0 && (
+                              <TrendingUp className="h-4 w-4 text-success" />
+                            )}
                             <span className="font-bold">#{index + 1}</span>
                           </div>
                         </TableCell>
@@ -216,15 +330,16 @@ export function RelatorioGastosFornecedor() {
                           R$ {fornecedor.totalGasto.toFixed(2)}
                         </TableCell>
                         <TableCell>{fornecedor.totalPedidos}</TableCell>
-                        <TableCell>
-                          R$ {ticketMedio.toFixed(2)}
-                        </TableCell>
+                        <TableCell>R$ {ticketMedio.toFixed(2)}</TableCell>
                         <TableCell>
                           {percentualParticipacao.toFixed(1)}%
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Progress value={percentualParticipacao} className="w-20 h-2" />
+                            <Progress
+                              value={percentualParticipacao}
+                              className="w-20 h-2"
+                            />
                             <span className="text-xs text-muted-foreground">
                               {percentualParticipacao.toFixed(0)}%
                             </span>
@@ -248,12 +363,22 @@ export function RelatorioGastosFornecedor() {
                 <div>
                   <h4 className="font-medium mb-3">Top 3 Fornecedores</h4>
                   <div className="space-y-3">
-                    {dados.gastosPorFornecedor.slice(0, 3).map((fornecedor, index) => {
-                      const percentual = (fornecedor.totalGasto / dados.estatisticas.gastoTotal) * 100;
+                    {dados.gastosPorFornecedor.slice(0, 3).map((fornecedor) => {
+                      const percentual =
+                        dados.estatisticas.gastoTotal > 0
+                          ? (fornecedor.totalGasto /
+                              dados.estatisticas.gastoTotal) *
+                            100
+                          : 0;
                       return (
-                        <div key={fornecedor.fornecedorId} className="space-y-2">
+                        <div
+                          key={fornecedor.fornecedorId}
+                          className="space-y-2"
+                        >
                           <div className="flex justify-between text-sm">
-                            <span className="font-medium">{fornecedor.fornecedorNome}</span>
+                            <span className="font-medium">
+                              {fornecedor.fornecedorNome}
+                            </span>
                             <span>{percentual.toFixed(1)}%</span>
                           </div>
                           <Progress value={percentual} className="h-2" />
@@ -262,28 +387,51 @@ export function RelatorioGastosFornecedor() {
                     })}
                   </div>
                 </div>
-                
+
                 <div>
                   <h4 className="font-medium mb-3">Estatísticas</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Concentração Top 3:</span>
                       <span className="font-medium">
-                        {dados.gastosPorFornecedor.slice(0, 3)
-                          .reduce((sum, f) => sum + (f.totalGasto / dados.estatisticas.gastoTotal * 100), 0)
-                          .toFixed(1)}%
+                        {dados.gastosPorFornecedor
+                          .slice(0, 3)
+                          .reduce(
+                            (sum, f) =>
+                              sum +
+                              (f.totalGasto / dados.estatisticas.gastoTotal) *
+                                100,
+                            0
+                          )
+                          .toFixed(1)}
+                        %
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Ticket médio geral:</span>
                       <span className="font-medium">
-                        R$ {(dados.estatisticas.gastoTotal / dados.estatisticas.pedidosTotal).toFixed(2)}
+                        R${" "}
+                        {dados.estatisticas.pedidosTotal > 0
+                          ? (
+                              dados.estatisticas.gastoTotal /
+                              dados.estatisticas.pedidosTotal
+                            ).toFixed(2)
+                          : (0).toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Maior ticket médio:</span>
                       <span className="font-medium">
-                        R$ {Math.max(...dados.gastosPorFornecedor.map(f => f.totalGasto / f.totalPedidos)).toFixed(2)}
+                        R${" "}
+                        {dados.gastosPorFornecedor.length > 0
+                          ? Math.max(
+                              ...dados.gastosPorFornecedor.map((f) =>
+                                f.totalPedidos > 0
+                                  ? f.totalGasto / f.totalPedidos
+                                  : 0
+                              )
+                            ).toFixed(2)
+                          : (0).toFixed(2)}
                       </span>
                     </div>
                   </div>

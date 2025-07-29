@@ -800,106 +800,118 @@ app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
       include: {
         unidadeEducacional: true,
         pedido: {
-          select: { numero: true, dataEntregaPrevista: true }
+          select: { numero: true, dataEntregaPrevista: true },
         },
         itens: {
           include: {
             itemPedido: {
               include: {
                 itemContrato: {
-                  select: { nome: true, unidadeMedida: { select: { sigla: true } } }
-                }
-              }
-            }
-          }
-        }
-      }
+                  select: {
+                    nome: true,
+                    unidadeMedida: { select: { sigla: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!recibo) {
       return res.status(404).json({ error: "Recibo não encontrado." });
     }
-    if (recibo.status !== 'pendente') {
-        return res.status(409).json({ error: "Este recibo já foi processado." });
+    if (recibo.status !== "pendente") {
+      return res.status(409).json({ error: "Este recibo já foi processado." });
     }
     res.json(recibo);
   } catch (error) {
     console.error("Erro ao buscar recibo para confirmação:", error);
-    res.status(500).json({ error: "Não foi possível carregar os dados do recibo." });
+    res
+      .status(500)
+      .json({ error: "Não foi possível carregar os dados do recibo." });
   }
 });
-
 
 // COMENTÁRIO: Processa a submissão de uma confirmação de recebimento.
 // UTILIZAÇÃO: Chamada pelo `ConfirmacaoRecebimento.tsx` ao clicar em "Confirmar Recebimento".
-app.post("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { responsavel, observacoes, itensConfirmacao } = req.body;
+app.post(
+  "/api/recibos/confirmacao/:id",
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { responsavel, observacoes, itensConfirmacao } = req.body;
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      let todosConformes = true;
-      let algumRecebido = false;
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        let todosConformes = true;
+        let algumRecebido = false;
 
-      // 1. Atualizar cada item do recibo com as quantidades recebidas.
-      for (const item of itensConfirmacao) {
-        const itemRecibo = await tx.itemRecibo.update({
-          where: { id: item.itemId },
+        // 1. Atualizar cada item do recibo com as quantidades recebidas.
+        for (const item of itensConfirmacao) {
+          const itemRecibo = await tx.itemRecibo.update({
+            where: { id: item.itemId },
+            data: {
+              conforme: item.conforme,
+              quantidadeRecebida: Number(item.quantidadeRecebida),
+              observacoes: item.observacoes,
+            },
+            include: { itemPedido: true },
+          });
+
+          if (!item.conforme) {
+            todosConformes = false;
+          }
+          if (Number(item.quantidadeRecebida) > 0) {
+            algumRecebido = true;
+          }
+
+          // 2. Se a quantidade recebida for menor que a solicitada, devolver o saldo ao contrato.
+          const diferenca =
+            itemRecibo.itemPedido.quantidade - Number(item.quantidadeRecebida);
+          if (diferenca > 0) {
+            await tx.itemContrato.update({
+              where: { id: itemRecibo.itemPedido.itemContratoId },
+              data: {
+                saldoAtual: {
+                  increment: diferenca,
+                },
+              },
+            });
+          }
+        }
+
+        // 3. Determinar o status final do recibo.
+        let statusFinal = "rejeitado";
+        if (algumRecebido) {
+          statusFinal = todosConformes ? "confirmado" : "parcial";
+        }
+
+        // 4. Atualizar o recibo principal com o responsável, observações e o novo status.
+        const reciboAtualizado = await tx.recibo.update({
+          where: { id },
           data: {
-            conforme: item.conforme,
-            quantidadeRecebida: Number(item.quantidadeRecebida),
-            observacoes: item.observacoes,
+            responsavelRecebimento: responsavel,
+            observacoes,
+            status: statusFinal,
           },
-          include: { itemPedido: true }
         });
 
-        if (!item.conforme) {
-          todosConformes = false;
-        }
-        if (Number(item.quantidadeRecebida) > 0) {
-            algumRecebido = true;
-        }
-
-        // 2. Se a quantidade recebida for menor que a solicitada, devolver o saldo ao contrato.
-        const diferenca = itemRecibo.itemPedido.quantidade - Number(item.quantidadeRecebida);
-        if (diferenca > 0) {
-          await tx.itemContrato.update({
-            where: { id: itemRecibo.itemPedido.itemContratoId },
-            data: {
-              saldoAtual: {
-                increment: diferenca,
-              },
-            },
-          });
-        }
-      }
-
-      // 3. Determinar o status final do recibo.
-      let statusFinal = 'rejeitado';
-      if (algumRecebido) {
-          statusFinal = todosConformes ? 'confirmado' : 'parcial';
-      }
-
-      // 4. Atualizar o recibo principal com o responsável, observações e o novo status.
-      const reciboAtualizado = await tx.recibo.update({
-        where: { id },
-        data: {
-          responsavelRecebimento: responsavel,
-          observacoes,
-          status: statusFinal,
-        },
+        return reciboAtualizado;
       });
 
-      return reciboAtualizado;
-    });
-
-    res.status(200).json({ message: "Recebimento confirmado com sucesso!", recibo: result });
-  } catch (error) {
-    console.error("Erro ao confirmar recebimento:", error);
-    res.status(500).json({ error: "Não foi possível processar a confirmação." });
+      res.status(200).json({
+        message: "Recebimento confirmado com sucesso!",
+        recibo: result,
+      });
+    } catch (error) {
+      console.error("Erro ao confirmar recebimento:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível processar a confirmação." });
+    }
   }
-});
-
+);
 
 // COMENTÁRIO: Retorna os dados para a página de dashboard de Confirmações.
 // UTILIZAÇÃO: Chamada pela página `Confirmacoes.tsx` para popular as tabelas.
@@ -911,22 +923,24 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
         contrato: { select: { fornecedor: { select: { nome: true } } } },
         _count: { select: { itens: true } },
         recibos: {
-          select: { status: true }
-        }
+          select: { status: true },
+        },
       },
-      orderBy: { dataPedido: 'desc' }
+      orderBy: { dataPedido: "desc" },
     });
 
-    const consolidacoes = pedidos.map(pedido => {
+    const consolidacoes = pedidos.map((pedido) => {
       const totalRecibos = pedido.recibos.length;
-      const recibosConfirmados = pedido.recibos.filter(r => r.status === 'confirmado' || r.status === 'parcial').length;
-      
-      let statusConsolidacao: 'pendente' | 'parcial' | 'completo' = 'pendente';
+      const recibosConfirmados = pedido.recibos.filter(
+        (r) => r.status === "confirmado" || r.status === "parcial"
+      ).length;
+
+      let statusConsolidacao: "pendente" | "parcial" | "completo" = "pendente";
       if (totalRecibos > 0) {
         if (recibosConfirmados === totalRecibos) {
-          statusConsolidacao = 'completo';
+          statusConsolidacao = "completo";
         } else if (recibosConfirmados > 0) {
-          statusConsolidacao = 'parcial';
+          statusConsolidacao = "parcial";
         }
       }
 
@@ -936,7 +950,8 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
         statusConsolidacao,
         totalUnidades: totalRecibos, // Simplificação: um recibo por unidade
         unidadesConfirmadas: recibosConfirmados,
-        percentualConfirmacao: totalRecibos > 0 ? (recibosConfirmados / totalRecibos) * 100 : 0
+        percentualConfirmacao:
+          totalRecibos > 0 ? (recibosConfirmados / totalRecibos) * 100 : 0,
       };
     });
 
@@ -944,21 +959,41 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
     const recibos = await prisma.recibo.findMany({
       include: {
         unidadeEducacional: { select: { nome: true } },
-        pedido: { include: { contrato: { select: { fornecedor: { select: { nome: true } } } } } },
-        itens: true
+        pedido: {
+          include: {
+            contrato: { select: { fornecedor: { select: { nome: true } } } },
+          },
+        },
+        itens: true,
       },
-      orderBy: { dataEntrega: 'desc' }
+      orderBy: { dataEntrega: "desc" },
     });
 
-    const confirmacoesDetalhadas = recibos.map(recibo => {
-      const itensConformes = recibo.itens.filter(item => item.conforme).length;
+    const confirmacoesDetalhadas = recibos.map((recibo) => {
+      const itensConformes = recibo.itens.filter(
+        (item) => item.conforme
+      ).length;
       const totalItens = recibo.itens.length;
-      const percentualConformidade = totalItens > 0 ? (itensConformes / totalItens) * 100 : 0;
-      const totalSolicitado = recibo.itens.reduce((sum, item) => sum + item.quantidadeSolicitada, 0);
-      const totalRecebido = recibo.itens.reduce((sum, item) => sum + item.quantidadeRecebida, 0);
-      const eficienciaEntrega = totalSolicitado > 0 ? (totalRecebido / totalSolicitado) * 100 : 0;
+      const percentualConformidade =
+        totalItens > 0 ? (itensConformes / totalItens) * 100 : 0;
+      const totalSolicitado = recibo.itens.reduce(
+        (sum, item) => sum + item.quantidadeSolicitada,
+        0
+      );
+      const totalRecebido = recibo.itens.reduce(
+        (sum, item) => sum + item.quantidadeRecebida,
+        0
+      );
+      const eficienciaEntrega =
+        totalSolicitado > 0 ? (totalRecebido / totalSolicitado) * 100 : 0;
 
-      return { ...recibo, percentualConformidade, eficienciaEntrega, totalRecebido, totalSolicitado };
+      return {
+        ...recibo,
+        percentualConformidade,
+        eficienciaEntrega,
+        totalRecebido,
+        totalSolicitado,
+      };
     });
 
     res.json({ consolidacoes, confirmacoesDetalhadas });
@@ -972,69 +1007,75 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
 
 // COMENTÁRIO: Gera um relatório consolidado de pedidos por contrato em PDF
 // UTILIZAÇÃO: Chamada pela página `Relatorios.tsx` ao clicar em "Exportar PDF"
-app.post("/api/relatorios/consolidado-pedidos/:contratoId", async (req: Request, res: Response) => {
-  const { contratoId } = req.params;
-  
-  try {
-    // Buscar dados do contrato e pedidos
-    const contrato = await prisma.contrato.findUnique({
-      where: { id: contratoId },
-      include: {
-        fornecedor: true,
-        itens: { include: { unidadeMedida: true } }
-      }
-    });
+app.post(
+  "/api/relatorios/consolidado-pedidos/:contratoId",
+  async (req: Request, res: Response) => {
+    const { contratoId } = req.params;
 
-    if (!contrato) {
-      return res.status(404).json({ error: "Contrato não encontrado" });
+    try {
+      // Buscar dados do contrato e pedidos
+      const contrato = await prisma.contrato.findUnique({
+        where: { id: contratoId },
+        include: {
+          fornecedor: true,
+          itens: { include: { unidadeMedida: true } },
+        },
+      });
+
+      if (!contrato) {
+        return res.status(404).json({ error: "Contrato não encontrado" });
+      }
+
+      const pedidos = await prisma.pedido.findMany({
+        where: { contratoId },
+        include: {
+          itens: {
+            include: {
+              itemContrato: { include: { unidadeMedida: true } },
+              unidadeEducacional: true,
+            },
+          },
+        },
+      });
+
+      // Simular geração de PDF (em produção, usar biblioteca como puppeteer ou PDFKit)
+      const reportData = {
+        contrato,
+        pedidos,
+        totalPedidos: pedidos.length,
+        valorTotal: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
+        dataGeracao: new Date(),
+      };
+
+      // Por enquanto, retornar JSON (em produção seria um PDF)
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="relatorio-${contrato.numero}.json"`
+      );
+      res.json(reportData);
+    } catch (error) {
+      console.error("Erro ao gerar relatório:", error);
+      res.status(500).json({ error: "Não foi possível gerar o relatório" });
     }
-
-    const pedidos = await prisma.pedido.findMany({
-      where: { contratoId },
-      include: {
-        itens: {
-          include: {
-            itemContrato: { include: { unidadeMedida: true } },
-            unidadeEducacional: true
-          }
-        }
-      }
-    });
-
-    // Simular geração de PDF (em produção, usar biblioteca como puppeteer ou PDFKit)
-    const reportData = {
-      contrato,
-      pedidos,
-      totalPedidos: pedidos.length,
-      valorTotal: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
-      dataGeracao: new Date()
-    };
-
-    // Por enquanto, retornar JSON (em produção seria um PDF)
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="relatorio-${contrato.numero}.json"`);
-    res.json(reportData);
-
-  } catch (error) {
-    console.error("Erro ao gerar relatório:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório" });
   }
-});
+);
 
 // COMENTÁRIO: Relatório de entregas por período
 app.get("/api/relatorios/entregas", async (req: Request, res: Response) => {
   const { dataInicio, dataFim, unidadeId } = req.query;
-  
+
   try {
-    const whereClause: any = {};
-    
+    // Tipagem explícita para o objeto whereClause
+    const whereClause: Prisma.ReciboWhereInput = {};
+
     if (dataInicio && dataFim) {
       whereClause.dataEntrega = {
         gte: new Date(dataInicio as string),
-        lte: new Date(dataFim as string)
+        lte: new Date(dataFim as string),
       };
     }
-    
+
     if (unidadeId) {
       whereClause.unidadeEducacionalId = unidadeId as string;
     }
@@ -1045,52 +1086,62 @@ app.get("/api/relatorios/entregas", async (req: Request, res: Response) => {
         unidadeEducacional: true,
         pedido: {
           include: {
-            contrato: { include: { fornecedor: true } }
-          }
+            contrato: { include: { fornecedor: true } },
+          },
         },
         itens: {
           include: {
             itemPedido: {
               include: {
-                itemContrato: { include: { unidadeMedida: true } }
-              }
-            }
-          }
-        }
+                itemContrato: { include: { unidadeMedida: true } },
+              },
+            },
+          },
+        },
       },
-      orderBy: { dataEntrega: 'desc' }
+      orderBy: { dataEntrega: "desc" },
     });
 
     const estatisticas = {
       totalEntregas: recibos.length,
-      entregasConfirmadas: recibos.filter(r => r.status === 'confirmado').length,
-      entregasPendentes: recibos.filter(r => r.status === 'pendente').length,
+      entregasConfirmadas: recibos.filter((r) => r.status === "confirmado")
+        .length,
+      entregasPendentes: recibos.filter((r) => r.status === "pendente").length,
       valorTotalEntregue: recibos.reduce((sum, r) => {
-        return sum + r.itens.reduce((itemSum, item) => {
-          return itemSum + (item.quantidadeRecebida * item.itemPedido.itemContrato.valorUnitario);
-        }, 0);
-      }, 0)
+        return (
+          sum +
+          r.itens.reduce((itemSum, item) => {
+            // Garantir que quantidadeRecebida e valorUnitario não sejam undefined
+            const quantidadeRecebida = item.quantidadeRecebida ?? 0;
+            const valorUnitario =
+              item.itemPedido?.itemContrato?.valorUnitario ?? 0;
+            return itemSum + quantidadeRecebida * valorUnitario;
+          }, 0)
+        );
+      }, 0),
     };
 
     res.json({ recibos, estatisticas });
-
   } catch (error) {
     console.error("Erro ao gerar relatório de entregas:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório de entregas" });
+    res
+      .status(500)
+      .json({ error: "Não foi possível gerar o relatório de entregas" });
   }
 });
 
 // COMENTÁRIO: Relatório de conformidade das entregas
 app.get("/api/relatorios/conformidade", async (req: Request, res: Response) => {
   const { dataInicio, dataFim } = req.query;
-  
+
   try {
-    const whereClause: any = {};
-    
+    // Tipagem explícita para o objeto whereClause
+    const whereClause: Prisma.ReciboWhereInput = {};
+
     if (dataInicio && dataFim) {
       whereClause.dataEntrega = {
         gte: new Date(dataInicio as string),
-        lte: new Date(dataFim as string)
+        lte: new Date(dataFim as string),
       };
     }
 
@@ -1100,103 +1151,142 @@ app.get("/api/relatorios/conformidade", async (req: Request, res: Response) => {
         unidadeEducacional: true,
         pedido: {
           include: {
-            contrato: { include: { fornecedor: true } }
-          }
+            contrato: { include: { fornecedor: true } },
+          },
         },
-        itens: true
-      }
+        itens: true,
+      },
     });
 
-    const analiseConformidade = recibos.map(recibo => {
+    const analiseConformidade = recibos.map((recibo) => {
       const totalItens = recibo.itens.length;
-      const itensConformes = recibo.itens.filter(item => item.conforme).length;
-      const percentualConformidade = totalItens > 0 ? (itensConformes / totalItens) * 100 : 0;
-      
+      const itensConformes = recibo.itens.filter(
+        (item) => item.conforme
+      ).length;
+      const percentualConformidade =
+        totalItens > 0 ? (itensConformes / totalItens) * 100 : 0;
+
       return {
         ...recibo,
         totalItens,
         itensConformes,
-        percentualConformidade
+        percentualConformidade,
       };
     });
 
-    const mediaConformidade = analiseConformidade.length > 0 
-      ? analiseConformidade.reduce((sum, r) => sum + r.percentualConformidade, 0) / analiseConformidade.length
-      : 0;
+    const mediaConformidade =
+      analiseConformidade.length > 0
+        ? analiseConformidade.reduce(
+            (sum, r) => sum + r.percentualConformidade,
+            0
+          ) / analiseConformidade.length
+        : 0;
 
     res.json({
       analiseConformidade,
       estatisticas: {
         totalRecibos: recibos.length,
         mediaConformidade,
-        recibosConformes: analiseConformidade.filter(r => r.percentualConformidade === 100).length,
-        recibosParciais: analiseConformidade.filter(r => r.percentualConformidade > 0 && r.percentualConformidade < 100).length,
-        recibosNaoConformes: analiseConformidade.filter(r => r.percentualConformidade === 0).length
-      }
+        recibosConformes: analiseConformidade.filter(
+          (r) => r.percentualConformidade === 100
+        ).length,
+        recibosParciais: analiseConformidade.filter(
+          (r) => r.percentualConformidade > 0 && r.percentualConformidade < 100
+        ).length,
+        recibosNaoConformes: analiseConformidade.filter(
+          (r) => r.percentualConformidade === 0
+        ).length,
+      },
     });
-
   } catch (error) {
     console.error("Erro ao gerar relatório de conformidade:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório de conformidade" });
+    res
+      .status(500)
+      .json({ error: "Não foi possível gerar o relatório de conformidade" });
   }
 });
+
+// Interface para o objeto de gastos por fornecedor
+interface GastoFornecedor {
+  fornecedorId: string;
+  fornecedorNome: string;
+  totalGasto: number;
+  totalPedidos: number;
+}
 
 // COMENTÁRIO: Relatório de gastos por fornecedor
-app.get("/api/relatorios/gastos-fornecedor", async (req: Request, res: Response) => {
-  const { dataInicio, dataFim } = req.query;
-  
-  try {
-    const whereClause: any = {};
-    
-    if (dataInicio && dataFim) {
-      whereClause.dataPedido = {
-        gte: new Date(dataInicio as string),
-        lte: new Date(dataFim as string)
-      };
-    }
+app.get(
+  "/api/relatorios/gastos-fornecedor",
+  async (req: Request, res: Response) => {
+    const { dataInicio, dataFim, fornecedorId } = req.query; // Adicionado fornecedorId
 
-    const pedidos = await prisma.pedido.findMany({
-      where: whereClause,
-      include: {
-        contrato: { include: { fornecedor: true } }
-      }
-    });
+    try {
+      // Tipagem explícita para o objeto whereClause
+      const whereClause: Prisma.PedidoWhereInput = {};
 
-    const gastosPorFornecedor = pedidos.reduce((acc, pedido) => {
-      const fornecedorId = pedido.contrato.fornecedorId;
-      const fornecedorNome = pedido.contrato.fornecedor.nome;
-      
-      if (!acc[fornecedorId]) {
-        acc[fornecedorId] = {
-          fornecedorId,
-          fornecedorNome,
-          totalGasto: 0,
-          totalPedidos: 0
+      if (dataInicio && dataFim) {
+        whereClause.dataPedido = {
+          gte: new Date(dataInicio as string),
+          lte: new Date(dataFim as string),
         };
       }
-      
-      acc[fornecedorId].totalGasto += pedido.valorTotal;
-      acc[fornecedorId].totalPedidos += 1;
-      
-      return acc;
-    }, {} as Record<string, any>);
 
-    const relatorio = Object.values(gastosPorFornecedor).sort((a, b) => b.totalGasto - a.totalGasto);
-
-    res.json({
-      gastosPorFornecedor: relatorio,
-      estatisticas: {
-        totalFornecedores: relatorio.length,
-        gastoTotal: relatorio.reduce((sum, f) => sum + f.totalGasto, 0),
-        pedidosTotal: relatorio.reduce((sum, f) => sum + f.totalPedidos, 0)
+      // Adiciona filtro por fornecedorId
+      if (fornecedorId) {
+        whereClause.contrato = {
+          fornecedorId: fornecedorId as string,
+        };
       }
-    });
 
-  } catch (error) {
-    console.error("Erro ao gerar relatório de gastos:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório de gastos" });
+      const pedidos = await prisma.pedido.findMany({
+        where: whereClause,
+        include: {
+          contrato: { include: { fornecedor: true } },
+        },
+      });
+
+      const gastosPorFornecedor = pedidos.reduce(
+        (acc: Record<string, GastoFornecedor>, pedido) => {
+          const fornecedorId = pedido.contrato.fornecedorId;
+          const fornecedorNome = pedido.contrato.fornecedor.nome;
+
+          if (!acc[fornecedorId]) {
+            acc[fornecedorId] = {
+              fornecedorId,
+              fornecedorNome,
+              totalGasto: 0,
+              totalPedidos: 0,
+            };
+          }
+
+          acc[fornecedorId].totalGasto += pedido.valorTotal;
+          acc[fornecedorId].totalPedidos += 1;
+
+          return acc;
+        },
+        {}
+      );
+
+      const relatorio = Object.values(gastosPorFornecedor).sort(
+        (a, b) => b.totalGasto - a.totalGasto
+      );
+
+      res.json({
+        gastosPorFornecedor: relatorio,
+        estatisticas: {
+          totalFornecedores: relatorio.length,
+          gastoTotal: relatorio.reduce((sum, f) => sum + f.totalGasto, 0),
+          pedidosTotal: relatorio.reduce((sum, f) => sum + f.totalPedidos, 0),
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao gerar relatório de gastos:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório de gastos" });
+    }
   }
-});
+);
 
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {
