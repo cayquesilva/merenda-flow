@@ -83,8 +83,8 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
     setIsSubmitting(true);
     try {
       const url = isEdicao
-        ? `http://localhost:3001/api/unidades/${unidade.id}`
-        : "http://localhost:3001/api/unidades";
+        ? `${import.meta.env.VITE_API_URL}/api/unidades/${unidade.id}`
+        : `${import.meta.env.VITE_API_URL}/api/unidades`;
       const method = isEdicao ? "PUT" : "POST";
 
       // COMENTÁRIO: Prepara o payload para a API, removendo a máscara do telefone.

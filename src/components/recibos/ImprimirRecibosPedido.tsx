@@ -82,7 +82,7 @@ export default function ImprimirRecibosPedido() {
       setError(null);
       try {
         const response = await fetch(
-          `http://localhost:3001/api/recibos/imprimir-pedido/${pedidoId}`
+          `${import.meta.env.VITE_API_URL}/api/recibos/imprimir-pedido/${pedidoId}`
         );
         if (!response.ok) {
           const errorData = await response.json();

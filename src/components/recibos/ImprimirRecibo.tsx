@@ -64,7 +64,7 @@ export default function ImprimirRecibo() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:3001/api/recibos/imprimir/${id}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/recibos/imprimir/${id}`);
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || "Falha ao carregar recibo para impressão.");

@@ -105,7 +105,7 @@ export function RelatorioEntregas() {
     const fetchUnidades = async () => {
       try {
         const response = await fetch(
-          "http://localhost:3001/api/unidades-ativas"
+          `${import.meta.env.VITE_API_URL}/api/unidades-ativas`
         );
         if (response.ok) {
           const data: UnidadeEducacional[] = await response.json(); // Tipagem aqui
@@ -144,7 +144,7 @@ export function RelatorioEntregas() {
       });
 
       const response = await fetch(
-        `http://localhost:3001/api/relatorios/entregas?${params}`
+        `${import.meta.env.VITE_API_URL}/api/relatorios/entregas?${params}`
       );
       if (response.ok) {
         const data: RelatorioEntregasData = await response.json(); // Tipagem aqui

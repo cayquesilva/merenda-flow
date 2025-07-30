@@ -21,6 +21,7 @@ services:
     image: cayquesilva/merendaflow-backend:latest
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-CayqueSilva}:${POSTGRES_PASSWORD:-Kiq3506!}@db:5432/merenda
+      FRONTEND_URL: ${FRONTEND_URL:-https://merenda.simplisoft.com.br}
       NODE_ENV: production
     depends_on:
       - db
@@ -37,7 +38,7 @@ services:
         # Habilita o Traefik para este serviço
         - "traefik.enable=true"
         # Define o roteador para o serviço backend
-        - "traefik.http.routers.merendaflow-backend.rule=Host(`api.seusite.com`) || Host(`backend.seusite.com`)" # Substitua pelos seus domínios
+        - "traefik.http.routers.merendaflow-backend.rule=Host(`api.merenda.simplisoft.com.br`)" # Substitua pelos seus domínios
         - "traefik.http.routers.merendaflow-backend.entrypoints=websecure" # Usa o entrypoint HTTPS (se configurado no Traefik)
         - "traefik.http.routers.merendaflow-backend.tls=true" # Habilita TLS (HTTPS)
         # Opcional: Middlewares para redirecionamento HTTP para HTTPS (se seu Traefik tem 'web' entrypoint)
@@ -45,14 +46,15 @@ services:
         # - "traefik.http.routers.merendaflow-backend-http.entrypoints=web"
         # - "traefik.http.routers.merendaflow-backend-http.middlewares=merendaflow-redirect-https@docker"
         # Define o serviço (onde o tráfego será enviado)
-        - "traefik.http.services.merendaflow-backend.loadbalancer.server.port=3000" # Porta que seu backend EXPÕE internamente
+        - "traefik.http.services.merendaflow-backend.loadbalancer.server.port=3001" # Porta que seu backend EXPÕE internamente
         # Opcional: Middleware de redirecionamento HTTP para HTTPS
         # - "traefik.http.middlewares.merendaflow-redirect-https.redirectscheme.scheme=https"
 
   frontend:
     image: cayquesilva/merendaflow-frontend:latest
-    # Nginx já expõe porta 80 internamente. Traefik vai rotear para ela.
-    # Não precisamos de 'ports' aqui, pois o Traefik fará o roteamento.
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-https://api.merenda.simplisoft.com.br}
+      NODE_ENV: production
     depends_on:
       - backend
     networks:
@@ -68,7 +70,7 @@ services:
         # Habilita o Traefik para este serviço
         - "traefik.enable=true"
         # Define o roteador para o serviço frontend (seu domínio principal)
-        - "traefik.http.routers.merendaflow-frontend.rule=Host(`seusite.com`) || Host(`www.seusite.com`)" # Substitua pelos seus domínios
+        - "traefik.http.routers.merendaflow-frontend.rule=Host(`merenda.simplisoft.com.br`)" # Substitua pelos seus domínios
         - "traefik.http.routers.merendaflow-frontend.entrypoints=websecure"
         - "traefik.http.routers.merendaflow-frontend.tls=true"
         # Opcional: Middlewares para redirecionamento HTTP para HTTPS
@@ -78,22 +80,6 @@ services:
         # Define o serviço (onde o tráfego será enviado)
         - "traefik.http.services.merendaflow-frontend.loadbalancer.server.port=3000" # Porta que seu frontend (Nginx) EXPÕE internamente
         # Reutiliza o middleware de redirecionamento se definido globalmente ou no backend
-
-  seed: # Mantido conforme a última discussão, com o entrypoint
-    image: cayquesilva/merendaflow-backend:latest
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-CayqueSilva}:${POSTGRES_PASSWORD:-Kiq3506!}@db:5432/merenda
-      NODE_ENV: production
-    depends_on:
-      db:
-        condition: service_healthy # OU service_started, se você não tiver HEALTHCHECK no DB
-    networks:
-      - SimpliSoft
-    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: "none"
 
 volumes:
   postgres_data:

@@ -82,7 +82,7 @@ export function RelatorioConsolidadoPedidos() {
       setIsLoading(true);
       try {
         // Busca todos os contratos para popular o Select
-        const response = await fetch("http://localhost:3001/api/contratos");
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contratos`);
         if (!response.ok) throw new Error("Falha ao buscar contratos.");
         const data: ContratoLista[] = await response.json();
         setContratosDisponiveis(data);
@@ -107,7 +107,7 @@ export function RelatorioConsolidadoPedidos() {
         setIsLoading(true);
         setConsolidacao(null); // Limpa dados anteriores
         try {
-          const response = await fetch(`http://localhost:3001/api/relatorios/consolidado-pedidos-data/${contratoSelecionado}`);
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/relatorios/consolidado-pedidos-data/${contratoSelecionado}`);
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || "Falha ao buscar dados consolidados.");
@@ -141,7 +141,7 @@ export function RelatorioConsolidadoPedidos() {
       // Se o backend realmente gerar um PDF, o tipo de resposta seria 'application/pdf'.
       // Se for apenas JSON, o download de PDF precisa ser feito no frontend (ex: com jsPDF)
       // Por enquanto, manterei a lógica de download de blob, assumindo que o backend envia um PDF.
-      const response = await fetch(`http://localhost:3001/api/relatorios/consolidado-pedidos/${contratoSelecionado}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/relatorios/consolidado-pedidos/${contratoSelecionado}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json', // Ou 'application/pdf' se o backend estiver configurado para isso

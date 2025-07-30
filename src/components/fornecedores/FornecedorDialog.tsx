@@ -94,8 +94,8 @@ export function FornecedorDialog({
 
     try {
       const url = isEdicao
-        ? `http://localhost:3001/api/fornecedores/${fornecedor.id}`
-        : "http://localhost:3001/api/fornecedores";
+        ? `${import.meta.env.VITE_API_URL}/api/fornecedores/${fornecedor.id}`
+        : `${import.meta.env.VITE_API_URL}/api/fornecedores`;
 
       const method = isEdicao ? "PUT" : "POST";
 

@@ -83,9 +83,9 @@ export default function Pedidos() {
       try {
         const [pedidosRes, statsRes] = await Promise.all([
           fetch(
-            `http://localhost:3001/api/pedidos?q=${debouncedBusca}&status=${statusFilter}`
+            `${import.meta.env.VITE_API_URL}/api/pedidos?q=${debouncedBusca}&status=${statusFilter}`
           ),
-          fetch(`http://localhost:3001/api/pedidos/stats`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/pedidos/stats`),
         ]);
         if (!pedidosRes.ok || !statsRes.ok)
           throw new Error("Falha ao buscar dados dos pedidos.");

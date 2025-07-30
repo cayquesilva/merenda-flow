@@ -37,6 +37,13 @@ if [ $? -ne 0 ]; then
 fi
 echo "Migrações do Prisma aplicadas com sucesso."
 
+npx prisma generate
+if [ $? -ne 0 ]; then
+  echo "ERRO: Falha ao aplicar generate do Prisma. Exiting."
+  exit 1
+fi
+echo "Generate do Prisma aplicadas com sucesso."
+
 # --- Execução do Prisma Seed ---
 echo "Executando Prisma Seed..."
 # 'npx prisma db seed' executa o script de seed definido no seu package.json.

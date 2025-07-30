@@ -172,7 +172,7 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
     setIsSubmitting(true);
     try {
       const response = await fetch(
-        "http://localhost:3001/api/estoque/movimentacao",
+        `${import.meta.env.VITE_API_URL}/api/estoque/movimentacao`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -408,7 +408,7 @@ export default function Estoque() {
     const fetchUnidades = async () => {
       try {
         const response = await fetch(
-          "http://localhost:3001/api/unidades-ativas"
+          `${import.meta.env.VITE_API_URL}/api/unidades-ativas`
         );
         if (response.ok) {
           setUnidades(await response.json());
@@ -430,8 +430,8 @@ export default function Estoque() {
           params.append("unidadeId", unidadeSelecionada);
 
         const [estoqueRes, movimentacoesRes] = await Promise.all([
-          fetch(`http://localhost:3001/api/estoque/consolidado?${params}`),
-          fetch(`http://localhost:3001/api/estoque/movimentacoes?${params}`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/estoque/consolidado?${params}`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/estoque/movimentacoes?${params}`),
         ]);
 
         if (!estoqueRes.ok || !movimentacoesRes.ok) {

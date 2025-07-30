@@ -62,7 +62,7 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
         setIsLoading(true);
         try {
           const response = await fetch(
-            "http://localhost:3001/api/pedidos-para-recibo"
+            `${import.meta.env.VITE_API_URL}/api/pedidos-para-recibo`
           );
           if (!response.ok)
             throw new Error("Falha ao carregar pedidos disponíveis.");
@@ -99,7 +99,7 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
     try {
       // Busca os detalhes completos do pedido selecionado
       const response = await fetch(
-        `http://localhost:3001/api/pedidos/${pedidoId}`
+        `${import.meta.env.VITE_API_URL}/api/pedidos/${pedidoId}`
       );
       if (!response.ok) throw new Error("Falha ao buscar detalhes do pedido.");
       setPedidoSelecionado(await response.json());
@@ -159,7 +159,7 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
 
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:3001/api/recibos", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/recibos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

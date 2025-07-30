@@ -59,7 +59,7 @@ export default function SaidaEstoqueQRCode() {
       setError(null);
       try {
         const response = await fetch(
-          `http://localhost:3001/api/estoque/consolidado?q=&unidadeId=&estoqueId=${estoqueId}`
+          `${import.meta.env.VITE_API_URL}/api/estoque/consolidado?q=&unidadeId=&estoqueId=${estoqueId}`
         );
         if (!response.ok) {
           const errorData = await response.json();
@@ -115,7 +115,7 @@ export default function SaidaEstoqueQRCode() {
     setIsSubmitting(true);
     try {
       const response = await fetch(
-        `http://localhost:3001/api/estoque/saida-qrcode/${itemEstoque.id}`,
+        `${import.meta.env.VITE_API_URL}/api/estoque/saida-qrcode/${itemEstoque.id}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
