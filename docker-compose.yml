@@ -5,12 +5,12 @@ services:
     image: postgres:15
     environment:
       POSTGRES_DB: merenda
-      POSTGRES_USER: CayqueSilva
-      POSTGRES_PASSWORD: Kiq3506!
+      POSTGRES_USER: ${POSTGRES_USER:-CayqueSilva}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Kiq3506!}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - merendaflow-network
+      - SimpliSoft
     deploy:
       replicas: 1
       placement:
@@ -18,17 +18,14 @@ services:
           - node.role == manager
 
   backend:
-    image: merendaflow-backend:latest
-    build:
-      context: ./back-end
-      dockerfile: Dockerfile
+    image: cayquesilva/merendaflow-backend:latest
     environment:
-      DATABASE_URL: postgresql://CayqueSilva:Kiq3506!@db:5432/merenda
+      DATABASE_URL: postgresql://${POSTGRES_USER:-CayqueSilva}:${POSTGRES_PASSWORD:-Kiq3506!}@db:5432/merenda
       NODE_ENV: production
     depends_on:
       - db
     networks:
-      - merendaflow-network
+      - SimpliSoft
     deploy:
       replicas: 2
       update_config:
@@ -36,18 +33,30 @@ services:
         delay: 10s
       restart_policy:
         condition: on-failure
+      labels:
+        # Habilita o Traefik para este serviço
+        - "traefik.enable=true"
+        # Define o roteador para o serviço backend
+        - "traefik.http.routers.merendaflow-backend.rule=Host(`api.seusite.com`) || Host(`backend.seusite.com`)" # Substitua pelos seus domínios
+        - "traefik.http.routers.merendaflow-backend.entrypoints=websecure" # Usa o entrypoint HTTPS (se configurado no Traefik)
+        - "traefik.http.routers.merendaflow-backend.tls=true" # Habilita TLS (HTTPS)
+        # Opcional: Middlewares para redirecionamento HTTP para HTTPS (se seu Traefik tem 'web' entrypoint)
+        # - "traefik.http.routers.merendaflow-backend-http.rule=Host(`api.seusite.com`) || Host(`backend.seusite.com`)"
+        # - "traefik.http.routers.merendaflow-backend-http.entrypoints=web"
+        # - "traefik.http.routers.merendaflow-backend-http.middlewares=merendaflow-redirect-https@docker"
+        # Define o serviço (onde o tráfego será enviado)
+        - "traefik.http.services.merendaflow-backend.loadbalancer.server.port=3000" # Porta que seu backend EXPÕE internamente
+        # Opcional: Middleware de redirecionamento HTTP para HTTPS
+        # - "traefik.http.middlewares.merendaflow-redirect-https.redirectscheme.scheme=https"
 
   frontend:
-    image: merendaflow-frontend:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
+    image: cayquesilva/merendaflow-frontend:latest
+    # Nginx já expõe porta 80 internamente. Traefik vai rotear para ela.
+    # Não precisamos de 'ports' aqui, pois o Traefik fará o roteamento.
     depends_on:
       - backend
     networks:
-      - merendaflow-network
+      - SimpliSoft
     deploy:
       replicas: 2
       update_config:
@@ -55,12 +64,41 @@ services:
         delay: 10s
       restart_policy:
         condition: on-failure
+      labels:
+        # Habilita o Traefik para este serviço
+        - "traefik.enable=true"
+        # Define o roteador para o serviço frontend (seu domínio principal)
+        - "traefik.http.routers.merendaflow-frontend.rule=Host(`seusite.com`) || Host(`www.seusite.com`)" # Substitua pelos seus domínios
+        - "traefik.http.routers.merendaflow-frontend.entrypoints=websecure"
+        - "traefik.http.routers.merendaflow-frontend.tls=true"
+        # Opcional: Middlewares para redirecionamento HTTP para HTTPS
+        # - "traefik.http.routers.merendaflow-frontend-http.rule=Host(`seusite.com`) || Host(`www.seusite.com`)"
+        # - "traefik.http.routers.merendaflow-frontend-http.entrypoints=web"
+        # - "traefik.http.routers.merendaflow-frontend-http.middlewares=merendaflow-redirect-https@docker"
+        # Define o serviço (onde o tráfego será enviado)
+        - "traefik.http.services.merendaflow-frontend.loadbalancer.server.port=3000" # Porta que seu frontend (Nginx) EXPÕE internamente
+        # Reutiliza o middleware de redirecionamento se definido globalmente ou no backend
+
+  seed: # Mantido conforme a última discussão, com o entrypoint
+    image: cayquesilva/merendaflow-backend:latest
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-CayqueSilva}:${POSTGRES_PASSWORD:-Kiq3506!}@db:5432/merenda
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy # OU service_started, se você não tiver HEALTHCHECK no DB
+    networks:
+      - SimpliSoft
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: "none"
 
 volumes:
   postgres_data:
     driver: local
 
 networks:
-  merendaflow-network:
-    driver: overlay
-    attachable: true
+  SimpliSoft:
+    external: true # Assume que esta rede é criada e gerenciada pelo Traefik

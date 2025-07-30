@@ -1,32 +1,27 @@
-# Frontend Dockerfile
-FROM node:18-alpine as builder
+# Etapa de build
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
-COPY bun.lockb ./
+RUN npm install
 
-# Install dependencies
-RUN npm install -g bun
-RUN bun install
-
-# Copy source code
 COPY . .
 
-# Build the application
-RUN bun run build
+RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+# Etapa de execução usando `serve`
+FROM node:18-alpine
 
-# Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copia os arquivos estáticos do build
+COPY --from=build /app/dist ./dist
 
-# Expose port
-EXPOSE 80
+# Instala servidor HTTP leve
+RUN npm install -g serve
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 3000
+
+# Serve a pasta /dist com fallback para index.html (SPA)
+CMD ["serve", "-s", "dist", "-l", "3000"]
