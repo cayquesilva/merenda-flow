@@ -17,6 +17,7 @@ import {
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 import {
   Sidebar,
@@ -98,10 +99,10 @@ export function AppSidebar() {
       <SidebarContent className="gap-0">
         {!collapsed && (
           <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="text-lg font-semibold text-foreground tracking-tight">
               Sistema Merenda
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-sidebar-foreground/70">
               Gestão de Contratos
             </p>
           </div>
@@ -156,16 +157,17 @@ export function AppSidebar() {
       
       <SidebarFooter className="p-2">
         {!collapsed && user && (
-          <div className="px-2 py-1 text-xs text-muted-foreground">
-            <p className="font-medium">{user.nome}</p>
-            <p>{user.email}</p>
+          <div className="px-3 py-2 mb-2 rounded-lg bg-sidebar-accent/50 border border-sidebar-border">
+            <p className="font-medium text-sidebar-foreground text-sm">{user.nome}</p>
+            <p className="text-xs text-sidebar-foreground/70">{user.email}</p>
           </div>
         )}
+        <ThemeToggle />
         <Button 
           variant="ghost" 
           size="sm" 
           onClick={logout}
-          className="w-full justify-start"
+          className="w-full justify-start hover:bg-destructive/10 hover:text-destructive transition-colors"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           {!collapsed && <span className="ml-2">Sair</span>}

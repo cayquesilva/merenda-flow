@@ -8,99 +8,99 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 160 20% 15%;
+    --background: 0 0% 98%;
+    --foreground: 160 25% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 160 20% 15%;
+    --card-foreground: 160 25% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 160 20% 15%;
+    --popover-foreground: 160 25% 12%;
 
-    --primary: 160 60% 25%;
+    --primary: 160 65% 28%;
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 160 40% 95%;
-    --secondary-foreground: 160 60% 25%;
+    --secondary: 160 45% 96%;
+    --secondary-foreground: 160 65% 28%;
 
-    --muted: 160 20% 96%;
-    --muted-foreground: 160 10% 40%;
+    --muted: 160 25% 95%;
+    --muted-foreground: 160 15% 45%;
 
-    --accent: 160 50% 88%;
-    --accent-foreground: 160 60% 25%;
+    --accent: 160 55% 90%;
+    --accent-foreground: 160 65% 28%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 160 20% 88%;
-    --input: 160 20% 88%;
-    --ring: 160 60% 25%;
+    --border: 160 25% 90%;
+    --input: 160 25% 90%;
+    --ring: 160 65% 28%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 160 25% 12%;
-    --sidebar-foreground: 160 10% 85%;
-    --sidebar-primary: 160 60% 25%;
+    --sidebar-background: 160 30% 10%;
+    --sidebar-foreground: 160 15% 88%;
+    --sidebar-primary: 160 65% 28%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 160 20% 20%;
-    --sidebar-accent-foreground: 160 10% 85%;
-    --sidebar-border: 160 20% 18%;
-    --sidebar-ring: 160 60% 40%;
+    --sidebar-accent: 160 25% 18%;
+    --sidebar-accent-foreground: 160 15% 88%;
+    --sidebar-border: 160 25% 16%;
+    --sidebar-ring: 160 65% 35%;
 
     /* Custom colors for government theme */
-    --success: 160 70% 35%;
+    --success: 160 75% 38%;
     --success-foreground: 0 0% 98%;
-    --warning: 45 90% 55%;
-    --warning-foreground: 160 20% 15%;
-    --info: 200 90% 50%;
+    --warning: 45 95% 58%;
+    --warning-foreground: 160 25% 12%;
+    --info: 200 95% 52%;
     --info-foreground: 0 0% 98%;
   }
 
   .dark {
-    --background: 160 25% 8%;
-    --foreground: 160 10% 90%;
+    --background: 160 30% 6%;
+    --foreground: 160 15% 92%;
 
-    --card: 160 20% 12%;
-    --card-foreground: 160 10% 90%;
+    --card: 160 25% 10%;
+    --card-foreground: 160 15% 92%;
 
-    --popover: 160 20% 12%;
-    --popover-foreground: 160 10% 90%;
+    --popover: 160 25% 10%;
+    --popover-foreground: 160 15% 92%;
 
-    --primary: 160 60% 40%;
-    --primary-foreground: 160 25% 8%;
+    --primary: 160 65% 42%;
+    --primary-foreground: 160 30% 6%;
 
-    --secondary: 160 15% 18%;
-    --secondary-foreground: 160 10% 90%;
+    --secondary: 160 20% 16%;
+    --secondary-foreground: 160 15% 92%;
 
-    --muted: 160 15% 15%;
-    --muted-foreground: 160 10% 60%;
+    --muted: 160 20% 13%;
+    --muted-foreground: 160 15% 65%;
 
-    --accent: 160 20% 20%;
-    --accent-foreground: 160 10% 90%;
+    --accent: 160 25% 18%;
+    --accent-foreground: 160 15% 92%;
 
     --destructive: 0 62.8% 50%;
-    --destructive-foreground: 160 10% 90%;
+    --destructive-foreground: 160 15% 92%;
 
-    --border: 160 15% 20%;
-    --input: 160 15% 20%;
-    --ring: 160 60% 40%;
+    --border: 160 20% 18%;
+    --input: 160 20% 18%;
+    --ring: 160 65% 42%;
     
-    --sidebar-background: 160 30% 6%;
-    --sidebar-foreground: 160 10% 85%;
-    --sidebar-primary: 160 60% 40%;
-    --sidebar-primary-foreground: 160 25% 8%;
-    --sidebar-accent: 160 20% 12%;
-    --sidebar-accent-foreground: 160 10% 85%;
-    --sidebar-border: 160 20% 15%;
-    --sidebar-ring: 160 60% 40%;
+    --sidebar-background: 160 35% 4%;
+    --sidebar-foreground: 160 15% 88%;
+    --sidebar-primary: 160 65% 42%;
+    --sidebar-primary-foreground: 160 30% 6%;
+    --sidebar-accent: 160 25% 10%;
+    --sidebar-accent-foreground: 160 15% 88%;
+    --sidebar-border: 160 25% 13%;
+    --sidebar-ring: 160 65% 42%;
 
     /* Custom colors for government theme */
-    --success: 160 60% 40%;
-    --success-foreground: 160 25% 8%;
-    --warning: 45 80% 60%;
-    --warning-foreground: 160 25% 8%;
-    --info: 200 80% 55%;
-    --info-foreground: 160 25% 8%;
+    --success: 160 65% 42%;
+    --success-foreground: 160 30% 6%;
+    --warning: 45 85% 62%;
+    --warning-foreground: 160 30% 6%;
+    --info: 200 85% 57%;
+    --info-foreground: 160 30% 6%;
   }
 }
 
@@ -111,5 +111,30 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Smooth transitions for theme switching */
+  * {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Enhanced scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
   }
 }

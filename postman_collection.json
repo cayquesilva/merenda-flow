@@ -1,0 +1,773 @@
+{
+  "info": {
+    "name": "Sistema Merenda Flow API",
+    "description": "Collection completa para testar todas as rotas da API do Sistema de Gestão de Contratos de Merenda",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3001/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "🔐 Autenticação",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('token', response.token);",
+                  "    pm.test('Token salvo com sucesso', function () {",
+                  "        pm.expect(response.token).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@sistema.gov.br\",\n  \"senha\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Perfil do Usuário",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Usuários",
+      "item": [
+        {
+          "name": "Listar Usuários",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/usuarios",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Criar Usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Novo Usuário\",\n  \"email\": \"novo@sistema.gov.br\",\n  \"senha\": \"senha123\",\n  \"categoria\": \"comissao_recebimento\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/usuarios",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Usuário por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/usuarios/:id",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "uuid-do-usuario"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Usuário",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Usuário Atualizado\",\n  \"email\": \"atualizado@sistema.gov.br\",\n  \"categoria\": \"gerencia_nutricao\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/usuarios/:id",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "uuid-do-usuario"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deletar Usuário",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/usuarios/:id",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "uuid-do-usuario"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Fornecedores",
+      "item": [
+        {
+          "name": "Listar Fornecedores",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/fornecedores",
+              "host": ["{{base_url}}"],
+              "path": ["fornecedores"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lista Simplificada de Fornecedores",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/fornecedores/lista",
+              "host": ["{{base_url}}"],
+              "path": ["fornecedores", "lista"]
+            }
+          }
+        },
+        {
+          "name": "Criar Fornecedor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Distribuidora Verde\",\n  \"cnpj\": \"98765432000110\",\n  \"telefone\": \"11888888888\",\n  \"email\": \"vendas@verde.com.br\",\n  \"endereco\": \"Av. Central, 456 - São Paulo/SP\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/fornecedores",
+              "host": ["{{base_url}}"],
+              "path": ["fornecedores"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏫 Unidades Educacionais",
+      "item": [
+        {
+          "name": "Listar Unidades",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/unidades",
+              "host": ["{{base_url}}"],
+              "path": ["unidades"]
+            }
+          }
+        },
+        {
+          "name": "Unidades Ativas",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/unidades-ativas",
+              "host": ["{{base_url}}"],
+              "path": ["unidades-ativas"]
+            }
+          }
+        },
+        {
+          "name": "Criar Unidade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"EMEF Vila Nova\",\n  \"codigo\": \"VN002\",\n  \"endereco\": \"Rua B, 200 - Vila Nova\",\n  \"telefone\": \"11444444444\",\n  \"email\": \"vilanova@edu.sp.gov.br\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/unidades",
+              "host": ["{{base_url}}"],
+              "path": ["unidades"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📄 Contratos",
+      "item": [
+        {
+          "name": "Listar Contratos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/contratos",
+              "host": ["{{base_url}}"],
+              "path": ["contratos"]
+            }
+          }
+        },
+        {
+          "name": "Contratos Ativos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/contratos-ativos",
+              "host": ["{{base_url}}"],
+              "path": ["contratos-ativos"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Contrato por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/contratos/:id",
+              "host": ["{{base_url}}"],
+              "path": ["contratos", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "uuid-do-contrato"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Criar Contrato",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"numero\": \"CT-2024-002\",\n  \"fornecedorId\": \"uuid-do-fornecedor\",\n  \"dataInicio\": \"2024-02-01T00:00:00.000Z\",\n  \"dataFim\": \"2024-12-31T00:00:00.000Z\",\n  \"status\": \"ativo\",\n  \"itens\": [\n    {\n      \"nome\": \"Feijão Preto\",\n      \"unidadeMedidaId\": \"uuid-da-unidade-medida\",\n      \"valorUnitario\": 8.90,\n      \"quantidadeOriginal\": 5000,\n      \"saldoAtual\": 5000\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contratos",
+              "host": ["{{base_url}}"],
+              "path": ["contratos"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛒 Pedidos",
+      "item": [
+        {
+          "name": "Listar Pedidos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/pedidos",
+              "host": ["{{base_url}}"],
+              "path": ["pedidos"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Estatísticas de Pedidos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/pedidos/stats",
+              "host": ["{{base_url}}"],
+              "path": ["pedidos", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Pedidos para Recibo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/pedidos-para-recibo",
+              "host": ["{{base_url}}"],
+              "path": ["pedidos-para-recibo"]
+            }
+          }
+        },
+        {
+          "name": "Criar Pedido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contratoId\": \"uuid-do-contrato\",\n  \"dataEntregaPrevista\": \"2024-07-25T00:00:00.000Z\",\n  \"valorTotal\": 15750.00,\n  \"itens\": [\n    {\n      \"itemContratoId\": \"uuid-do-item-contrato\",\n      \"unidadeEducacionalId\": \"uuid-da-unidade\",\n      \"quantidade\": 500\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/pedidos",
+              "host": ["{{base_url}}"],
+              "path": ["pedidos"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🧾 Recibos",
+      "item": [
+        {
+          "name": "Listar Recibos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recibos",
+              "host": ["{{base_url}}"],
+              "path": ["recibos"]
+            }
+          }
+        },
+        {
+          "name": "Estatísticas de Recibos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recibos/stats",
+              "host": ["{{base_url}}"],
+              "path": ["recibos", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Dados para Confirmação",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/recibos/confirmacao/:id",
+              "host": ["{{base_url}}"],
+              "path": ["recibos", "confirmacao", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "uuid-do-recibo"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Gerar Recibo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pedidoId\": \"uuid-do-pedido\",\n  \"responsavelEntrega\": \"João Silva - Transportadora\",\n  \"dataEntrega\": \"2024-07-25T00:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/recibos",
+              "host": ["{{base_url}}"],
+              "path": ["recibos"]
+            }
+          }
+        },
+        {
+          "name": "Confirmar Recebimento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"responsavel\": \"Maria Santos\",\n  \"observacoes\": \"Entrega realizada conforme solicitado\",\n  \"assinaturaDigital\": \"data:image/png;base64,iVBOR...\",\n  \"fotoReciboAssinado\": \"data:image/jpeg;base64,/9j/4AAQ...\",\n  \"itensConfirmacao\": [\n    {\n      \"itemId\": \"uuid-do-item-recibo\",\n      \"conforme\": true,\n      \"quantidadeRecebida\": 500,\n      \"observacoes\": \"\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/recibos/confirmacao/:id",
+              "host": ["{{base_url}}"],
+              "path": ["recibos", "confirmacao", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "uuid-do-recibo"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Estoque",
+      "item": [
+        {
+          "name": "Estoque Consolidado",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/estoque/consolidado",
+              "host": ["{{base_url}}"],
+              "path": ["estoque", "consolidado"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "unidadeId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Movimentações de Estoque",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/estoque/movimentacoes",
+              "host": ["{{base_url}}"],
+              "path": ["estoque", "movimentacoes"]
+            }
+          }
+        },
+        {
+          "name": "Catálogo QR Code",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/estoque/catalogo-qrcode/:unidadeId",
+              "host": ["{{base_url}}"],
+              "path": ["estoque", "catalogo-qrcode", ":unidadeId"],
+              "variable": [
+                {
+                  "key": "unidadeId",
+                  "value": "uuid-da-unidade"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Registrar Movimentação",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estoqueId\": \"uuid-do-estoque\",\n  \"tipo\": \"saida\",\n  \"quantidade\": 10,\n  \"motivo\": \"Distribuição para merenda\",\n  \"responsavel\": \"Maria Santos\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/estoque/movimentacao",
+              "host": ["{{base_url}}"],
+              "path": ["estoque", "movimentacao"]
+            }
+          }
+        },
+        {
+          "name": "Saída via QR Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantidade\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/estoque/saida-qrcode/:estoqueId",
+              "host": ["{{base_url}}"],
+              "path": ["estoque", "saida-qrcode", ":estoqueId"],
+              "variable": [
+                {
+                  "key": "estoqueId",
+                  "value": "uuid-do-estoque"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Relatórios",
+      "item": [
+        {
+          "name": "Dados Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/dashboard-data",
+              "host": ["{{base_url}}"],
+              "path": ["dashboard-data"]
+            }
+          }
+        },
+        {
+          "name": "Relatório de Entregas",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/relatorios/entregas?dataInicio=2024-01-01&dataFim=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["relatorios", "entregas"],
+              "query": [
+                {
+                  "key": "dataInicio",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "dataFim",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "unidadeId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Relatório de Conformidade",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/relatorios/conformidade?dataInicio=2024-01-01&dataFim=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["relatorios", "conformidade"],
+              "query": [
+                {
+                  "key": "dataInicio",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "dataFim",
+                  "value": "2024-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Relatório de Gastos por Fornecedor",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/relatorios/gastos-fornecedor?dataInicio=2024-01-01&dataFim=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["relatorios", "gastos-fornecedor"],
+              "query": [
+                {
+                  "key": "dataInicio",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "dataFim",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "fornecedorId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Relatório de Estoque",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/relatorios/estoque-unidade?dataInicio=2024-01-01&dataFim=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["relatorios", "estoque-unidade"],
+              "query": [
+                {
+                  "key": "dataInicio",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "dataFim",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "unidadeId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 Utilitários",
+      "item": [
+        {
+          "name": "Teste de Conexão DB",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/test-db",
+              "host": ["{{base_url}}"],
+              "path": ["test-db"]
+            }
+          }
+        },
+        {
+          "name": "Unidades de Medida",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/unidades-medida",
+              "host": ["{{base_url}}"],
+              "path": ["unidades-medida"]
+            }
+          }
+        },
+        {
+          "name": "Lista de Responsáveis",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/movimentacoes/responsaveis",
+              "host": ["{{base_url}}"],
+              "path": ["movimentacoes", "responsaveis"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

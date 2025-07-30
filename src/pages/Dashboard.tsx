@@ -179,7 +179,7 @@ export default function Dashboard() {
       {/* Alertas e Informações Importantes */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Itens com Saldo Baixo */}
-        <Card>
+        <Card className="border-warning/30 bg-warning/5 shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-warning" />
@@ -191,16 +191,19 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             {alerts.itensComSaldoBaixo.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <div className="text-center py-4">
+                <Package className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
                 Nenhum item com saldo baixo
-              </p>
+                </p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {alerts.itensComSaldoBaixo.map((item) => {
                   const percentual =
                     (item.saldoAtual / item.quantidadeOriginal) * 100;
                   return (
-                    <div key={item.id} className="space-y-2">
+                    <div key={item.id} className="space-y-2 p-3 rounded-lg bg-background/50 border border-warning/20">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">{item.nome}</span>
                         <Badge
@@ -210,7 +213,7 @@ export default function Dashboard() {
                           {percentual.toFixed(0)}%
                         </Badge>
                       </div>
-                      <Progress value={percentual} className="h-2" />
+                      <Progress value={percentual} className="h-2 bg-warning/20" />
                       <p className="text-xs text-muted-foreground">
                         {item.saldoAtual} de {item.quantidadeOriginal}{" "}
                         {item.unidadeMedida.sigla}
@@ -224,7 +227,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Contratos Próximos do Vencimento */}
-        <Card>
+        <Card className="border-destructive/30 bg-destructive/5 shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-warning" />
@@ -236,9 +239,12 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             {alerts.contratosVencendo.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <div className="text-center py-4">
+                <Calendar className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
                 Nenhum contrato vencendo em breve
-              </p>
+                </p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {alerts.contratosVencendo.map((contrato) => {
@@ -251,7 +257,7 @@ export default function Dashboard() {
                   return (
                     <div
                       key={contrato.id}
-                      className="flex items-center justify-between"
+                      className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-destructive/20"
                     >
                       <div>
                         <p className="text-sm font-medium">{contrato.numero}</p>
@@ -275,7 +281,7 @@ export default function Dashboard() {
       </div>
 
       {/* Contratos Recentes */}
-      <Card>
+      <Card className="shadow-md hover:shadow-lg transition-all duration-300">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
@@ -288,34 +294,39 @@ export default function Dashboard() {
         <CardContent>
           <div className="space-y-4">
             {recentContracts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-sm text-muted-foreground">
                 Nenhum contrato recente encontrado.
-              </p>
+                </p>
+              </div>
             ) : (
               recentContracts.map((contrato) => (
-                <div
+                <Card
                   key={contrato.id}
-                  className="flex items-center justify-between"
+                  className="p-4 hover:bg-accent/50 transition-colors duration-200 border-l-4 border-l-primary"
                 >
-                  <div>
-                    <p className="text-sm font-medium">{contrato.numero}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {contrato.fornecedor.nome} • {contrato._count.itens} itens
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{contrato.numero}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {contrato.fornecedor.nome} • {contrato._count.itens} itens
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">
+                        R$ {contrato.valorTotal.toLocaleString("pt-BR")}
+                      </p>
+                      <Badge
+                        variant={
+                          contrato.status === "ativo" ? "default" : "secondary"
+                        }
+                      >
+                        {contrato.status}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      R$ {contrato.valorTotal.toLocaleString("pt-BR")}
-                    </p>
-                    <Badge
-                      variant={
-                        contrato.status === "ativo" ? "default" : "secondary"
-                      }
-                    >
-                      {contrato.status}
-                    </Badge>
-                  </div>
-                </div>
+                </Card>
               ))
             )}
           </div>

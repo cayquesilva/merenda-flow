@@ -232,3 +232,78 @@ docker stack deploy -c docker-stack.yml merenda
 ---
 
 Pronto! Agora você possui um guia completo para execução local e implantação do Merenda Flow com Docker.
+
+---
+
+## 🎨 Funcionalidades de Interface
+
+### Temas Claro e Escuro
+O sistema possui suporte completo a temas claro e escuro, com transições suaves entre os modos. O seletor de tema está localizado na parte inferior da sidebar e oferece três opções:
+
+- **Claro**: Tema claro tradicional
+- **Escuro**: Tema escuro para reduzir o cansaço visual
+- **Sistema**: Segue automaticamente a preferência do sistema operacional
+
+### Paleta de Cores
+O sistema utiliza uma paleta de cores baseada em tons de verde (160° no HSL), refletindo a identidade visual governamental:
+
+- **Primária**: Verde institucional em diferentes saturações
+- **Secundária**: Tons neutros complementares
+- **Alertas**: Amarelo para avisos, vermelho para erros, verde para sucessos
+- **Acentos**: Variações da cor primária para elementos interativos
+
+---
+
+## 📚 Documentação da API
+
+A documentação completa das rotas da API está disponível no arquivo [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md).
+
+### Principais Endpoints:
+
+- **Autenticação**: `/api/auth/*`
+- **Usuários**: `/api/usuarios/*`
+- **Fornecedores**: `/api/fornecedores/*`
+- **Unidades**: `/api/unidades/*`
+- **Contratos**: `/api/contratos/*`
+- **Pedidos**: `/api/pedidos/*`
+- **Recibos**: `/api/recibos/*`
+- **Estoque**: `/api/estoque/*`
+- **Confirmações**: `/api/confirmacoes/*`
+- **Relatórios**: `/api/relatorios/*`
+
+### Collection do Postman
+Para facilitar os testes da API, importe a collection do Postman disponível no repositório.
+
+---
+
+## 🤖 Como Interagir com o Assistente Bolt
+
+Este projeto é assistido por uma inteligência artificial que pode auxiliar no desenvolvimento, estilização e documentação. Abaixo estão algumas instruções sobre como solicitar melhorias e informações:
+
+### 🎨 Melhorias de Estilização e Temas
+
+Para solicitar melhorias na estilização ou a implementação de temas (claro/escuro), seja o mais específico possível:
+
+- **Para Estilização:** Indique o componente ou página, o objetivo da melhoria (ex: "tornar mais moderno", "melhorar legibilidade") e, se possível, forneça referências visuais.
+  - **Exemplo:** "Melhore a estilização da página de `Dashboard`. Os cards de métricas devem ter um visual mais arrojado e os gráficos mais interativos."
+- **Para Temas (Claro/Escuro):** Basta solicitar a adição da funcionalidade. O assistente utilizará as variáveis de CSS já configuradas e a biblioteca `next-themes` para implementar a alternância.
+  - **Exemplo:** "Adicione a funcionalidade de tema claro e escuro ao aplicativo."
+
+### 📚 Documentação da API
+
+Para obter a documentação das rotas da API do backend, você pode solicitar diretamente:
+
+- **Exemplo:** "Gere a documentação das rotas da minha API."
+
+O assistente analisará o código do backend para fornecer detalhes sobre os endpoints, métodos HTTP, parâmetros e exemplos de resposta.
+
+### 🔧 Melhorias Gerais
+
+Para solicitar melhorias gerais no sistema:
+
+- **Funcionalidades:** "Adicione funcionalidade de [descrição]"
+- **Performance:** "Otimize a performance da página [nome]"
+- **UX/UI:** "Melhore a experiência do usuário em [contexto]"
+- **Acessibilidade:** "Torne o sistema mais acessível"
+
+---
