@@ -39,12 +39,8 @@ services:
         - "traefik.enable=true"
         # Define o roteador para o serviço backend
         - "traefik.http.routers.merendaflow-backend.rule=Host(`api.merenda.simplisoft.com.br`)" # Substitua pelos seus domínios
-        - "traefik.http.routers.merendaflow-backend.entrypoints=websecure" # Usa o entrypoint HTTPS (se configurado no Traefik)
-        - "traefik.http.routers.merendaflow-backend.tls=true" # Habilita TLS (HTTPS)
-        # Opcional: Middlewares para redirecionamento HTTP para HTTPS (se seu Traefik tem 'web' entrypoint)
-        # - "traefik.http.routers.merendaflow-backend-http.rule=Host(`api.seusite.com`) || Host(`backend.seusite.com`)"
-        # - "traefik.http.routers.merendaflow-backend-http.entrypoints=web"
-        # - "traefik.http.routers.merendaflow-backend-http.middlewares=merendaflow-redirect-https@docker"
+        - "traefik.http.routers.merendaflow-backend.entrypoints=web,websecure" # Usa o entrypoint HTTPS (se configurado no Traefik)
+        - "traefik.http.routers.merendaflow-backend.tls.certresolver=letsencryptresolver" # <-- Mantenha este nome
         # Define o serviço (onde o tráfego será enviado)
         - "traefik.http.services.merendaflow-backend.loadbalancer.server.port=3001" # Porta que seu backend EXPÕE internamente
         # Opcional: Middleware de redirecionamento HTTP para HTTPS
@@ -71,12 +67,8 @@ services:
         - "traefik.enable=true"
         # Define o roteador para o serviço frontend (seu domínio principal)
         - "traefik.http.routers.merendaflow-frontend.rule=Host(`merenda.simplisoft.com.br`)" # Substitua pelos seus domínios
-        - "traefik.http.routers.merendaflow-frontend.entrypoints=websecure"
-        - "traefik.http.routers.merendaflow-frontend.tls=true"
-        # Opcional: Middlewares para redirecionamento HTTP para HTTPS
-        # - "traefik.http.routers.merendaflow-frontend-http.rule=Host(`seusite.com`) || Host(`www.seusite.com`)"
-        # - "traefik.http.routers.merendaflow-frontend-http.entrypoints=web"
-        # - "traefik.http.routers.merendaflow-frontend-http.middlewares=merendaflow-redirect-https@docker"
+        - "traefik.http.routers.merendaflow-frontend.entrypoints=web,websecure"
+        - "traefik.http.routers.merendaflow-frontend.tls.certresolver=letsencryptresolver" # <-- Mantenha este nome
         # Define o serviço (onde o tráfego será enviado)
         - "traefik.http.services.merendaflow-frontend.loadbalancer.server.port=3000" # Porta que seu frontend (Nginx) EXPÕE internamente
         # Reutiliza o middleware de redirecionamento se definido globalmente ou no backend
