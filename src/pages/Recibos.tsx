@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   ExternalLink,
   Loader2,
+  Receipt,
 } from "lucide-react";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
@@ -280,7 +281,7 @@ export default function Recibos() {
             </div>
           ) : recibos.length === 0 ? (
             <div className="text-center py-8">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <Receipt className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium">Nenhum recibo encontrado</h3>
               <p className="text-muted-foreground">
                 {busca || statusFilter !== "todos"

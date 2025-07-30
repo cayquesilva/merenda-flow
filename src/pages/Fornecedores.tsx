@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Eye, Phone, Mail, MapPin } from "lucide-react";
+import { Search, Eye, Phone, Mail, MapPin, Loader2, Users } from "lucide-react";
 import { FornecedorDialog } from "@/components/fornecedores/FornecedorDialog";
 import { formatCNPJ, formatTelefone } from "@/lib/utils";
 
@@ -58,7 +58,7 @@ export default function Fornecedores() {
   // NOVO: Estado para armazenar os fornecedores vindos da API
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   // NOVO: Estado para controlar as mensagens de carregamento e erro
-  const [status, setStatus] = useState("Carregando fornecedores...");
+  const [isLoading, setIsLoading] = useState(true);
 
   // ALTERADO: O refreshKey agora é usado para disparar a busca de dados novamente.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -70,7 +70,7 @@ export default function Fornecedores() {
   // NOVO: useEffect para buscar os dados da API
   useEffect(() => {
     const fetchFornecedores = async () => {
-      setStatus("Carregando fornecedores...");
+      setIsLoading(true);
       try {
         // A busca é feita na rota que criamos no backend.
         // Se houver um termo de busca, ele é adicionado como query param `?q=...`
@@ -82,15 +82,11 @@ export default function Fornecedores() {
         }
         const data = await response.json();
         setFornecedores(data);
-
-        if (data.length === 0) {
-          setStatus("Nenhum fornecedor encontrado.");
-        }
       } catch (error) {
         console.error("Erro ao buscar fornecedores:", error);
-        setStatus(
-          `Falha ao carregar fornecedores. Verifique se a API está rodando.`
-        );
+        // Aqui poderia ser adicionado um toast de erro.
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -136,20 +132,36 @@ export default function Fornecedores() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>CNPJ</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Endereço</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[100px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {fornecedores.length > 0 ? (
-                fornecedores.map((fornecedor) => (
+          {fornecedores.length === 0 && !isLoading ? (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium">
+                Nenhum fornecedor encontrado
+              </h3>
+              <p className="text-muted-foreground">
+                {searchTerm
+                  ? "Tente ajustar os filtros de busca"
+                  : "Os fornecedores aparecerão aqui quando forem processados"}
+              </p>
+            </div>
+          ) : isLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-12 w-12 mx-auto animate-spin" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>CNPJ</TableHead>
+                  <TableHead>Contato</TableHead>
+                  <TableHead>Endereço</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[100px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fornecedores.map((fornecedor) => (
                   <TableRow key={fornecedor.id}>
                     <TableCell className="font-medium">
                       {fornecedor.nome}
@@ -196,16 +208,10 @@ export default function Fornecedores() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center">
-                    {status}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

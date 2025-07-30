@@ -26,6 +26,7 @@ import {
   Mail,
   MapPin,
   Building2,
+  Loader2,
 } from "lucide-react";
 import { unidadesEducacionais } from "@/data/mockData";
 import { UnidadeDialog } from "@/components/unidades/UnidadeDialog";
@@ -59,7 +60,7 @@ export default function Unidades() {
 
   // COMENTÁRIO: Estados para armazenar os dados da API e controlar o carregamento.
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
-  const [status, setStatus] = useState("A carregar unidades...");
+  const [isLoading, setIsLoading] = useState(true);
 
   const handleSuccess = () => {
     setRefreshKey((prev) => prev + 1);
@@ -68,7 +69,7 @@ export default function Unidades() {
   // COMENTÁRIO: Efeito que busca a lista de unidades da API.
   useEffect(() => {
     const fetchUnidades = async () => {
-      setStatus("A carregar unidades...");
+      setIsLoading(true);
       try {
         const response = await fetch(
           `http://localhost:3001/api/unidades?q=${debouncedSearchTerm}`
@@ -76,14 +77,11 @@ export default function Unidades() {
         if (!response.ok) throw new Error("Falha ao buscar unidades");
         const data = await response.json();
         setUnidades(data);
-        if (data.length === 0) {
-          setStatus("Nenhuma unidade encontrada.");
-        }
       } catch (error) {
-        console.error("Erro:", error);
-        setStatus(
-          `Falha ao carregar unidades. Verifique se a API está a correr.`
-        );
+        console.error("Erro ao buscar fornecedores:", error);
+        // Aqui poderia ser adicionado um toast de erro.
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchUnidades();
@@ -130,26 +128,39 @@ export default function Unidades() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Endereço</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[100px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {unidades.length > 0 ? (
-                unidades.map((unidade) => (
+          {unidades.length === 0 && !isLoading ? (
+            <div className="text-center py-8">
+              <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium">
+                Nenhuma unidade encontrada
+              </h3>
+              <p className="text-muted-foreground">
+                {searchTerm
+                  ? "Tente ajustar os filtros de busca"
+                  : "As unidades aparecerão aqui quando forem processadas"}
+              </p>
+            </div>
+          ) : isLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-12 w-12 mx-auto animate-spin" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Contato</TableHead>
+                  <TableHead>Endereço</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[100px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unidades.map((unidade) => (
                   <TableRow key={unidade.id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center">
-                        <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                        {unidade.nome}
-                      </div>
+                      <div className="flex items-center">{unidade.nome}</div>
                     </TableCell>
                     <TableCell className="font-mono text-sm">
                       {unidade.codigo}
@@ -191,16 +202,10 @@ export default function Unidades() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center p-10">
-                    {status}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

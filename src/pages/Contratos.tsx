@@ -27,14 +27,14 @@ import {
 import { Progress } from "@/components/ui/progress";
 import {
   Search,
-  Plus,
   Eye,
   Calendar,
   DollarSign,
   Package,
   AlertTriangle,
   Loader2,
-  Edit, // Importar o ícone de Edit
+  Edit,
+  FileText, // Importar o ícone de Edit
 } from "lucide-react";
 import { ContratoDialog } from "@/components/contratos/ContratoDialog";
 // Importar a interface Contrato do seu arquivo de tipos
@@ -233,27 +233,37 @@ export default function Contratos() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Número</TableHead>
-                <TableHead>Fornecedor</TableHead>
-                <TableHead>Período</TableHead>
-                <TableHead>Valor Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Itens</TableHead>
-                <TableHead className="w-[100px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+          {contratos.length === 0 && !isLoading ? (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium">
+                Nenhum contrato encontrado
+              </h3>
+              <p className="text-muted-foreground">
+                {searchTerm
+                  ? "Tente ajustar os filtros de busca"
+                  : "Os contratos aparecerão aqui quando forem processados"}
+              </p>
+            </div>
+          ) : isLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-12 w-12 mx-auto animate-spin" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center p-10">
-                    <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                  </TableCell>
+                  <TableHead>Número</TableHead>
+                  <TableHead>Fornecedor</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Valor Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Itens</TableHead>
+                  <TableHead className="w-[100px]">Ações</TableHead>
                 </TableRow>
-              ) : contratos.length > 0 ? (
-                contratos.map((contrato) => (
+              </TableHeader>
+              <TableBody>
+                {contratos.map((contrato) => (
                   <TableRow key={contrato.id}>
                     <TableCell className="font-medium">
                       {contrato.numero}
@@ -306,16 +316,10 @@ export default function Contratos() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center p-10">
-                    Nenhum contrato encontrado.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
