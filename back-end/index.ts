@@ -731,19 +731,15 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
 
       // 3. Criar um recibo para cada unidade educacional.
       const recibosCriados = [];
+
       for (const unidadeId in itensPorUnidade) {
         const itensDaUnidade = itensPorUnidade[unidadeId];
         const numeroRecibo = `RB-${new Date().getFullYear()}-${String(
           Date.now()
         ).slice(-6)}-${unidadeId.slice(0, 4)}`;
-        const urlConfirmacao = `${
-          process.env.FRONTEND_URL || "http://localhost:8080"
-        }/confirmacao-recebimento/${numeroRecibo}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-          urlConfirmacao
-        )}`;
 
-        const novoRecibo = await tx.recibo.create({
+        // 3.1 Criar recibo inicialmente sem QR Code
+        const reciboCriado = await tx.recibo.create({
           data: {
             numero: numeroRecibo,
             pedidoId: pedido.id,
@@ -752,21 +748,37 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
             responsavelEntrega,
             responsavelRecebimento: "",
             status: "pendente",
-            qrcode: qrCodeUrl,
+            qrcode: "", // será atualizado depois
             itens: {
               create: itensDaUnidade.map((itemPedido) => ({
                 itemPedidoId: itemPedido.id,
                 quantidadeSolicitada: itemPedido.quantidade,
-                quantidadeRecebida: 0, // Inicia como 0
+                quantidadeRecebida: 0,
                 conforme: false,
               })),
             },
           },
         });
-        recibosCriados.push(novoRecibo);
+
+        // 3.2 Gerar URL de confirmação com ID do recibo
+        const urlConfirmacao = `${
+          process.env.FRONTEND_URL || "http://localhost:8080"
+        }/confirmacao-recebimento/${reciboCriado.id}`;
+
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+          urlConfirmacao
+        )}`;
+
+        // 3.3 Atualizar recibo com o QR Code
+        const reciboAtualizado = await tx.recibo.update({
+          where: { id: reciboCriado.id },
+          data: { qrcode: qrCodeUrl },
+        });
+
+        recibosCriados.push(reciboAtualizado);
       }
 
-      // 4. Atualizar o status do pedido para 'entregue'.
+      // 4. Atualizar status do pedido
       await tx.pedido.update({
         where: { id: pedidoId },
         data: { status: "entregue" },
@@ -995,11 +1007,11 @@ app.post(
         message: "Recebimento confirmado com sucesso!",
         recibo: result,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao confirmar recebimento:", error);
       res.status(500).json({
         error: "Não foi possível processar a confirmação.",
-        detalhe: error.message || error,
+        detalhe: error instanceof Error ? error.message : "Erro desconhecido.",
       });
     }
   }
@@ -1089,11 +1101,9 @@ app.get(
         "Erro ao buscar recibos do pedido para impressão em lote:",
         error
       );
-      res
-        .status(500)
-        .json({
-          error: "Não foi possível carregar os recibos para impressão em lote.",
-        });
+      res.status(500).json({
+        error: "Não foi possível carregar os recibos para impressão em lote.",
+      });
     }
   }
 );
@@ -1788,31 +1798,38 @@ app.post(
 
       // Simular geração de PDF (em produção, usar biblioteca como puppeteer ou PDFKit)
       // NOVO: A lógica de consolidação de dados para o PDF foi movida para esta rota
-      const itensPorContrato = contrato.itens.map(itemContrato => {
+      const itensPorContrato = contrato.itens.map((itemContrato) => {
         const quantidadePedida = pedidos
-          .flatMap(p => p.itens)
-          .filter(item => item.itemContratoId === itemContrato.id)
+          .flatMap((p) => p.itens)
+          .filter((item) => item.itemContratoId === itemContrato.id)
           .reduce((sum, item) => sum + item.quantidade, 0);
-        
+
         const valorConsumido = quantidadePedida * itemContrato.valorUnitario;
-        const percentualConsumido = itemContrato.quantidadeOriginal > 0 ? (quantidadePedida / itemContrato.quantidadeOriginal) * 100 : 0;
-        
+        const percentualConsumido =
+          itemContrato.quantidadeOriginal > 0
+            ? (quantidadePedida / itemContrato.quantidadeOriginal) * 100
+            : 0;
+
         return {
           ...itemContrato,
           quantidadePedida,
           valorConsumido,
           percentualConsumido,
-          saldoRestante: itemContrato.quantidadeOriginal - quantidadePedida
+          saldoRestante: itemContrato.quantidadeOriginal - quantidadePedida,
         };
       });
 
-      const unidadesAtendidas = [...new Set(pedidos.flatMap(p => p.itens.map(i => i.unidadeEducacional.nome)))];
+      const unidadesAtendidas = [
+        ...new Set(
+          pedidos.flatMap((p) => p.itens.map((i) => i.unidadeEducacional.nome))
+        ),
+      ];
 
       const pedidosPorStatus = {
-        pendente: pedidos.filter(p => p.status === 'pendente').length,
-        confirmado: pedidos.filter(p => p.status === 'confirmado').length,
-        entregue: pedidos.filter(p => p.status === 'entregue').length,
-        cancelado: pedidos.filter(p => p.status === 'cancelado').length,
+        pendente: pedidos.filter((p) => p.status === "pendente").length,
+        confirmado: pedidos.filter((p) => p.status === "confirmado").length,
+        entregue: pedidos.filter((p) => p.status === "entregue").length,
+        cancelado: pedidos.filter((p) => p.status === "cancelado").length,
       };
 
       const reportData = {
@@ -1823,7 +1840,7 @@ app.post(
         dataGeracao: new Date(),
         itensPorContrato, // Incluir dados consolidados por item
         unidadesAtendidas,
-        pedidosPorStatus
+        pedidosPorStatus,
       };
 
       // Por enquanto, retornar JSON (em produção seria um PDF)
@@ -1841,76 +1858,87 @@ app.post(
 );
 
 // NOVA ROTA: Rota para buscar dados consolidados de pedidos para exibição no frontend
-app.get("/api/relatorios/consolidado-pedidos-data/:contratoId", async (req: Request, res: Response) => {
-  const { contratoId } = req.params;
-  try {
-    const contrato = await prisma.contrato.findUnique({
-      where: { id: contratoId },
-      include: {
-        fornecedor: true,
-        itens: { include: { unidadeMedida: true } } // Inclui unidadeMedida para o cálculo
+app.get(
+  "/api/relatorios/consolidado-pedidos-data/:contratoId",
+  async (req: Request, res: Response) => {
+    const { contratoId } = req.params;
+    try {
+      const contrato = await prisma.contrato.findUnique({
+        where: { id: contratoId },
+        include: {
+          fornecedor: true,
+          itens: { include: { unidadeMedida: true } }, // Inclui unidadeMedida para o cálculo
+        },
+      });
+
+      if (!contrato) {
+        return res.status(404).json({ error: "Contrato não encontrado." });
       }
-    });
 
-    if (!contrato) {
-      return res.status(404).json({ error: "Contrato não encontrado." });
-    }
+      const pedidos = await prisma.pedido.findMany({
+        where: { contratoId },
+        include: {
+          itens: {
+            include: {
+              itemContrato: { include: { unidadeMedida: true } },
+              unidadeEducacional: true,
+            },
+          },
+        },
+      });
 
-    const pedidos = await prisma.pedido.findMany({
-      where: { contratoId },
-      include: {
-        itens: {
-          include: {
-            itemContrato: { include: { unidadeMedida: true } },
-            unidadeEducacional: true
-          }
-        }
-      }
-    });
+      // Consolidação dos dados (movida do frontend para o backend)
+      const itensPorContrato = contrato.itens.map((itemContrato) => {
+        const quantidadePedida = pedidos
+          .flatMap((p) => p.itens)
+          .filter((item) => item.itemContratoId === itemContrato.id)
+          .reduce((sum, item) => sum + item.quantidade, 0);
 
-    // Consolidação dos dados (movida do frontend para o backend)
-    const itensPorContrato = contrato.itens.map(itemContrato => {
-      const quantidadePedida = pedidos
-        .flatMap(p => p.itens)
-        .filter(item => item.itemContratoId === itemContrato.id)
-        .reduce((sum, item) => sum + item.quantidade, 0);
-      
-      const valorConsumido = quantidadePedida * itemContrato.valorUnitario;
-      const percentualConsumido = itemContrato.quantidadeOriginal > 0 ? (quantidadePedida / itemContrato.quantidadeOriginal) * 100 : 0;
-      
-      return {
-        ...itemContrato,
-        quantidadePedida,
-        valorConsumido,
-        percentualConsumido,
-        saldoRestante: itemContrato.quantidadeOriginal - quantidadePedida
+        const valorConsumido = quantidadePedida * itemContrato.valorUnitario;
+        const percentualConsumido =
+          itemContrato.quantidadeOriginal > 0
+            ? (quantidadePedida / itemContrato.quantidadeOriginal) * 100
+            : 0;
+
+        return {
+          ...itemContrato,
+          quantidadePedida,
+          valorConsumido,
+          percentualConsumido,
+          saldoRestante: itemContrato.quantidadeOriginal - quantidadePedida,
+        };
+      });
+
+      const unidadesAtendidas = [
+        ...new Set(
+          pedidos.flatMap((p) => p.itens.map((i) => i.unidadeEducacional.nome))
+        ),
+      ];
+
+      const pedidosPorStatus = {
+        pendente: pedidos.filter((p) => p.status === "pendente").length,
+        confirmado: pedidos.filter((p) => p.status === "confirmado").length,
+        entregue: pedidos.filter((p) => p.status === "entregue").length,
+        cancelado: pedidos.filter((p) => p.status === "cancelado").length,
       };
-    });
 
-    const unidadesAtendidas = [...new Set(pedidos.flatMap(p => p.itens.map(i => i.unidadeEducacional.nome)))];
-
-    const pedidosPorStatus = {
-      pendente: pedidos.filter(p => p.status === 'pendente').length,
-      confirmado: pedidos.filter(p => p.status === 'confirmado').length,
-      entregue: pedidos.filter(p => p.status === 'entregue').length,
-      cancelado: pedidos.filter(p => p.status === 'cancelado').length,
-    };
-
-    res.json({
-      contrato,
-      pedidos, // Inclui os pedidos para a tabela de histórico
-      totalPedidos: pedidos.length,
-      valorTotalPedidos: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
-      unidadesAtendidas,
-      pedidosPorStatus,
-      itensPorContrato // Dados consolidados por item
-    });
-
-  } catch (error) {
-    console.error("Erro ao buscar dados consolidados do relatório:", error);
-    res.status(500).json({ error: "Não foi possível carregar os dados consolidados do relatório." });
+      res.json({
+        contrato,
+        pedidos, // Inclui os pedidos para a tabela de histórico
+        totalPedidos: pedidos.length,
+        valorTotalPedidos: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
+        unidadesAtendidas,
+        pedidosPorStatus,
+        itensPorContrato, // Dados consolidados por item
+      });
+    } catch (error) {
+      console.error("Erro ao buscar dados consolidados do relatório:", error);
+      res.status(500).json({
+        error: "Não foi possível carregar os dados consolidados do relatório.",
+      });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Relatório de entregas por período
 app.get("/api/relatorios/entregas", async (req: Request, res: Response) => {

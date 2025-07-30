@@ -29,7 +29,6 @@ import {
 } from "lucide-react";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
-import { Recibo } from "@/types";
 
 // ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
 // Isto resolve o erro de tipagem.
