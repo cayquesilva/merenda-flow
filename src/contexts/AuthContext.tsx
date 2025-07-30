@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserCategory, USER_CATEGORIES } from '@/types/auth';
+import { apiService } from '@/services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -7,64 +8,54 @@ interface AuthContextType {
   logout: () => void;
   hasPermission: (module: string, action: string) => boolean;
   canAccessModule: (module: string) => boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demonstration
-const mockUsers: User[] = [
-  {
-    id: '1',
-    nome: 'Admin Técnico',
-    email: 'admin@sistema.gov.br',
-    categoria: 'administracao_tecnica',
-    ativo: true,
-    createdAt: '2024-01-01T00:00:00Z'
-  },
-  {
-    id: '2',
-    nome: 'Nutricionista Chefe',
-    email: 'nutricao@sistema.gov.br',
-    categoria: 'gerencia_nutricao',
-    ativo: true,
-    createdAt: '2024-01-01T00:00:00Z'
-  },
-  {
-    id: '3',
-    nome: 'Comissão Recebimento',
-    email: 'recebimento@sistema.gov.br',
-    categoria: 'comissao_recebimento',
-    ativo: true,
-    createdAt: '2024-01-01T00:00:00Z'
-  }
-];
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const userData = await apiService.getProfile();
+          setUser(userData);
+        } catch (error) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      }
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication - in real app, this would call an API
-    const foundUser = mockUsers.find(u => u.email === email && u.ativo);
-    
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('user', JSON.stringify(foundUser));
+    try {
+      setIsLoading(true);
+      const response = await apiService.login(email, password);
+      
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.usuario));
+      setUser(response.usuario);
+      
       return true;
+    } catch (error) {
+      console.error('Erro no login:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-    
-    return false;
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
 
@@ -90,7 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       hasPermission,
-      canAccessModule
+      canAccessModule,
+      isLoading
     }}>
       {children}
     </AuthContext.Provider>

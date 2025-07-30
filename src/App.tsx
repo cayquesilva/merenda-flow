@@ -95,7 +95,18 @@ function DatabaseConnectionTest() {
 }
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Carregando sistema...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <LoginForm />;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,34 +33,8 @@ import {
 } from "lucide-react";
 import { User, UserCategory, USER_CATEGORIES } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from "@/services/api";
 
-// Mock users data
-const mockUsers: User[] = [
-  {
-    id: '1',
-    nome: 'Admin Técnico',
-    email: 'admin@sistema.gov.br',
-    categoria: 'administracao_tecnica',
-    ativo: true,
-    createdAt: '2024-01-01T00:00:00Z'
-  },
-  {
-    id: '2',
-    nome: 'Nutricionista Chefe',
-    email: 'nutricao@sistema.gov.br',
-    categoria: 'gerencia_nutricao',
-    ativo: true,
-    createdAt: '2024-01-01T00:00:00Z'
-  },
-  {
-    id: '3',
-    nome: 'Comissão Recebimento',
-    email: 'recebimento@sistema.gov.br',
-    categoria: 'comissao_recebimento',
-    ativo: true,
-    createdAt: '2024-01-01T00:00:00Z'
-  }
-];
 
 interface UserDialogProps {
   user?: User;
@@ -69,9 +43,11 @@ interface UserDialogProps {
 
 function UserDialog({ user, onSuccess }: UserDialogProps) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     nome: user?.nome || "",
     email: user?.email || "",
+    senha: "",
     categoria: user?.categoria || "comissao_recebimento" as UserCategory,
     ativo: user?.ativo ?? true
   });
@@ -79,7 +55,7 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
 
   const isEdicao = !!user;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.nome.trim() || !formData.email.trim()) {
       toast({
         title: "Erro",
@@ -89,13 +65,53 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
       return;
     }
 
-    toast({
-      title: isEdicao ? "Usuário atualizado!" : "Usuário cadastrado!",
-      description: `${formData.nome} foi ${isEdicao ? 'atualizado' : 'cadastrado'} com sucesso`,
-    });
+    if (!isEdicao && !formData.senha.trim()) {
+      toast({
+        title: "Erro",
+        description: "A senha é obrigatória para novos usuários",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setOpen(false);
-    onSuccess();
+    setLoading(true);
+    try {
+      const dadosEnvio = { ...formData };
+      if (isEdicao && !dadosEnvio.senha) {
+        delete dadosEnvio.senha;
+      }
+
+      if (isEdicao) {
+        await apiService.updateUsuario(user!.id, dadosEnvio);
+      } else {
+        await apiService.createUsuario(dadosEnvio);
+      }
+
+      toast({
+        title: isEdicao ? "Usuário atualizado!" : "Usuário cadastrado!",
+        description: `${formData.nome} foi ${isEdicao ? 'atualizado' : 'cadastrado'} com sucesso`,
+      });
+
+      setOpen(false);
+      if (!isEdicao) {
+        setFormData({
+          nome: "",
+          email: "",
+          senha: "",
+          categoria: "comissao_recebimento",
+          ativo: true
+        });
+      }
+      onSuccess();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível salvar o usuário",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -137,6 +153,17 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
                 placeholder="usuario@sistema.gov.br"
               />
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="senha">{isEdicao ? "Nova Senha (deixe em branco para manter)" : "Senha *"}</Label>
+            <Input
+              id="senha"
+              type="password"
+              value={formData.senha}
+              onChange={(e) => setFormData({...formData, senha: e.target.value})}
+              placeholder={isEdicao ? "Digite apenas se quiser alterar" : "Digite a senha"}
+            />
           </div>
 
           <div>
@@ -182,11 +209,11 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit}>
-            {isEdicao ? "Atualizar" : "Cadastrar"}
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading ? "Salvando..." : (isEdicao ? "Atualizar" : "Cadastrar")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -196,16 +223,54 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
 
 export default function Usuarios() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [usuarios, setUsuarios] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const handleSuccess = () => {
-    setRefreshKey(prev => prev + 1);
+  const loadUsuarios = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getUsuarios(searchTerm);
+      setUsuarios(data);
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível carregar os usuários",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredUsers = mockUsers.filter(user =>
-    user.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    loadUsuarios();
+  }, [searchTerm]);
+
+  const handleSuccess = () => {
+    loadUsuarios();
+  };
+
+  const handleDelete = async (id: string, nome: string) => {
+    if (!confirm(`Tem certeza que deseja deletar o usuário ${nome}?`)) {
+      return;
+    }
+
+    try {
+      await apiService.deleteUsuario(id);
+      toast({
+        title: "Usuário deletado!",
+        description: `${nome} foi removido com sucesso`,
+      });
+      loadUsuarios();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível deletar o usuário",
+        variant: "destructive",
+      });
+    }
+  };
 
   const getCategoryBadge = (categoria: UserCategory) => {
     const categoryInfo = USER_CATEGORIES[categoria];
@@ -241,6 +306,7 @@ export default function Usuarios() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
+              disabled={loading}
             />
           </div>
         </CardContent>
@@ -251,7 +317,7 @@ export default function Usuarios() {
         <CardHeader>
           <CardTitle>Usuários Cadastrados</CardTitle>
           <CardDescription>
-            {filteredUsers.length} usuário(s) encontrado(s)
+            {loading ? "Carregando..." : `${usuarios.length} usuário(s) encontrado(s)`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -267,34 +333,58 @@ export default function Usuarios() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center">
-                      <Users className="mr-2 h-4 w-4 text-muted-foreground" />
-                      {user.nome}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Mail className="mr-1 h-3 w-3" />
-                      {user.email}
-                    </div>
-                  </TableCell>
-                  <TableCell>{getCategoryBadge(user.categoria)}</TableCell>
-                  <TableCell>
-                    <Badge variant={user.ativo ? "default" : "secondary"}>
-                      {user.ativo ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(user.createdAt).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>
-                    <UserDialog user={user} onSuccess={handleSuccess} />
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    Carregando usuários...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : usuarios.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    Nenhum usuário encontrado
+                  </TableCell>
+                </TableRow>
+              ) : (
+                usuarios.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center">
+                        <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                        {user.nome}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Mail className="mr-1 h-3 w-3" />
+                        {user.email}
+                      </div>
+                    </TableCell>
+                    <TableCell>{getCategoryBadge(user.categoria)}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.ativo ? "default" : "secondary"}>
+                        {user.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(user.createdAt).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <UserDialog user={user} onSuccess={handleSuccess} />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(user.id, user.nome)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          Deletar
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

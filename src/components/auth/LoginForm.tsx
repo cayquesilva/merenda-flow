@@ -80,13 +80,8 @@ export function LoginForm() {
           </form>
 
           <div className="mt-6 text-sm text-muted-foreground">
-            <p className="font-medium mb-2">Usuários de teste:</p>
-            <div className="space-y-1">
-              <p>• admin@sistema.gov.br (Administração)</p>
-              <p>• nutricao@sistema.gov.br (Nutrição)</p>
-              <p>• recebimento@sistema.gov.br (Recebimento)</p>
-            </div>
-            <p className="mt-2 text-xs">Senha: qualquer valor</p>
+            <p className="font-medium mb-2">Sistema conectado ao PostgreSQL</p>
+            <p className="text-xs">Cadastre usuários através do painel administrativo</p>
           </div>
         </CardContent>
       </Card>

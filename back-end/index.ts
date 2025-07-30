@@ -1,12 +1,255 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { PrismaClient, Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const prisma = new PrismaClient();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+
+// Middleware para autenticação
+interface AuthenticatedRequest extends Request {
+  userId?: string;
+}
+
+const authenticateToken = (req: AuthenticatedRequest, res: Response, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Token de acesso requerido" });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err) {
+      return res.status(403).json({ error: "Token inválido" });
+    }
+    req.userId = user.userId;
+    next();
+  });
+};
+
+// --- ROTAS DE AUTENTICAÇÃO ---
+
+// Login
+app.post("/api/auth/login", async (req: Request, res: Response) => {
+  const { email, senha } = req.body;
+  
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { email }
+    });
+
+    if (!usuario || !usuario.ativo) {
+      return res.status(401).json({ error: "Credenciais inválidas" });
+    }
+
+    const senhaValida = await bcrypt.compare(senha, usuario.senha);
+    if (!senhaValida) {
+      return res.status(401).json({ error: "Credenciais inválidas" });
+    }
+
+    const token = jwt.sign(
+      { userId: usuario.id, email: usuario.email, categoria: usuario.categoria },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    res.json({
+      token,
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        categoria: usuario.categoria,
+        ativo: usuario.ativo,
+        createdAt: usuario.createdAt
+      }
+    });
+  } catch (error) {
+    console.error("Erro no login:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+// Verificar token
+app.get("/api/auth/me", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: req.userId },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        categoria: true,
+        ativo: true,
+        createdAt: true
+      }
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+
+    res.json(usuario);
+  } catch (error) {
+    console.error("Erro ao buscar usuário:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+// --- ROTAS DE USUÁRIOS ---
+
+// Listar usuários
+app.get("/api/usuarios", authenticateToken, async (req: Request, res: Response) => {
+  const { q } = req.query;
+  try {
+    const usuarios = await prisma.usuario.findMany({
+      where: q
+        ? {
+            OR: [
+              { nome: { contains: q as string, mode: "insensitive" } },
+              { email: { contains: q as string, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        categoria: true,
+        ativo: true,
+        createdAt: true
+      },
+      orderBy: { nome: "asc" },
+    });
+    res.json(usuarios);
+  } catch (error) {
+    console.error("Erro ao buscar usuários:", error);
+    res.status(500).json({ error: "Não foi possível buscar os usuários." });
+  }
+});
+
+// Buscar usuário por ID
+app.get("/api/usuarios/:id", authenticateToken, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        categoria: true,
+        ativo: true,
+        createdAt: true
+      }
+    });
+    
+    if (usuario) {
+      res.json(usuario);
+    } else {
+      res.status(404).json({ error: "Usuário não encontrado." });
+    }
+  } catch (error) {
+    console.error("Erro ao buscar usuário:", error);
+    res.status(500).json({ error: "Não foi possível buscar o usuário." });
+  }
+});
+
+// Criar usuário
+app.post("/api/usuarios", authenticateToken, async (req: Request, res: Response) => {
+  const { nome, email, senha, categoria, ativo } = req.body;
+  
+  try {
+    const senhaHash = await bcrypt.hash(senha, 10);
+    
+    const novoUsuario = await prisma.usuario.create({
+      data: {
+        nome,
+        email,
+        senha: senhaHash,
+        categoria,
+        ativo: ativo ?? true
+      },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        categoria: true,
+        ativo: true,
+        createdAt: true
+      }
+    });
+    
+    res.status(201).json(novoUsuario);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return res.status(409).json({ error: "Este email já está em uso." });
+      }
+    }
+    console.error("Erro ao criar usuário:", error);
+    res.status(500).json({ error: "Não foi possível criar o usuário." });
+  }
+});
+
+// Atualizar usuário
+app.put("/api/usuarios/:id", authenticateToken, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { nome, email, senha, categoria, ativo } = req.body;
+  
+  try {
+    const dadosAtualizacao: any = { nome, email, categoria, ativo };
+    
+    if (senha) {
+      dadosAtualizacao.senha = await bcrypt.hash(senha, 10);
+    }
+    
+    const usuarioAtualizado = await prisma.usuario.update({
+      where: { id },
+      data: dadosAtualizacao,
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        categoria: true,
+        ativo: true,
+        createdAt: true
+      }
+    });
+    
+    res.json(usuarioAtualizado);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return res.status(409).json({ error: "Este email já está em uso." });
+      }
+    }
+    console.error("Erro ao atualizar usuário:", error);
+    res.status(500).json({ error: "Não foi possível atualizar o usuário." });
+  }
+});
+
+// Deletar usuário
+app.delete("/api/usuarios/:id", authenticateToken, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    await prisma.usuario.delete({ where: { id } });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Erro ao deletar usuário:", error);
+    res.status(500).json({ error: "Não foi possível deletar o usuário." });
+  }
+});
 
 // COMENTÁRIO: Lista todos os fornecedores.
 app.get("/api/fornecedores", async (req: Request, res: Response) => {
