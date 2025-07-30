@@ -131,6 +131,7 @@ export function FornecedorDialog({
       });
     } finally {
       setIsSubmitting(false); // Finaliza o estado de carregamento
+      resetForm();
     }
   };
 
@@ -201,7 +202,7 @@ export function FornecedorDialog({
                 }
                 disabled={isSubmitting}
               >
-                {(inputProps: React.ComponentProps<'input'>) => (
+                {(inputProps: React.ComponentProps<"input">) => (
                   <Input
                     {...inputProps}
                     id="cnpj"
@@ -223,7 +224,7 @@ export function FornecedorDialog({
                 }
                 disabled={isSubmitting}
               >
-                {(inputProps: React.ComponentProps<'input'>) => (
+                {(inputProps: React.ComponentProps<"input">) => (
                   <Input
                     {...inputProps}
                     id="telefone"

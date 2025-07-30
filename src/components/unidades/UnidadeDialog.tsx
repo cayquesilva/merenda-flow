@@ -127,6 +127,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
       });
     } finally {
       setIsSubmitting(false);
+      resetForm();
     }
   };
 
