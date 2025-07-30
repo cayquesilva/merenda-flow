@@ -12,8 +12,13 @@ COPY package*.json ./
 # Instala todas as dependências (incluindo devDependencies necessárias para o build e Prisma CLI)
 RUN npm install
 
-# Copia o restante do código da aplicação para o diretório de trabalho
+# Copia o Prisma e schema.prisma
+COPY prisma ./prisma
+
+# Copia o .env (ou defina manualmente dentro do container)
 COPY . .
+
+RUN npx prisma generate
 
 # Executa o script de build do TypeScript (tsc) para compilar o código
 # O resultado será colocado na pasta 'dist' (ou a pasta configurada no seu tsconfig.json)
