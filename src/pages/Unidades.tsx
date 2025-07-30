@@ -72,7 +72,9 @@ export default function Unidades() {
       setIsLoading(true);
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/unidades?q=${debouncedSearchTerm}`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/unidades?q=${debouncedSearchTerm}`
         );
         if (!response.ok) throw new Error("Falha ao buscar unidades");
         const data = await response.json();

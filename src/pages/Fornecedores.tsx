@@ -75,7 +75,9 @@ export default function Fornecedores() {
         // A busca é feita na rota que criamos no backend.
         // Se houver um termo de busca, ele é adicionado como query param `?q=...`
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/fornecedores?q=${debouncedSearchTerm}`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/fornecedores?q=${debouncedSearchTerm}`
         );
         if (!response.ok) {
           throw new Error("A resposta da rede não foi OK");

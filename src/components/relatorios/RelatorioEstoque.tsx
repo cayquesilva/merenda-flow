@@ -103,7 +103,9 @@ export function RelatorioEstoque() {
     const fetchUnidades = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/unidades-ativas`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/unidades-ativas`
         );
         if (response.ok) {
           setUnidades(await response.json());
@@ -134,7 +136,9 @@ export function RelatorioEstoque() {
       });
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/relatorios/estoque-unidade?${params}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/estoque-unidade?${params}`
       );
 
       if (response.ok) {

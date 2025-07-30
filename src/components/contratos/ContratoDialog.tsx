@@ -86,8 +86,16 @@ export function ContratoDialog({
         try {
           // 1. Busca os dados de suporte (fornecedores e unidades) em paralelo.
           const [fornecedoresRes, unidadesRes] = await Promise.all([
-            fetch(`${import.meta.env.VITE_API_URL}/api/fornecedores/lista`),
-            fetch(`${import.meta.env.VITE_API_URL}/api/unidades-medida`),
+            fetch(
+              `${
+                import.meta.env.VITE_API_URL || "http://localhost:3001"
+              }/api/fornecedores/lista`
+            ),
+            fetch(
+              `${
+                import.meta.env.VITE_API_URL || "http://localhost:3001"
+              }/api/unidades-medida`
+            ),
           ]);
 
           if (!fornecedoresRes.ok || !unidadesRes.ok) {
@@ -251,8 +259,12 @@ export function ContratoDialog({
       // O contrato.id só estará disponível se isEdicao for true e contrato não for null
       const url =
         isEdicao && contrato?.id
-          ? `${import.meta.env.VITE_API_URL}/api/contratos/${contrato.id}`
-          : `${import.meta.env.VITE_API_URL}/api/contratos`;
+          ? `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/contratos/${contrato.id}`
+          : `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/contratos`;
       const method = isEdicao ? "PUT" : "POST";
       const response = await fetch(url, {
         method,

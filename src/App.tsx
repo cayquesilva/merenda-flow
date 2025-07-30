@@ -41,7 +41,11 @@ function DatabaseConnectionTest() {
     const testConnection = async () => {
       setIsLoading(true); // Inicia o carregamento
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/test-db`);
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/test-db`
+        );
         if (!response.ok) {
           throw new Error("A resposta da rede não foi OK");
         }

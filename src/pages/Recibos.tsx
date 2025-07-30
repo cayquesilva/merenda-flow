@@ -81,9 +81,15 @@ export default function Recibos() {
       try {
         const [recibosRes, statsRes] = await Promise.all([
           fetch(
-            `${import.meta.env.VITE_API_URL}/api/recibos?q=${debouncedBusca}&status=${statusFilter}`
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/recibos?q=${debouncedBusca}&status=${statusFilter}`
           ),
-          fetch(`${import.meta.env.VITE_API_URL}/api/recibos/stats`),
+          fetch(
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/recibos/stats`
+          ),
         ]);
         if (!recibosRes.ok || !statsRes.ok)
           throw new Error("Falha ao buscar dados dos recibos.");

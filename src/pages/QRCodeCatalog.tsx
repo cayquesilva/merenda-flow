@@ -47,7 +47,9 @@ export default function QRCodeCatalog() {
     const fetchUnidades = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/unidades-ativas`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/unidades-ativas`
         );
         if (response.ok) {
           setUnidades(await response.json());
@@ -77,7 +79,9 @@ export default function QRCodeCatalog() {
     setIsGenerating(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/estoque/catalogo-qrcode/${unidadeSelecionada}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/estoque/catalogo-qrcode/${unidadeSelecionada}`
       );
       if (!response.ok) {
         const errorData = await response.json();

@@ -69,8 +69,16 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
         setIsLoading(true);
         try {
           const [contratosRes, unidadesRes] = await Promise.all([
-            fetch(`${import.meta.env.VITE_API_URL}/api/contratos-ativos`),
-            fetch(`${import.meta.env.VITE_API_URL}/api/unidades-ativas`),
+            fetch(
+              `${
+                import.meta.env.VITE_API_URL || "http://localhost:3001"
+              }/api/contratos-ativos`
+            ),
+            fetch(
+              `${
+                import.meta.env.VITE_API_URL || "http://localhost:3001"
+              }/api/unidades-ativas`
+            ),
           ]);
           if (!contratosRes.ok || !unidadesRes.ok)
             throw new Error("Falha ao carregar dados iniciais.");
@@ -112,7 +120,9 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/contratos/${contratoId}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/contratos/${contratoId}`
       );
       if (!response.ok)
         throw new Error("Falha ao buscar detalhes do contrato.");
@@ -200,11 +210,16 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     };
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/pedidos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pedidoPayload),
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/pedidos`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pedidoPayload),
+        }
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Falha ao criar o pedido.");

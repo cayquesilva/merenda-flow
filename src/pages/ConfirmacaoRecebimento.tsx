@@ -137,7 +137,9 @@ export default function ConfirmacaoRecebimento() {
         setError(null);
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/api/recibos/confirmacao/${id}`
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/recibos/confirmacao/${id}`
           );
           const data = await response.json();
 
@@ -258,7 +260,9 @@ export default function ConfirmacaoRecebimento() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/recibos/confirmacao/${id}`,
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/recibos/confirmacao/${id}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

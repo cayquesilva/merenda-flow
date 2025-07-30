@@ -37,7 +37,9 @@ export function PedidoDetailDialog({ pedidoId }: PedidoDetailDialogProps) {
         setIsLoading(true);
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/api/pedidos/${pedidoId}`
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/pedidos/${pedidoId}`
           );
           if (!response.ok)
             throw new Error("Falha ao buscar detalhes do pedido.");

@@ -72,7 +72,9 @@ export default function Dashboard() {
       setError(null);
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/dashboard-data`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/dashboard-data`
         );
         if (!response.ok) {
           const errorData = await response.json();

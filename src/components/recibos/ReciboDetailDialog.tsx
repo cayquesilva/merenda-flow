@@ -41,7 +41,9 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
         setIsLoading(true);
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/api/recibos/${reciboId}`
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/recibos/${reciboId}`
           );
           if (!response.ok)
             throw new Error("Falha ao buscar detalhes do recibo.");

@@ -69,7 +69,11 @@ export default function Confirmacoes() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/confirmacoes`);
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/confirmacoes`
+        );
         if (!response.ok) throw new Error("Falha ao buscar dados.");
         const data: ConfirmacoesData = await response.json();
         setConsolidacoes(data.consolidacoes);
@@ -80,7 +84,8 @@ export default function Confirmacoes() {
         const pendentes = data.confirmacoesDetalhadas.filter(
           (c) => c.status === "pendente"
         ).length;
-        const confirmados = data.consolidacoes.filter( // Use consolidacoes para status completo/parcial
+        const confirmados = data.consolidacoes.filter(
+          // Use consolidacoes para status completo/parcial
           (c) => c.statusConsolidacao === "completo"
         ).length;
         const parciais = data.consolidacoes.filter(
@@ -427,10 +432,14 @@ export default function Confirmacoes() {
                         </TableCell>
                         <TableCell className="text-right">
                           {/* Botão para imprimir todos os recibos do pedido */}
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => navigate(`/recibos/imprimir-pedido/${consolidacao.pedidoId}`)}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              navigate(
+                                `/recibos/imprimir-pedido/${consolidacao.pedidoId}`
+                              )
+                            }
                           >
                             <FileText className="h-3 w-3 mr-1" />
                             Imprimir Recibos
@@ -550,7 +559,13 @@ export default function Confirmacoes() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => navigate(`/recibos/imprimir/${confirmacao.id}`)}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                navigate(`/recibos/imprimir/${confirmacao.id}`)
+                              }
+                            >
                               <Eye className="h-3 w-3 mr-1" />
                               Detalhes
                             </Button>

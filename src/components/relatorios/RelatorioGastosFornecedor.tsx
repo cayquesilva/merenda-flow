@@ -74,7 +74,9 @@ export function RelatorioGastosFornecedor() {
     const fetchFornecedores = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/fornecedores/lista`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/fornecedores/lista`
         );
         if (response.ok) {
           const data: FornecedorSimplificado[] = await response.json();
@@ -115,7 +117,9 @@ export function RelatorioGastosFornecedor() {
       });
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/relatorios/gastos-fornecedor?${params}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/gastos-fornecedor?${params}`
       );
 
       if (response.ok) {

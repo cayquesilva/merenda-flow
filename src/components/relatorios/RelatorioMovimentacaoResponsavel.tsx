@@ -90,7 +90,9 @@ export default function RelatorioMovimentacaoResponsavel() {
     const fetchResponsaveis = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/movimentacoes/responsaveis`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/movimentacoes/responsaveis`
         );
         if (response.ok) {
           setResponsaveis(await response.json());
@@ -131,7 +133,9 @@ export default function RelatorioMovimentacaoResponsavel() {
       });
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/relatorios/movimentacao-responsavel?${params}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/movimentacao-responsavel?${params}`
       );
 
       if (response.ok) {

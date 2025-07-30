@@ -98,7 +98,9 @@ export default function Contratos() {
       setIsLoading(true);
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/contratos?q=${debouncedSearchTerm}`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/contratos?q=${debouncedSearchTerm}`
         );
         if (!response.ok) {
           const errorData = await response.json();
@@ -126,7 +128,9 @@ export default function Contratos() {
     setIsDialogLoading(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/contratos/${contratoId}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/contratos/${contratoId}`
       );
       if (!response.ok) {
         const errorData = await response.json();
@@ -151,7 +155,9 @@ export default function Contratos() {
     setEditContratoData(null); // Limpa dados anteriores para indicar carregamento
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/contratos/${contratoId}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/contratos/${contratoId}`
       );
       if (!response.ok) {
         const errorData = await response.json();

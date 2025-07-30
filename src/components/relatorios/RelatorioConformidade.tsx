@@ -70,7 +70,9 @@ export function RelatorioConformidade() {
     try {
       const params = new URLSearchParams({ dataInicio, dataFim });
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/relatorios/conformidade?${params}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/conformidade?${params}`
       );
 
       if (response.ok) {
