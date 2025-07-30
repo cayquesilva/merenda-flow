@@ -2333,7 +2333,7 @@ app.get("/api/test-db", async (req: Request, res: Response) => {
 });
 
 const server = app.listen(3001, () =>
-  console.log(`🚀 Servidor pronto em: ${process.env.FRONTEND_URL}`)
+  console.log(`🚀 Servidor pronto em: api.seudominio:3001 e seudominio:8080`)
 );
 
 // Garante que a conexão com o banco é fechada ao encerrar o processo
