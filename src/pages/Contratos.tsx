@@ -205,7 +205,9 @@ export default function Contratos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Contratos</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">
+            Contratos
+          </h2>
           <p className="text-muted-foreground">
             Gerencie os contratos de fornecimento de merenda
           </p>
@@ -333,7 +335,9 @@ export default function Contratos() {
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalhes do Contrato</DialogTitle>
+            <DialogTitle className="text-popover-foreground">
+              Detalhes do Contrato
+            </DialogTitle>
             <DialogDescription>
               Informações detalhadas e saldos do contrato
             </DialogDescription>

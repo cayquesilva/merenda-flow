@@ -324,7 +324,7 @@ export function ContratoDialog({
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-popover-foreground">
             {isEdicao ? "Editar Contrato" : "Novo Contrato"}
           </DialogTitle>
           <DialogDescription>

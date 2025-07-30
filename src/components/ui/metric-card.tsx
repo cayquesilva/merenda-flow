@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { DivideIcon as LucideIcon } from "lucide-react";
 
 interface MetricCardProps {
   title: string;
   value: string | number;
   description?: string;
-  icon: LucideIcon;
+  icon: typeof LucideIcon;
   trend?: {
     value: number;
     label: string;

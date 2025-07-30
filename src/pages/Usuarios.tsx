@@ -1,9 +1,15 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -11,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -21,20 +27,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { 
-  Search, 
-  Plus, 
-  Edit, 
-  Users,
-  Mail,
-  Shield
-} from "lucide-react";
+import { Search, Plus, Edit, Users, Mail, Shield } from "lucide-react";
 import { User, UserCategory, USER_CATEGORIES } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
-
 
 interface UserDialogProps {
   user?: User;
@@ -48,8 +52,8 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
     nome: user?.nome || "",
     email: user?.email || "",
     senha: "",
-    categoria: user?.categoria || "comissao_recebimento" as UserCategory,
-    ativo: user?.ativo ?? true
+    categoria: user?.categoria || ("comissao_recebimento" as UserCategory),
+    ativo: user?.ativo ?? true,
   });
   const { toast } = useToast();
 
@@ -89,7 +93,9 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
 
       toast({
         title: isEdicao ? "Usuário atualizado!" : "Usuário cadastrado!",
-        description: `${formData.nome} foi ${isEdicao ? 'atualizado' : 'cadastrado'} com sucesso`,
+        description: `${formData.nome} foi ${
+          isEdicao ? "atualizado" : "cadastrado"
+        } com sucesso`,
       });
 
       setOpen(false);
@@ -99,7 +105,7 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
           email: "",
           senha: "",
           categoria: "comissao_recebimento",
-          ativo: true
+          ativo: true,
         });
       }
       onSuccess();
@@ -117,18 +123,27 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={isEdicao ? "outline" : "default"} size={isEdicao ? "sm" : "default"}>
-          {isEdicao ? <Edit className="h-3 w-3" /> : <Plus className="mr-2 h-4 w-4" />}
+        <Button
+          variant={isEdicao ? "outline" : "default"}
+          size={isEdicao ? "sm" : "default"}
+        >
+          {isEdicao ? (
+            <Edit className="h-3 w-3" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
           {isEdicao ? "" : "Novo Usuário"}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-popover-foreground">
             {isEdicao ? "Editar Usuário" : "Novo Usuário"}
           </DialogTitle>
           <DialogDescription>
-            {isEdicao ? "Edite as informações do usuário" : "Cadastre um novo usuário no sistema"}
+            {isEdicao
+              ? "Edite as informações do usuário"
+              : "Cadastre um novo usuário no sistema"}
           </DialogDescription>
         </DialogHeader>
 
@@ -139,7 +154,9 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
               <Input
                 id="nome"
                 value={formData.nome}
-                onChange={(e) => setFormData({...formData, nome: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, nome: e.target.value })
+                }
                 placeholder="Nome completo"
               />
             </div>
@@ -149,26 +166,41 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 placeholder="usuario@sistema.gov.br"
               />
             </div>
           </div>
 
           <div>
-            <Label htmlFor="senha">{isEdicao ? "Nova Senha (deixe em branco para manter)" : "Senha *"}</Label>
+            <Label htmlFor="senha">
+              {isEdicao
+                ? "Nova Senha (deixe em branco para manter)"
+                : "Senha *"}
+            </Label>
             <Input
               id="senha"
               type="password"
               value={formData.senha}
-              onChange={(e) => setFormData({...formData, senha: e.target.value})}
-              placeholder={isEdicao ? "Digite apenas se quiser alterar" : "Digite a senha"}
+              onChange={(e) =>
+                setFormData({ ...formData, senha: e.target.value })
+              }
+              placeholder={
+                isEdicao ? "Digite apenas se quiser alterar" : "Digite a senha"
+              }
             />
           </div>
 
           <div>
             <Label htmlFor="categoria">Categoria de Usuário *</Label>
-            <Select value={formData.categoria} onValueChange={(value: UserCategory) => setFormData({...formData, categoria: value})}>
+            <Select
+              value={formData.categoria}
+              onValueChange={(value: UserCategory) =>
+                setFormData({ ...formData, categoria: value })
+              }
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a categoria" />
               </SelectTrigger>
@@ -186,7 +218,9 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
             <Switch
               id="ativo"
               checked={formData.ativo}
-              onCheckedChange={(checked) => setFormData({...formData, ativo: checked})}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, ativo: checked })
+              }
             />
             <Label htmlFor="ativo">Usuário ativo</Label>
           </div>
@@ -195,12 +229,20 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
           <div className="mt-4 p-4 bg-muted rounded-lg">
             <h4 className="font-medium mb-2">Permissões da Categoria:</h4>
             <div className="text-sm text-muted-foreground">
-              <p className="font-medium">{USER_CATEGORIES[formData.categoria].label}</p>
+              <p className="font-medium">
+                {USER_CATEGORIES[formData.categoria].label}
+              </p>
               <div className="mt-2 space-y-1">
-                {Object.entries(USER_CATEGORIES[formData.categoria].permissions).map(([module, permission]) => (
+                {Object.entries(
+                  USER_CATEGORIES[formData.categoria].permissions
+                ).map(([module, permission]) => (
                   <div key={module} className="flex justify-between">
-                    <span className="capitalize">{module.replace('_', ' ')}</span>
-                    <span className="text-xs">{permission.actions.join(', ')}</span>
+                    <span className="capitalize">
+                      {module.replace("_", " ")}
+                    </span>
+                    <span className="text-xs">
+                      {permission.actions.join(", ")}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -209,11 +251,15 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={loading}
+          >
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Salvando..." : (isEdicao ? "Atualizar" : "Cadastrar")}
+            {loading ? "Salvando..." : isEdicao ? "Atualizar" : "Cadastrar"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -274,18 +320,16 @@ export default function Usuarios() {
 
   const getCategoryBadge = (categoria: UserCategory) => {
     const categoryInfo = USER_CATEGORIES[categoria];
-    return (
-      <Badge variant="outline">
-        {categoryInfo.label}
-      </Badge>
-    );
+    return <Badge variant="outline">{categoryInfo.label}</Badge>;
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Gerenciamento de Usuários</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">
+            Gerenciamento de Usuários
+          </h2>
           <p className="text-muted-foreground">
             Gerencie os usuários e suas permissões no sistema
           </p>
@@ -317,7 +361,9 @@ export default function Usuarios() {
         <CardHeader>
           <CardTitle>Usuários Cadastrados</CardTitle>
           <CardDescription>
-            {loading ? "Carregando..." : `${usuarios.length} usuário(s) encontrado(s)`}
+            {loading
+              ? "Carregando..."
+              : `${usuarios.length} usuário(s) encontrado(s)`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -367,7 +413,7 @@ export default function Usuarios() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {new Date(user.createdAt).toLocaleDateString('pt-BR')}
+                      {new Date(user.createdAt).toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -407,12 +453,18 @@ export default function Usuarios() {
               <Card key={key} className="p-4">
                 <h4 className="font-medium mb-2">{category.label}</h4>
                 <div className="space-y-1 text-sm text-muted-foreground">
-                  {Object.entries(category.permissions).map(([module, permission]) => (
-                    <div key={module} className="flex justify-between">
-                      <span className="capitalize">{module.replace('_', ' ')}</span>
-                      <span className="text-xs">{permission.actions.join(', ')}</span>
-                    </div>
-                  ))}
+                  {Object.entries(category.permissions).map(
+                    ([module, permission]) => (
+                      <div key={module} className="flex justify-between">
+                        <span className="capitalize">
+                          {module.replace("_", " ")}
+                        </span>
+                        <span className="text-xs">
+                          {permission.actions.join(", ")}
+                        </span>
+                      </div>
+                    )
+                  )}
                 </div>
               </Card>
             ))}

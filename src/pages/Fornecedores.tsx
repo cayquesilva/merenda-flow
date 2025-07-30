@@ -99,7 +99,7 @@ export default function Fornecedores() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Fornecedores</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">Fornecedores</h2>
           <p className="text-muted-foreground">
             Gerencie os fornecedores cadastrados no sistema
           </p>

@@ -98,7 +98,9 @@ export function ReciboConfirmacaoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detalhes da Confirmação - Recibo {recibo.numero}</DialogTitle>
+          <DialogTitle className="text-popover-foreground">
+            Detalhes da Confirmação - Recibo {recibo.numero}
+          </DialogTitle>
           <DialogDescription>
             Análise detalhada da confirmação de recebimento
           </DialogDescription>
@@ -114,7 +116,9 @@ export function ReciboConfirmacaoDialog({
                     <FileText className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Status
+                    </p>
                     {getStatusBadge(recibo.status)}
                   </div>
                 </div>
@@ -128,8 +132,12 @@ export function ReciboConfirmacaoDialog({
                     <CheckCircle className="h-6 w-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Conformidade</p>
-                    <p className="text-2xl font-bold">{recibo.percentualConformidade}%</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Conformidade
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {recibo.percentualConformidade}%
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -142,8 +150,12 @@ export function ReciboConfirmacaoDialog({
                     <Package className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Eficiência</p>
-                    <p className="text-2xl font-bold">{recibo.eficienciaEntrega.toFixed(1)}%</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Eficiência
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {recibo.eficienciaEntrega.toFixed(1)}%
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -156,8 +168,12 @@ export function ReciboConfirmacaoDialog({
                     <Building2 className="h-6 w-6 text-warning" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Itens</p>
-                    <p className="text-2xl font-bold">{recibo.totalRecebido}/{recibo.totalSolicitado}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Itens
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {recibo.totalRecebido}/{recibo.totalSolicitado}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -175,15 +191,26 @@ export function ReciboConfirmacaoDialog({
                   <span>Percentual de Conformidade</span>
                   {getConformidadeBadge(recibo.percentualConformidade)}
                 </div>
-                <Progress value={recibo.percentualConformidade} className="h-3" />
+                <Progress
+                  value={recibo.percentualConformidade}
+                  className="h-3"
+                />
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-muted-foreground">Total Solicitado:</span>
-                    <span className="ml-2 font-medium">{recibo.totalSolicitado}</span>
+                    <span className="text-muted-foreground">
+                      Total Solicitado:
+                    </span>
+                    <span className="ml-2 font-medium">
+                      {recibo.totalSolicitado}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Total Recebido:</span>
-                    <span className="ml-2 font-medium">{recibo.totalRecebido}</span>
+                    <span className="text-muted-foreground">
+                      Total Recebido:
+                    </span>
+                    <span className="ml-2 font-medium">
+                      {recibo.totalRecebido}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -198,35 +225,53 @@ export function ReciboConfirmacaoDialog({
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Número do Recibo</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Número do Recibo
+                  </p>
                   <p className="font-mono">{recibo.numero}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Pedido</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Pedido
+                  </p>
                   <p className="font-mono">{recibo.pedido.numero}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Unidade Educacional</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Unidade Educacional
+                  </p>
                   <p>{recibo.unidadeEducacional.nome}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Fornecedor</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Fornecedor
+                  </p>
                   <p>{recibo.pedido.contrato.fornecedor.nome}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Data de Entrega</p>
-                  <p>{new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Data de Entrega
+                  </p>
+                  <p>
+                    {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Responsável Entrega</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Responsável Entrega
+                  </p>
                   <p>{recibo.responsavelEntrega}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Responsável Recebimento</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Responsável Recebimento
+                  </p>
                   <p>{recibo.responsavelRecebimento || "Não confirmado"}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">QR Code</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    QR Code
+                  </p>
                   <div className="flex items-center gap-2">
                     <QrCode className="h-4 w-4" />
                     <span className="text-sm">Disponível</span>
@@ -257,7 +302,9 @@ export function ReciboConfirmacaoDialog({
                     <TableRow key={item.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{item.itemPedido.itemContrato.nome}</p>
+                          <p className="font-medium">
+                            {item.itemPedido.itemContrato.nome}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {item.itemPedido.itemContrato.unidadeMedida.sigla}
                           </p>
@@ -267,7 +314,10 @@ export function ReciboConfirmacaoDialog({
                       <TableCell>{item.quantidadeRecebida}</TableCell>
                       <TableCell>
                         {item.conforme ? (
-                          <Badge variant="default" className="bg-success text-success-foreground">
+                          <Badge
+                            variant="default"
+                            className="bg-success text-success-foreground"
+                          >
                             <CheckCircle className="h-3 w-3 mr-1" />
                             Sim
                           </Badge>
@@ -279,7 +329,9 @@ export function ReciboConfirmacaoDialog({
                         )}
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">{item.observacoes || "-"}</span>
+                        <span className="text-sm">
+                          {item.observacoes || "-"}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}

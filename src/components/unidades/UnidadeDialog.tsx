@@ -170,7 +170,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-popover-foreground">
             {isEdicao
               ? "Editar Unidade Educacional"
               : "Nova Unidade Educacional"}

@@ -226,7 +226,9 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Registrar Movimentação</DialogTitle>
+          <DialogTitle className="text-popover-foreground">
+            Registrar Movimentação
+          </DialogTitle>
           <DialogDescription>
             {estoque &&
               `${estoque.itemContrato.nome} - ${estoque.unidadeEducacional.nome}`}
@@ -343,7 +345,9 @@ function QRCodeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md text-center">
         <DialogHeader>
-          <DialogTitle>QR Code para Saída de Estoque</DialogTitle>
+          <DialogTitle className="text-popover-foreground">
+            QR Code para Saída de Estoque
+          </DialogTitle>
           <DialogDescription>
             Escaneie este QR Code para registrar a saída de 1 unidade de:
             <br />
@@ -549,7 +553,7 @@ export default function Estoque() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">
+          <h2 className="text-3xl font-bold tracking-tight text-primary">
             Controle de Estoque
           </h2>
           <p className="text-muted-foreground">

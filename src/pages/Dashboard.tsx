@@ -17,7 +17,8 @@ import {
   TrendingUp,
   Calendar,
   DollarSign,
-  Loader2, // Adicionado para o estado de carregamento
+  Loader2,
+  Package, // Adicionado para o estado de carregamento
 } from "lucide-react";
 
 // Importando as interfaces dos seus tipos para tipagem precisa
@@ -128,7 +129,9 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-primary">
+          Dashboard
+        </h2>
         <p className="text-muted-foreground">
           Visão geral do sistema de gestão de contratos de merenda
         </p>
@@ -194,7 +197,7 @@ export default function Dashboard() {
               <div className="text-center py-4">
                 <Package className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">
-                Nenhum item com saldo baixo
+                  Nenhum item com saldo baixo
                 </p>
               </div>
             ) : (
@@ -203,7 +206,10 @@ export default function Dashboard() {
                   const percentual =
                     (item.saldoAtual / item.quantidadeOriginal) * 100;
                   return (
-                    <div key={item.id} className="space-y-2 p-3 rounded-lg bg-background/50 border border-warning/20">
+                    <div
+                      key={item.id}
+                      className="space-y-2 p-3 rounded-lg bg-background/50 border border-warning/20"
+                    >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">{item.nome}</span>
                         <Badge
@@ -213,7 +219,10 @@ export default function Dashboard() {
                           {percentual.toFixed(0)}%
                         </Badge>
                       </div>
-                      <Progress value={percentual} className="h-2 bg-warning/20" />
+                      <Progress
+                        value={percentual}
+                        className="h-2 bg-warning/20"
+                      />
                       <p className="text-xs text-muted-foreground">
                         {item.saldoAtual} de {item.quantidadeOriginal}{" "}
                         {item.unidadeMedida.sigla}
@@ -242,7 +251,7 @@ export default function Dashboard() {
               <div className="text-center py-4">
                 <Calendar className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">
-                Nenhum contrato vencendo em breve
+                  Nenhum contrato vencendo em breve
                 </p>
               </div>
             ) : (
@@ -297,7 +306,7 @@ export default function Dashboard() {
               <div className="text-center py-8">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-sm text-muted-foreground">
-                Nenhum contrato recente encontrado.
+                  Nenhum contrato recente encontrado.
                 </p>
               </div>
             ) : (
@@ -310,7 +319,8 @@ export default function Dashboard() {
                     <div>
                       <p className="text-sm font-medium">{contrato.numero}</p>
                       <p className="text-xs text-muted-foreground">
-                        {contrato.fornecedor.nome} • {contrato._count.itens} itens
+                        {contrato.fornecedor.nome} • {contrato._count.itens}{" "}
+                        itens
                       </p>
                     </div>
                     <div className="text-right">

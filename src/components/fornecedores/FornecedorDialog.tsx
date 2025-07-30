@@ -173,7 +173,7 @@ export function FornecedorDialog({
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-popover-foreground">
             {isEdicao ? "Editar Fornecedor" : "Novo Fornecedor"}
           </DialogTitle>
           <DialogDescription>

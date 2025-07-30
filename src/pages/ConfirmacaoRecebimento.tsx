@@ -326,7 +326,7 @@ export default function ConfirmacaoRecebimento() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4 md:p-0">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">
+        <h2 className="text-3xl font-bold tracking-tight text-primary">
           Confirmação de Recebimento
         </h2>
         <p className="text-muted-foreground">

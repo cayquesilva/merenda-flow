@@ -75,9 +75,12 @@ export function ConsolidacaoDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detalhes da Consolidação - Pedido {consolidacao.pedido.numero}</DialogTitle>
+          <DialogTitle className="text-popover-foreground">
+            Detalhes da Consolidação - Pedido {consolidacao.pedido.numero}
+          </DialogTitle>
           <DialogDescription>
-            Análise detalhada das confirmações de recebimento por unidade educacional
+            Análise detalhada das confirmações de recebimento por unidade
+            educacional
           </DialogDescription>
         </DialogHeader>
 
@@ -91,7 +94,9 @@ export function ConsolidacaoDetailDialog({
                     <Package className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Status
+                    </p>
                     {getStatusBadge(consolidacao.statusConsolidacao)}
                   </div>
                 </div>
@@ -105,9 +110,12 @@ export function ConsolidacaoDetailDialog({
                     <Building2 className="h-6 w-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Unidades</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Unidades
+                    </p>
                     <p className="text-2xl font-bold">
-                      {consolidacao.unidadesConfirmadas}/{consolidacao.totalUnidades}
+                      {consolidacao.unidadesConfirmadas}/
+                      {consolidacao.totalUnidades}
                     </p>
                   </div>
                 </div>
@@ -125,8 +133,12 @@ export function ConsolidacaoDetailDialog({
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Progresso</p>
-                    <p className="text-2xl font-bold">{consolidacao.percentualConfirmacao.toFixed(0)}%</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Progresso
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {consolidacao.percentualConfirmacao.toFixed(0)}%
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -142,9 +154,15 @@ export function ConsolidacaoDetailDialog({
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Confirmações por Unidade</span>
-                  <span>{consolidacao.unidadesConfirmadas} de {consolidacao.totalUnidades}</span>
+                  <span>
+                    {consolidacao.unidadesConfirmadas} de{" "}
+                    {consolidacao.totalUnidades}
+                  </span>
                 </div>
-                <Progress value={consolidacao.percentualConfirmacao} className="h-3" />
+                <Progress
+                  value={consolidacao.percentualConfirmacao}
+                  className="h-3"
+                />
               </div>
             </CardContent>
           </Card>
@@ -157,20 +175,34 @@ export function ConsolidacaoDetailDialog({
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Número do Pedido</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Número do Pedido
+                  </p>
                   <p className="font-mono">{consolidacao.pedido.numero}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Fornecedor</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Fornecedor
+                  </p>
                   <p>{consolidacao.pedido.contrato.fornecedor.nome}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Data do Pedido</p>
-                  <p>{new Date(consolidacao.pedido.dataPedido).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Data do Pedido
+                  </p>
+                  <p>
+                    {new Date(
+                      consolidacao.pedido.dataPedido
+                    ).toLocaleDateString("pt-BR")}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Valor Total</p>
-                  <p className="font-semibold">R$ {consolidacao.pedido.valorTotal.toFixed(2)}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Valor Total
+                  </p>
+                  <p className="font-semibold">
+                    R$ {consolidacao.pedido.valorTotal.toFixed(2)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -192,27 +224,35 @@ export function ConsolidacaoDetailDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.from({ length: consolidacao.totalUnidades }).map((_, index) => (
-                    <TableRow key={index}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4" />
-                          <span>Unidade Educacional {index + 1}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(index < consolidacao.unidadesConfirmadas ? "confirmado" : "pendente")}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">
-                          Itens do pedido
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(consolidacao.pedido.dataEntregaPrevista).toLocaleDateString("pt-BR")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {Array.from({ length: consolidacao.totalUnidades }).map(
+                    (_, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4" />
+                            <span>Unidade Educacional {index + 1}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(
+                            index < consolidacao.unidadesConfirmadas
+                              ? "confirmado"
+                              : "pendente"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            Itens do pedido
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(
+                            consolidacao.pedido.dataEntregaPrevista
+                          ).toLocaleDateString("pt-BR")}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

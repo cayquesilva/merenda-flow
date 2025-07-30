@@ -1,18 +1,18 @@
 import { useState } from "react";
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Users, 
-  Building2, 
-  ShoppingCart, 
-  Receipt, 
-  CheckCircle, 
+import {
+  LayoutDashboard,
+  FileText,
+  Users,
+  Building2,
+  ShoppingCart,
+  Receipt,
+  CheckCircle,
   BarChart3,
   Shield,
   LogOut,
   ChevronDown,
   ChevronRight,
-  Package
+  Package,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,59 +38,103 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(["Principal", "Cadastros", "Operações"]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([
+    "Principal",
+    "Cadastros",
+    "Operações",
+  ]);
 
   const navigationItems = [
     {
       group: "Principal",
       items: [
-        { title: "Dashboard", url: "/", icon: LayoutDashboard, module: "dashboard" },
-      ]
+        {
+          title: "Dashboard",
+          url: "/",
+          icon: LayoutDashboard,
+          module: "dashboard",
+        },
+      ],
     },
     {
       group: "Cadastros",
       items: [
-        { title: "Contratos", url: "/contratos", icon: FileText, module: "contratos" },
-        { title: "Fornecedores", url: "/fornecedores", icon: Users, module: "fornecedores" },
-        { title: "Unidades", url: "/unidades", icon: Building2, module: "unidades" },
-      ]
+        {
+          title: "Contratos",
+          url: "/contratos",
+          icon: FileText,
+          module: "contratos",
+        },
+        {
+          title: "Fornecedores",
+          url: "/fornecedores",
+          icon: Users,
+          module: "fornecedores",
+        },
+        {
+          title: "Unidades",
+          url: "/unidades",
+          icon: Building2,
+          module: "unidades",
+        },
+      ],
     },
     {
       group: "Operações",
       items: [
-        { title: "Pedidos", url: "/pedidos", icon: ShoppingCart, module: "pedidos" },
+        {
+          title: "Pedidos",
+          url: "/pedidos",
+          icon: ShoppingCart,
+          module: "pedidos",
+        },
         { title: "Recibos", url: "/recibos", icon: Receipt, module: "recibos" },
-        { title: "Confirmações", url: "/confirmacoes", icon: CheckCircle, module: "confirmacoes" },
+        {
+          title: "Confirmações",
+          url: "/confirmacoes",
+          icon: CheckCircle,
+          module: "confirmacoes",
+        },
         { title: "Estoque", url: "/estoque", icon: Package, module: "estoque" },
-      ]
+      ],
     },
     {
       group: "Relatórios",
       items: [
-        { title: "Relatórios", url: "/relatorios", icon: BarChart3, module: "relatorios" },
-      ]
+        {
+          title: "Relatórios",
+          url: "/relatorios",
+          icon: BarChart3,
+          module: "relatorios",
+        },
+      ],
     },
     {
       group: "Administração",
       items: [
-        { title: "Usuários", url: "/usuarios", icon: Shield, module: "usuarios" },
-      ]
-    }
+        {
+          title: "Usuários",
+          url: "/usuarios",
+          icon: Shield,
+          module: "usuarios",
+        },
+      ],
+    },
   ];
 
   const isActive = (path: string) => currentPath === path;
-  
+
   const toggleGroup = (groupName: string) => {
-    setExpandedGroups(prev => 
-      prev.includes(groupName) 
-        ? prev.filter(g => g !== groupName)
+    setExpandedGroups((prev) =>
+      prev.includes(groupName)
+        ? prev.filter((g) => g !== groupName)
         : [...prev, groupName]
     );
   };
 
   const getNavClassName = (path: string) => {
-    return isActive(path) 
-      ? "bg-primary/10 text-primary font-medium border-r-2 border-primary" 
+    return isActive(path)
+      ? "bg-primary/10 text-primary font-medium border-r-2 border-primary focus:text-accent"
       : "hover:bg-muted/50 text-muted-foreground hover:text-foreground";
   };
 
@@ -102,24 +146,30 @@ export function AppSidebar() {
             <h2 className="text-lg font-semibold text-foreground tracking-tight">
               Sistema Merenda
             </h2>
-            <p className="text-sm text-sidebar-foreground/70">
-              Gestão de Contratos
-            </p>
+            <p className="text-sm text-foreground/70">Gestão de Contratos</p>
           </div>
         )}
-        
+
         {navigationItems.map((section) => {
           const isExpanded = expandedGroups.includes(section.group);
-          const hasActiveItem = section.items.some(item => isActive(item.url) && canAccessModule(item.module));
-          
+          const hasActiveItem = section.items.some(
+            (item) => isActive(item.url) && canAccessModule(item.module)
+          );
+
           return (
             <SidebarGroup key={section.group}>
               {!collapsed && (
-                <SidebarGroupLabel 
+                <SidebarGroupLabel
                   className="flex items-center justify-between cursor-pointer hover:bg-muted/50 px-2 py-1 rounded-md"
                   onClick={() => toggleGroup(section.group)}
                 >
-                  <span className={hasActiveItem ? "text-primary font-medium" : ""}>{section.group}</span>
+                  <span
+                    className={
+                      hasActiveItem ? "text-foreground/90 font-medium" : ""
+                    }
+                  >
+                    {section.group}
+                  </span>
                   {isExpanded ? (
                     <ChevronDown className="h-4 w-4" />
                   ) : (
@@ -131,22 +181,27 @@ export function AppSidebar() {
               {(collapsed || isExpanded) && (
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {section.items.map((item) => (
-                      canAccessModule(item.module) && (
-                        <SidebarMenuItem key={item.title}>
-                          <SidebarMenuButton asChild>
-                            <NavLink 
-                              to={item.url} 
-                              end 
-                              className={getNavClassName(item.url)}
-                            >
-                              <item.icon className="h-4 w-4 shrink-0" />
-                              {!collapsed && <span>{item.title}</span>}
-                            </NavLink>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      )
-                    ))}
+                    {section.items.map(
+                      (item) =>
+                        canAccessModule(item.module) && (
+                          <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton asChild>
+                              <NavLink
+                                to={item.url}
+                                end
+                                className={getNavClassName(item.url)}
+                              >
+                                <item.icon className="h-4 w-4 shrink-0 text-accent" />
+                                {!collapsed && (
+                                  <span className="text-accent-foreground">
+                                    {item.title}
+                                  </span>
+                                )}
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        )
+                    )}
                   </SidebarMenu>
                 </SidebarGroupContent>
               )}
@@ -154,18 +209,20 @@ export function AppSidebar() {
           );
         })}
       </SidebarContent>
-      
+
       <SidebarFooter className="p-2">
         {!collapsed && user && (
           <div className="px-3 py-2 mb-2 rounded-lg bg-sidebar-accent/50 border border-sidebar-border">
-            <p className="font-medium text-sidebar-foreground text-sm">{user.nome}</p>
+            <p className="font-medium text-sidebar-foreground text-sm">
+              {user.nome}
+            </p>
             <p className="text-xs text-sidebar-foreground/70">{user.email}</p>
           </div>
         )}
         <ThemeToggle />
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={logout}
           className="w-full justify-start hover:bg-destructive/10 hover:text-destructive transition-colors"
         >
