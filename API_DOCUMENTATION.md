@@ -682,6 +682,78 @@ Lista todos os responsáveis que já fizeram movimentações.
 
 ---
 
+## 🧮 Percápita de Estudantes
+
+### GET `/percapita`
+Lista todas as percápitas cadastradas.
+
+**Query Parameters:**
+- `q` (opcional): Termo de busca por item ou tipo de estudante
+
+**Response (200):**
+```json
+[
+  {
+    "id": "uuid",
+    "gramagemPorEstudante": 150.5,
+    "frequenciaSemanal": 5,
+    "ativo": true,
+    "itemContrato": {
+      "nome": "Arroz Integral",
+      "contrato": {
+        "numero": "CT-2024-001",
+        "fornecedor": {
+          "nome": "Alimentos Frescos Ltda"
+        }
+      }
+    },
+    "tipoEstudante": {
+      "nome": "Berçário",
+      "sigla": "BER",
+      "categoria": "creche"
+    }
+  }
+]
+```
+
+### POST `/percapita`
+Cria uma nova percápita.
+
+**Body:**
+```json
+{
+  "itemContratoId": "uuid-do-item-contrato",
+  "tipoEstudanteId": "uuid-do-tipo-estudante",
+  "gramagemPorEstudante": 150.5,
+  "frequenciaSemanal": 5,
+  "ativo": true
+}
+```
+
+### PUT `/percapita/:id`
+Atualiza uma percápita existente.
+
+### DELETE `/percapita/:id`
+Remove uma percápita do sistema.
+
+### GET `/tipos-estudante`
+Lista todos os tipos de estudantes disponíveis.
+
+**Response (200):**
+```json
+[
+  {
+    "id": "bercario",
+    "nome": "Berçário",
+    "sigla": "BER",
+    "categoria": "creche",
+    "ordem": 1
+  }
+]
+```
+
+---
+
 ## 📝 Códigos de Status HTTP
 
 - **200**: Sucesso
