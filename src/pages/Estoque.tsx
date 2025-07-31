@@ -73,6 +73,7 @@ interface EstoqueDetalhado {
   ultimaAtualizacao: string;
   createdAt: string;
   updatedAt: string;
+  tipoEstoque: 'creche' | 'escola';
 
   itemContrato: ItemContrato & {
     unidadeMedida: UnidadeMedida;

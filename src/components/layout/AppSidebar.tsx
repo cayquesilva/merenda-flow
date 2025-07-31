@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   Package,
+  Calculator,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,6 +77,12 @@ export function AppSidebar() {
           url: "/unidades",
           icon: Building2,
           module: "unidades",
+        },
+        {
+          title: "Percápita",
+          url: "/percapita",
+          icon: Calculator,
+          module: "percapita",
         },
       ],
     },
