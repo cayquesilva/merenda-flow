@@ -186,6 +186,10 @@ export function ContratoDialog({
         valorUnitario: 0,
         quantidadeOriginal: 0,
         saldoAtual: 0,
+        quantidadeCreche: 0,
+        quantidadeEscola: 0,
+        saldoCreche: 0,
+        saldoEscola: 0,
       },
     ]);
   const removerItem = (index: number) => {
@@ -196,7 +200,11 @@ export function ContratoDialog({
     | "unidadeMedidaId"
     | "valorUnitario"
     | "quantidadeOriginal"
-    | "saldoAtual";
+    | "saldoAtual"
+    | "quantidadeCreche"
+    | "quantidadeEscola"
+    | "saldoCreche"
+    | "saldoEscola";
 
   function atualizarItem(
     index: number,
@@ -205,7 +213,7 @@ export function ContratoDialog({
   ): void;
   function atualizarItem(
     index: number,
-    campo: "valorUnitario" | "quantidadeOriginal" | "saldoAtual",
+    campo: "valorUnitario" | "quantidadeOriginal" | "saldoAtual" | "quantidadeCreche" | "quantidadeEscola" | "saldoCreche" | "saldoEscola",
     valor: number
   ): void;
   function atualizarItem(
@@ -215,8 +223,14 @@ export function ContratoDialog({
   ): void {
     const novosItens = [...itens];
     novosItens[index] = { ...novosItens[index], [campo]: valor };
-    if (campo === "quantidadeOriginal") {
-      novosItens[index].saldoAtual = valor as number;
+    if (campo === "quantidadeOriginal" || campo === "quantidadeCreche" || campo === "quantidadeEscola") {
+      if (campo === "quantidadeOriginal") {
+        novosItens[index].saldoAtual = valor as number;
+      } else if (campo === "quantidadeCreche") {
+        novosItens[index].saldoCreche = valor as number;
+      } else if (campo === "quantidadeEscola") {
+        novosItens[index].saldoEscola = valor as number;
+      }
     }
     setItens(novosItens);
   }
@@ -508,6 +522,38 @@ export function ContratoDialog({
                             disabled={isSubmitting || isEdicao}
                           />
                         </div>
+                        <div>
+                          <Label>Qtd. Creches</Label>
+                          <Input
+                            type="number"
+                            value={item.quantidadeCreche || ""}
+                            onChange={(e) =>
+                              atualizarItem(
+                                index,
+                                "quantidadeCreche",
+                                parseInt(e.target.value) || 0
+                              )
+                            }
+                            placeholder="0"
+                            disabled={isSubmitting || isEdicao}
+                          />
+                        </div>
+                        <div>
+                          <Label>Qtd. Escolas</Label>
+                          <Input
+                            type="number"
+                            value={item.quantidadeEscola || ""}
+                            onChange={(e) =>
+                              atualizarItem(
+                                index,
+                                "quantidadeEscola",
+                                parseInt(e.target.value) || 0
+                              )
+                            }
+                            placeholder="0"
+                            disabled={isSubmitting || isEdicao}
+                          />
+                        </div>
                         <div className="flex items-center gap-2">
                           {itens.length > 1 && (
                             <Button
@@ -524,11 +570,11 @@ export function ContratoDialog({
                       </div>
                       {item.valorUnitario && item.quantidadeOriginal && (
                         <div className="mt-2 text-sm text-muted-foreground">
-                          Subtotal: R${" "}
-                          {(
-                            (item.valorUnitario || 0) *
-                            (item.quantidadeOriginal || 0)
-                          ).toFixed(2)}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                            <div>Total Geral: R$ {((item.valorUnitario || 0) * (item.quantidadeOriginal || 0)).toFixed(2)}</div>
+                            <div>Creches: R$ {((item.valorUnitario || 0) * (item.quantidadeCreche || 0)).toFixed(2)}</div>
+                            <div>Escolas: R$ {((item.valorUnitario || 0) * (item.quantidadeEscola || 0)).toFixed(2)}</div>
+                          </div>
                         </div>
                       )}
                     </Card>

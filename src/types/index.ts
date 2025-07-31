@@ -24,6 +24,11 @@ export interface ItemContrato {
   valorUnitario: number;
   quantidadeOriginal: number;
   saldoAtual: number;
+  quantidadeCreche: number;
+  quantidadeEscola: number;
+  saldoCreche: number;
+  saldoEscola: number;
+  percapitas?: PercapitaItem[];
 }
 
 export interface Contrato {
@@ -47,6 +52,11 @@ export interface UnidadeEducacional {
   telefone: string;
   email: string;
   ativo: boolean;
+  estudantesBercario: number;
+  estudantesMaternal: number;
+  estudantesRegular: number;
+  estudantesIntegral: number;
+  estudantesEja: number;
 }
 
 export interface ItemPedido {
@@ -119,6 +129,7 @@ export interface Estoque {
   quantidadeAtual: number;
   quantidadeMinima: number;
   ultimaAtualizacao: string;
+  tipoEstoque: 'creche' | 'escola';
 }
 
 export interface MovimentacaoEstoque {
@@ -178,4 +189,25 @@ export interface ReciboConfirmacaoBackend {
     url: string;
     criadoEm: string;
   } | null;
+}
+
+export interface TipoEstudante {
+  id: string;
+  nome: string;
+  sigla: string;
+  categoria: 'creche' | 'escola';
+  ordem: number;
+}
+
+export interface PercapitaItem {
+  id: string;
+  itemContratoId: string;
+  itemContrato?: ItemContrato;
+  tipoEstudanteId: string;
+  tipoEstudante?: TipoEstudante;
+  gramagemPorEstudante: number;
+  frequenciaSemanal: number;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

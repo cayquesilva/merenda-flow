@@ -436,8 +436,15 @@ export default function Contratos() {
                                   : ""
                               }
                             >
-                              {item.saldoAtual} / {item.quantidadeOriginal}{" "}
-                              {item.unidadeMedida.sigla}
+                              <div className="space-y-1">
+                                <div>Total: {item.saldoAtual} / {item.quantidadeOriginal} {item.unidadeMedida.sigla}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Creches: {item.saldoCreche} / {item.quantidadeCreche} {item.unidadeMedida.sigla}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Escolas: {item.saldoEscola} / {item.quantidadeEscola} {item.unidadeMedida.sigla}
+                                </div>
+                              </div>
                             </span>
                           </div>
                           <Progress

@@ -63,6 +63,13 @@ model UnidadeEducacional {
   email    String  @unique
   ativo    Boolean @default(true)
 
+  // Campos para contagem de estudantes por tipo
+  estudantesBercario  Int @default(0) @map("estudantes_bercario")
+  estudantesMaternal  Int @default(0) @map("estudantes_maternal")
+  estudantesRegular   Int @default(0) @map("estudantes_regular")
+  estudantesIntegral  Int @default(0) @map("estudantes_integral")
+  estudantesEja       Int @default(0) @map("estudantes_eja")
+
   // Relações
   pedidos  ItemPedido[]
   recibos  Recibo[]
@@ -96,8 +103,14 @@ model ItemContrato {
   id                 String @id @default(uuid())
   nome               String
   valorUnitario      Float  @map("valor_unitario")
-  quantidadeOriginal Float  @map("quantidade_original")
-  saldoAtual         Float  @map("saldo_atual")
+  
+  // Quantidades separadas por tipo de estoque
+  quantidadeOriginal Float  @map("quantidade_original") // Mantido para compatibilidade
+  saldoAtual         Float  @map("saldo_atual") // Mantido para compatibilidade
+  quantidadeCreche   Float  @default(0) @map("quantidade_creche")
+  quantidadeEscola   Float  @default(0) @map("quantidade_escola")
+  saldoCreche        Float  @default(0) @map("saldo_creche")
+  saldoEscola        Float  @default(0) @map("saldo_escola")
 
   // Relação com Contrato
   contrato   Contrato @relation(fields: [contratoId], references: [id])
@@ -111,6 +124,8 @@ model ItemContrato {
   itensPedido ItemPedido[]
   // Relação com Estoque
   estoques    Estoque[]
+  // Relação com Percápita
+  percapitas  PercapitaItem[]
 }
 
 model Pedido {
@@ -186,6 +201,40 @@ model Recibo {
   @@unique([pedidoId, unidadeEducacionalId])
 }
 
+// ===================================
+// MODELOS PARA SISTEMA EDUCACIONAL
+// ===================================
+
+model TipoEstudante {
+  id        String @id @default(uuid())
+  nome      String
+  sigla     String @unique
+  categoria String // 'creche' ou 'escola'
+  ordem     Int
+
+  // Relações
+  percapitas PercapitaItem[]
+}
+
+model PercapitaItem {
+  id                   String   @id @default(uuid())
+  gramagemPorEstudante Float    @default(0) @map("gramagem_por_estudante")
+  frequenciaSemanal    Int      @default(5) @map("frequencia_semanal")
+  ativo                Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relação com Item do Contrato
+  itemContrato   ItemContrato @relation(fields: [itemContratoId], references: [id])
+  itemContratoId String       @map("item_contrato_id")
+
+  // Relação com Tipo de Estudante
+  tipoEstudante   TipoEstudante @relation(fields: [tipoEstudanteId], references: [id])
+  tipoEstudanteId String        @map("tipo_estudante_id")
+
+  @@unique([itemContratoId, tipoEstudanteId])
+}
+
 model AssinaturaDigital {
   id           String   @id @default(uuid())
   imagemBase64 String
@@ -225,6 +274,7 @@ model Estoque {
   quantidadeAtual   Float    @default(0) @map("quantidade_atual")
   quantidadeMinima  Float    @default(0) @map("quantidade_minima")
   ultimaAtualizacao DateTime @default(now()) @map("ultima_atualizacao")
+  tipoEstoque       String   @default("escola") @map("tipo_estoque") // 'creche' ou 'escola'
 
   // Relação com Unidade Educacional
   unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
@@ -237,7 +287,7 @@ model Estoque {
   // Relação com Movimentações
   movimentacoes MovimentacaoEstoque[]
 
-  @@unique([unidadeEducacionalId, itemContratoId])
+  @@unique([unidadeEducacionalId, itemContratoId, tipoEstoque])
 }
 
 model MovimentacaoEstoque {

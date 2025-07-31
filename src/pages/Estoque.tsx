@@ -73,6 +73,7 @@ interface EstoqueDetalhado {
   ultimaAtualizacao: string;
   createdAt: string;
   updatedAt: string;
+  tipoEstoque: 'creche' | 'escola';
 
   itemContrato: ItemContrato & {
     unidadeMedida: UnidadeMedida;
@@ -717,6 +718,7 @@ export default function Estoque() {
                       <TableHead>Item</TableHead>
                       <TableHead>Unidade</TableHead>
                       <TableHead>Fornecedor</TableHead>
+                      <TableHead>Tipo Estoque</TableHead>
                       <TableHead>Quantidade Atual</TableHead>
                       <TableHead>Quantidade Mínima</TableHead>
                       <TableHead>Status</TableHead>
@@ -748,6 +750,11 @@ export default function Estoque() {
                         </TableCell>
                         <TableCell>
                           {item.itemContrato.contrato.fornecedor.nome}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={item.tipoEstoque === 'creche' ? 'default' : 'secondary'}>
+                            {item.tipoEstoque === 'creche' ? 'Creche' : 'Escola'}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <span className="font-medium">

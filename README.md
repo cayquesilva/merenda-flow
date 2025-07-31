@@ -307,3 +307,32 @@ Para solicitar melhorias gerais no sistema:
 - **Acessibilidade:** "Torne o sistema mais acessível"
 
 ---
+
+## 🎓 Sistema Educacional Avançado
+
+O sistema possui funcionalidades específicas para o contexto educacional:
+
+### 📊 Controle de Estudantes por Modalidade
+- **Berçário e Maternal**: Classificados como "Creche"
+- **Turmas Regulares, Integrais e EJA**: Classificados como "Escola"
+- Cada unidade registra a quantidade de estudantes por modalidade
+
+### 🧮 Sistema de Percápita
+- Configuração de gramagem por estudante para cada item
+- Frequência semanal de consumo configurável
+- Cálculo automático de quantidades nos pedidos baseado na percápita
+
+### 📦 Estoque Separado por Tipo
+- **Estoque de Creches**: Para berçário e maternal
+- **Estoque de Escolas**: Para turmas regulares, integrais e EJA
+- Controle independente de saldos nos contratos
+- Movimentações específicas por tipo de estoque
+
+### 🎯 Cálculo Inteligente de Pedidos
+O sistema calcula automaticamente as quantidades necessárias baseado em:
+- Número de estudantes por modalidade na unidade
+- Percápita configurada para cada item e tipo de estudante
+- Disponibilidade no estoque apropriado (creche ou escola)
+- Saldo disponível no contrato por tipo
+
+---

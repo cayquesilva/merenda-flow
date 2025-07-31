@@ -28,6 +28,7 @@ import QRCodeCatalog from "./pages/QRCodeCatalog";
 import RelatorioMovimentacaoResponsavel from "./components/relatorios/RelatorioMovimentacaoResponsavel";
 import ImprimirRecibo from "./components/recibos/ImprimirRecibo";
 import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
+import Percapita from "./pages/Percapita";
 
 const queryClient = new QueryClient();
 
@@ -193,6 +194,14 @@ function AppContent() {
           element={
             <ProtectedRoute module="usuarios">
               <Usuarios />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/percapita"
+          element={
+            <ProtectedRoute module="percapita">
+              <Percapita />
             </ProtectedRoute>
           }
         />

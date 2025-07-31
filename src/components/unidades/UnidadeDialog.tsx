@@ -29,6 +29,11 @@ interface UnidadeEducacional {
   telefone: string | null;
   email: string;
   ativo: boolean;
+  estudantesBercario: number;
+  estudantesMaternal: number;
+  estudantesRegular: number;
+  estudantesIntegral: number;
+  estudantesEja: number;
 }
 
 interface UnidadeDialogProps {
@@ -49,6 +54,11 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
     email: "",
     endereco: "",
     ativo: true,
+    estudantesBercario: 0,
+    estudantesMaternal: 0,
+    estudantesRegular: 0,
+    estudantesIntegral: 0,
+    estudantesEja: 0,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -62,6 +72,11 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
         email: unidade.email,
         endereco: unidade.endereco || "",
         ativo: unidade.ativo,
+        estudantesBercario: unidade.estudantesBercario || 0,
+        estudantesMaternal: unidade.estudantesMaternal || 0,
+        estudantesRegular: unidade.estudantesRegular || 0,
+        estudantesIntegral: unidade.estudantesIntegral || 0,
+        estudantesEja: unidade.estudantesEja || 0,
       });
     }
   }, [unidade, isEdicao]);
@@ -144,6 +159,11 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
       email: unidade?.email || "",
       endereco: unidade?.endereco || "",
       ativo: unidade?.ativo ?? true,
+      estudantesBercario: unidade?.estudantesBercario || 0,
+      estudantesMaternal: unidade?.estudantesMaternal || 0,
+      estudantesRegular: unidade?.estudantesRegular || 0,
+      estudantesIntegral: unidade?.estudantesIntegral || 0,
+      estudantesEja: unidade?.estudantesEja || 0,
     });
   };
 
@@ -267,6 +287,85 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
               disabled={isSubmitting}
             />
             <Label htmlFor="ativo">Unidade ativa</Label>
+          </div>
+
+          <div>
+            <h4 className="font-medium mb-3">Estudantes Matriculados</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="estudantesBercario">Berçário</Label>
+                <Input
+                  id="estudantesBercario"
+                  type="number"
+                  min="0"
+                  value={formData.estudantesBercario}
+                  onChange={(e) =>
+                    setFormData({ ...formData, estudantesBercario: parseInt(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="estudantesMaternal">Maternal</Label>
+                <Input
+                  id="estudantesMaternal"
+                  type="number"
+                  min="0"
+                  value={formData.estudantesMaternal}
+                  onChange={(e) =>
+                    setFormData({ ...formData, estudantesMaternal: parseInt(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="estudantesRegular">Turmas Regulares</Label>
+                <Input
+                  id="estudantesRegular"
+                  type="number"
+                  min="0"
+                  value={formData.estudantesRegular}
+                  onChange={(e) =>
+                    setFormData({ ...formData, estudantesRegular: parseInt(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="estudantesIntegral">Turmas Integrais</Label>
+                <Input
+                  id="estudantesIntegral"
+                  type="number"
+                  min="0"
+                  value={formData.estudantesIntegral}
+                  onChange={(e) =>
+                    setFormData({ ...formData, estudantesIntegral: parseInt(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="estudantesEja">EJA</Label>
+                <Input
+                  id="estudantesEja"
+                  type="number"
+                  min="0"
+                  value={formData.estudantesEja}
+                  onChange={(e) =>
+                    setFormData({ ...formData, estudantesEja: parseInt(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Informe a quantidade de estudantes matriculados em cada modalidade para cálculo automático de percápita.
+            </p>
           </div>
         </div>
 
