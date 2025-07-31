@@ -44,6 +44,7 @@ import {
   Loader2,
   Scale,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import {
   TipoEstudante,
@@ -55,6 +56,7 @@ import {
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
+// Interfaces detalhadas para corresponder ao retorno das APIs
 interface ItemContratoDetalhado extends ItemContrato {
   unidadeMedida: UnidadeMedida;
   contrato: Contrato & {
@@ -70,9 +72,14 @@ interface PercapitaItemDetalhado extends PercapitaItem {
 interface PercapitaDialogProps {
   percapita?: PercapitaItemDetalhado;
   onSuccess: () => void;
+  onDelete?: () => void;
 }
 
-function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
+function PercapitaDialog({
+  percapita,
+  onSuccess,
+  onDelete,
+}: PercapitaDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     itemContratoId: "",
@@ -96,11 +103,12 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
       const fetchData = async () => {
         setIsLoading(true);
         try {
+          // Busca os dados de suporte (itens de contrato e tipos de estudante) em paralelo.
           const [itensRes, tiposRes] = await Promise.all([
             fetch(
               `${
                 import.meta.env.VITE_API_URL || "http://localhost:3001"
-              }/api/contratos-ativos`
+              }/api/percapita/itens-contrato-ativos`
             ),
             fetch(
               `${
@@ -113,15 +121,7 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
             throw new Error("Falha ao carregar dados do formulário");
           }
 
-          const contratos: Contrato[] = await itensRes.json();
-          const itens = contratos.flatMap((c: Contrato) =>
-            c.itens.map((item: ItemContrato) => ({
-              ...item,
-              contrato: { ...c, itens: undefined },
-            }))
-          );
-
-          setItensContrato(itens);
+          setItensContrato(await itensRes.json());
           setTiposEstudante(await tiposRes.json());
 
           if (isEdicao && percapita) {
@@ -139,12 +139,14 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
             description: "Não foi possível carregar os dados do formulário",
             variant: "destructive",
           });
+          setOpen(false);
         } finally {
           setIsLoading(false);
         }
       };
       fetchData();
     } else {
+      // Reseta o formulário quando o modal é fechado
       setFormData({
         itemContratoId: "",
         tipoEstudanteId: "",
@@ -159,11 +161,12 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
     if (
       !formData.itemContratoId ||
       !formData.tipoEstudanteId ||
-      formData.gramagemPorEstudante <= 0
+      formData.gramagemPorEstudante <= 0 ||
+      formData.frequenciaSemanal <= 0
     ) {
       toast({
-        title: "Erro",
-        description: "Preencha todos os campos obrigatórios",
+        title: "Campos Obrigatórios",
+        description: "Por favor, preencha todos os campos corretamente.",
         variant: "destructive",
       });
       return;
@@ -213,20 +216,60 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
     }
   };
 
+  const handleDelete = async () => {
+    if (
+      !percapita ||
+      !window.confirm(
+        `Tem certeza que deseja deletar a percápita do item ${percapita.itemContrato.nome} para ${percapita.tipoEstudante.nome}?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/percapita/${percapita.id}`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao deletar percápita");
+      }
+
+      toast({
+        title: "Percápita deletada!",
+        description: `Percápita do item ${percapita.itemContrato.nome} foi removida com sucesso`,
+      });
+      setOpen(false);
+      if (onDelete) {
+        onDelete();
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant={isEdicao ? "outline" : "default"}
-          size={isEdicao ? "sm" : "default"}
-        >
-          {isEdicao ? (
+        {isEdicao ? (
+          <Button variant="outline" size="sm" className="h-8 w-8 p-0">
             <Edit className="h-3 w-3" />
-          ) : (
+          </Button>
+        ) : (
+          <Button variant="default">
             <Plus className="mr-2 h-4 w-4" />
-          )}
-          {isEdicao ? "" : "Nova Percápita"}
-        </Button>
+            Nova Percápita
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -378,7 +421,7 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
           <Button
             variant="outline"
             onClick={() => setOpen(false)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isLoading}
           >
             Cancelar
           </Button>

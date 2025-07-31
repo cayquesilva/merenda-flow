@@ -1221,9 +1221,10 @@ app.post(
 
             const estoqueExistente = await tx.estoque.findUnique({
               where: {
-                unidadeEducacionalId_itemContratoId: {
+                unidadeEducacionalId_itemContratoId_tipoEstoque: {
                   unidadeEducacionalId: recibo.unidadeEducacionalId,
                   itemContratoId: itemRecibo.itemPedido.itemContratoId,
+                  tipoEstoque: "escola",
                 },
               },
             });
@@ -2472,6 +2473,154 @@ app.get(
 );
 
 /// --- FIM ROTA DE RELATORIOS --- ///
+
+/// --- ROTAS DE PERCAPITA --- ///
+
+// COMENTÁRIO: NOVA ROTA: Retorna uma lista de ItemContrato ativos para o formulário de Percápita
+app.get(
+  "/api/percapita/itens-contrato-ativos",
+  async (req: Request, res: Response) => {
+    try {
+      const itensContrato = await prisma.itemContrato.findMany({
+        where: {
+          contrato: {
+            status: "ativo",
+          },
+        },
+        include: {
+          unidadeMedida: true,
+          contrato: {
+            include: {
+              fornecedor: true,
+            },
+          },
+        },
+        orderBy: {
+          nome: "asc",
+        },
+      });
+
+      res.json(itensContrato);
+    } catch (error) {
+      console.error("Erro ao buscar itens de contrato para percápita:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível buscar os itens de contrato." });
+    }
+  }
+);
+
+// COMENTÁRIO: Rotas de Percápita de Estudantes
+// ROTA 1: Listar todas as percápitas com filtros
+app.get("/api/percapita", async (req: Request, res: Response) => {
+  const { q } = req.query;
+  try {
+    const whereClause: Prisma.PercapitaItemWhereInput = {};
+    if (q) {
+      whereClause.OR = [
+        {
+          itemContrato: {
+            nome: { contains: q as string, mode: "insensitive" },
+          },
+        },
+        {
+          tipoEstudante: {
+            nome: { contains: q as string, mode: "insensitive" },
+          },
+        },
+      ];
+    }
+    const percapitas = await prisma.percapitaItem.findMany({
+      where: whereClause,
+      include: {
+        itemContrato: {
+          include: {
+            unidadeMedida: true,
+            contrato: {
+              select: {
+                numero: true,
+                fornecedor: { select: { nome: true } },
+              },
+            },
+          },
+        },
+        tipoEstudante: true,
+      },
+      orderBy: { itemContrato: { nome: "asc" } },
+    });
+    res.json(percapitas);
+  } catch (error) {
+    console.error("Erro ao buscar percápitas:", error);
+    res.status(500).json({ error: "Não foi possível buscar as percápitas." });
+  }
+});
+
+// ROTA 2: Criar uma nova percápita
+app.post("/api/percapita", async (req: Request, res: Response) => {
+  try {
+    const novaPercapita = await prisma.percapitaItem.create({
+      data: req.body,
+    });
+    res.status(201).json(novaPercapita);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return res.status(409).json({ error: "Esta percápita já existe." });
+      }
+    }
+    console.error("Erro ao criar percápita:", error);
+    res.status(500).json({ error: "Não foi possível criar a percápita." });
+  }
+});
+
+// ROTA 3: Atualizar uma percápita
+app.put("/api/percapita/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const percapitaAtualizada = await prisma.percapitaItem.update({
+      where: { id },
+      data: req.body,
+    });
+    res.json(percapitaAtualizada);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return res.status(409).json({ error: "Esta percápita já existe." });
+      }
+    }
+    console.error("Erro ao atualizar percápita:", error);
+    res.status(500).json({ error: "Não foi possível atualizar a percápita." });
+  }
+});
+
+// ROTA 4: Deletar uma percápita
+app.delete("/api/percapita/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    await prisma.percapitaItem.delete({ where: { id } });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Erro ao deletar percápita:", error);
+    res.status(500).json({ error: "Não foi possível deletar a percápita." });
+  }
+});
+
+// COMENTÁRIO: Retorna a lista de Tipos de Estudante
+app.get("/api/tipos-estudante", async (req: Request, res: Response) => {
+  try {
+    const tiposEstudante = await prisma.tipoEstudante.findMany({
+      orderBy: { ordem: "asc" },
+    });
+    res.json(tiposEstudante);
+  } catch (error) {
+    console.error("Erro ao buscar tipos de estudante:", error);
+    res
+      .status(500)
+      .json({ error: "Não foi possível buscar os tipos de estudante." });
+  }
+});
+
+/// --- FIM ROTA DE PERCAPITA --- ///
 
 /// --- ROTA DE DASHBOARD --- ///
 // COMENTÁRIO: Rota para buscar todos os dados do Dashboard

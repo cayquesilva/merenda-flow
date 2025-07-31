@@ -54,6 +54,62 @@ async function main() {
   }
 
   console.log("Seeding finalizado com sucesso!");
+
+  console.log('Iniciando o seeder de tipos de estudante...');
+
+  const tiposEstudante = [
+    {
+      id: 'bercario',
+      nome: 'Berçário',
+      sigla: 'BER',
+      categoria: 'creche',
+      ordem: 1,
+    },
+    {
+      id: 'maternal',
+      nome: 'Maternal',
+      sigla: 'MAT',
+      categoria: 'creche',
+      ordem: 2,
+    },
+    {
+      id: 'regular',
+      nome: 'Turmas Regulares',
+      sigla: 'REG',
+      categoria: 'escola',
+      ordem: 3,
+    },
+    {
+      id: 'integral',
+      nome: 'Turmas Integrais',
+      sigla: 'INT',
+      categoria: 'escola',
+      ordem: 4,
+    },
+    {
+      id: 'eja',
+      nome: 'Educação de Jovens e Adultos',
+      sigla: 'EJA',
+      categoria: 'escola',
+      ordem: 5,
+    },
+  ];
+
+  for (const tipo of tiposEstudante) {
+    try {
+      await prisma.tipoEstudante.upsert({
+        where: { id: tipo.id },
+        update: tipo,
+        create: tipo,
+      });
+      console.log(`Tipo de estudante "${tipo.nome}" inserido ou atualizado.`);
+    } catch (error) {
+      console.error(`Erro ao inserir o tipo de estudante "${tipo.nome}":`, error);
+    }
+  }
+
+  console.log('Seeder de tipos de estudante finalizado.');
+
 }
 main()
   .catch((e) => {
