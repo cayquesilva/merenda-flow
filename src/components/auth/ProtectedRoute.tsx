@@ -1,6 +1,7 @@
-import { useAuth } from '@/contexts/AuthContext';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
+import { ModuleAction, ModuleName } from "@/types/auth";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,14 +9,18 @@ interface ProtectedRouteProps {
   action?: string;
 }
 
-export function ProtectedRoute({ children, module, action = 'read' }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  module,
+  action = "read",
+}: ProtectedRouteProps) {
   const { user, canAccessModule, hasPermission } = useAuth();
 
   if (!user) {
     return null; // This will be handled by the main App component
   }
 
-  if (!canAccessModule(module)) {
+  if (!canAccessModule(module as ModuleName)) {
     return (
       <div className="p-6">
         <Alert variant="destructive">
@@ -28,7 +33,7 @@ export function ProtectedRoute({ children, module, action = 'read' }: ProtectedR
     );
   }
 
-  if (!hasPermission(module, action)) {
+  if (!hasPermission(module as ModuleName, action as ModuleAction)) {
     return (
       <div className="p-6">
         <Alert variant="destructive">

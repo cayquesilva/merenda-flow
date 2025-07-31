@@ -62,12 +62,6 @@ export function AppSidebar() {
       group: "Cadastros",
       items: [
         {
-          title: "Contratos",
-          url: "/contratos",
-          icon: FileText,
-          module: "contratos",
-        },
-        {
           title: "Fornecedores",
           url: "/fornecedores",
           icon: Users,
@@ -80,7 +74,13 @@ export function AppSidebar() {
           module: "unidades",
         },
         {
-          title: "Percápita",
+          title: "Contratos",
+          url: "/contratos",
+          icon: FileText,
+          module: "contratos",
+        },
+        {
+          title: "Percapita",
           url: "/percapita",
           icon: Calculator,
           module: "percapita",
@@ -154,14 +154,17 @@ export function AppSidebar() {
             <h2 className="text-lg font-semibold text-sidebar-foreground tracking-tight">
               Sistema Merenda
             </h2>
-            <p className="text-sm text-sidebar-foreground/70">Gestão de Contratos</p>
+            <p className="text-sm text-sidebar-foreground/70">
+              Gestão de Contratos
+            </p>
           </div>
         )}
 
         {navigationItems.map((section) => {
           const isExpanded = expandedGroups.includes(section.group);
           const hasActiveItem = section.items.some(
-            (item) => isActive(item.url) && canAccessModule(item.module as ModuleName)
+            (item) =>
+              isActive(item.url) && canAccessModule(item.module as ModuleName)
           );
 
           return (
@@ -173,7 +176,9 @@ export function AppSidebar() {
                 >
                   <span
                     className={
-                      hasActiveItem ? "text-sidebar-foreground/90 font-medium" : ""
+                      hasActiveItem
+                        ? "text-sidebar-foreground/90 font-medium"
+                        : ""
                     }
                   >
                     {section.group}

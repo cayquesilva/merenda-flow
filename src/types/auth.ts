@@ -31,7 +31,8 @@ export type ModuleName =
   | "confirmacoes"
   | "estoque"
   | "relatorios"
-  | "usuarios";
+  | "usuarios"
+  | "percapita";
 
 export type ModuleAction = "create" | "update" | "read" | "write" | "delete"; // ou qualquer outro conjunto que você usa
 
@@ -60,7 +61,8 @@ export const USER_CATEGORIES: Partial<
       confirmacoes: { module: 'confirmacoes', actions: ['read', 'create', 'update', 'delete'] },
       estoque: { module: 'estoque', actions: ['read', 'create', 'update', 'delete'] },
       relatorios: { module: 'relatorios', actions: ['read', 'create', 'update', 'delete'] },
-      usuarios: { module: 'usuarios', actions: ['read', 'create', 'update', 'delete'] }
+      usuarios: { module: 'usuarios', actions: ['read', 'create', 'update', 'delete'] },
+      percapita: { module: 'percapita', actions: ['read', 'create', 'update', 'delete'] },
     }
   },
   gerencia_nutricao: {
@@ -74,7 +76,9 @@ export const USER_CATEGORIES: Partial<
       recibos: { module: 'recibos', actions: ['read', 'create', 'update'] },
       confirmacoes: { module: 'confirmacoes', actions: ['read'] },
       estoque: { module: 'estoque', actions: ['read', 'update'] },
-      relatorios: { module: 'relatorios', actions: ['read', 'create'] }
+      relatorios: { module: 'relatorios', actions: ['read', 'create'] },
+      percapita: { module: 'percapita', actions: ['read', 'create', 'update', 'delete'] },
+
     }
   },
   comissao_recebimento: {

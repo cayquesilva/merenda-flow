@@ -150,6 +150,14 @@ function AppContent() {
           }
         />
         <Route
+          path="/percapita"
+          element={
+            <ProtectedRoute module="percapita">
+              <Percapita />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/pedidos"
           element={
             <ProtectedRoute module="pedidos">
@@ -194,14 +202,6 @@ function AppContent() {
           element={
             <ProtectedRoute module="usuarios">
               <Usuarios />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/percapita"
-          element={
-            <ProtectedRoute module="percapita">
-              <Percapita />
             </ProtectedRoute>
           }
         />

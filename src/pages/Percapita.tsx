@@ -40,13 +40,19 @@ import {
   Plus,
   Edit,
   Calculator,
-  Users,
   Package,
   Loader2,
   Scale,
   Calendar,
 } from "lucide-react";
-import { TipoEstudante, PercapitaItem, ItemContrato, UnidadeMedida, Contrato, Fornecedor } from "@/types";
+import {
+  TipoEstudante,
+  PercapitaItem,
+  ItemContrato,
+  UnidadeMedida,
+  Contrato,
+  Fornecedor,
+} from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 interface ItemContratoDetalhado extends ItemContrato {
@@ -75,7 +81,9 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
     frequenciaSemanal: 5,
     ativo: true,
   });
-  const [itensContrato, setItensContrato] = useState<ItemContratoDetalhado[]>([]);
+  const [itensContrato, setItensContrato] = useState<ItemContratoDetalhado[]>(
+    []
+  );
   const [tiposEstudante, setTiposEstudante] = useState<TipoEstudante[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,22 +97,30 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
         setIsLoading(true);
         try {
           const [itensRes, tiposRes] = await Promise.all([
-            fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/contratos-ativos`),
-            fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/tipos-estudante`)
+            fetch(
+              `${
+                import.meta.env.VITE_API_URL || "http://localhost:3001"
+              }/api/contratos-ativos`
+            ),
+            fetch(
+              `${
+                import.meta.env.VITE_API_URL || "http://localhost:3001"
+              }/api/tipos-estudante`
+            ),
           ]);
 
           if (!itensRes.ok || !tiposRes.ok) {
             throw new Error("Falha ao carregar dados do formulário");
           }
 
-          const contratos = await itensRes.json();
-          const itens = contratos.flatMap((c: any) => 
-            c.itens.map((item: any) => ({
+          const contratos: Contrato[] = await itensRes.json();
+          const itens = contratos.flatMap((c: Contrato) =>
+            c.itens.map((item: ItemContrato) => ({
               ...item,
-              contrato: { ...c, itens: undefined }
+              contrato: { ...c, itens: undefined },
             }))
           );
-          
+
           setItensContrato(itens);
           setTiposEstudante(await tiposRes.json());
 
@@ -140,7 +156,11 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
   }, [open, percapita, isEdicao, toast]);
 
   const handleSubmit = async () => {
-    if (!formData.itemContratoId || !formData.tipoEstudanteId || formData.gramagemPorEstudante <= 0) {
+    if (
+      !formData.itemContratoId ||
+      !formData.tipoEstudanteId ||
+      formData.gramagemPorEstudante <= 0
+    ) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
@@ -152,9 +172,13 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
     setIsSubmitting(true);
     try {
       const url = isEdicao
-        ? `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${percapita!.id}`
-        : `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita`;
-      
+        ? `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/percapita/${percapita!.id}`
+        : `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/percapita`;
+
       const method = isEdicao ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -170,7 +194,9 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
 
       toast({
         title: "Sucesso!",
-        description: `Percápita ${isEdicao ? "atualizada" : "cadastrada"} com sucesso`,
+        description: `Percápita ${
+          isEdicao ? "atualizada" : "cadastrada"
+        } com sucesso`,
       });
 
       setOpen(false);
@@ -178,7 +204,8 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
     } catch (error) {
       toast({
         title: "Erro",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -189,8 +216,15 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={isEdicao ? "outline" : "default"} size={isEdicao ? "sm" : "default"}>
-          {isEdicao ? <Edit className="h-3 w-3" /> : <Plus className="mr-2 h-4 w-4" />}
+        <Button
+          variant={isEdicao ? "outline" : "default"}
+          size={isEdicao ? "sm" : "default"}
+        >
+          {isEdicao ? (
+            <Edit className="h-3 w-3" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
           {isEdicao ? "" : "Nova Percápita"}
         </Button>
       </DialogTrigger>
@@ -200,8 +234,8 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
             {isEdicao ? "Editar Percápita" : "Nova Percápita"}
           </DialogTitle>
           <DialogDescription>
-            {isEdicao 
-              ? "Edite as informações da percápita" 
+            {isEdicao
+              ? "Edite as informações da percápita"
               : "Configure a percápita de consumo por tipo de estudante"}
           </DialogDescription>
         </DialogHeader>
@@ -267,7 +301,10 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
                   step="0.1"
                   value={formData.gramagemPorEstudante}
                   onChange={(e) =>
-                    setFormData({ ...formData, gramagemPorEstudante: parseFloat(e.target.value) || 0 })
+                    setFormData({
+                      ...formData,
+                      gramagemPorEstudante: parseFloat(e.target.value) || 0,
+                    })
                   }
                   placeholder="0.0"
                   disabled={isSubmitting}
@@ -282,7 +319,10 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
                   max="7"
                   value={formData.frequenciaSemanal}
                   onChange={(e) =>
-                    setFormData({ ...formData, frequenciaSemanal: parseInt(e.target.value) || 5 })
+                    setFormData({
+                      ...formData,
+                      frequenciaSemanal: parseInt(e.target.value) || 5,
+                    })
                   }
                   placeholder="5"
                   disabled={isSubmitting}
@@ -302,21 +342,44 @@ function PercapitaDialog({ percapita, onSuccess }: PercapitaDialogProps) {
               <Label htmlFor="ativo">Percápita ativa</Label>
             </div>
 
-            {formData.gramagemPorEstudante > 0 && formData.frequenciaSemanal > 0 && (
-              <div className="mt-4 p-4 bg-muted rounded-lg">
-                <h4 className="font-medium mb-2">Cálculo Estimado</h4>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <p>Consumo diário: {formData.gramagemPorEstudante}g por estudante</p>
-                  <p>Consumo semanal: {(formData.gramagemPorEstudante * formData.frequenciaSemanal).toFixed(1)}g por estudante</p>
-                  <p>Consumo mensal: {(formData.gramagemPorEstudante * formData.frequenciaSemanal * 4.33).toFixed(1)}g por estudante</p>
+            {formData.gramagemPorEstudante > 0 &&
+              formData.frequenciaSemanal > 0 && (
+                <div className="mt-4 p-4 bg-muted rounded-lg">
+                  <h4 className="font-medium mb-2">Cálculo Estimado</h4>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>
+                      Consumo diário: {formData.gramagemPorEstudante}g por
+                      estudante
+                    </p>
+                    <p>
+                      Consumo semanal:{" "}
+                      {(
+                        formData.gramagemPorEstudante *
+                        formData.frequenciaSemanal
+                      ).toFixed(1)}
+                      g por estudante
+                    </p>
+                    <p>
+                      Consumo mensal:{" "}
+                      {(
+                        formData.gramagemPorEstudante *
+                        formData.frequenciaSemanal *
+                        4.33
+                      ).toFixed(1)}
+                      g por estudante
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={isSubmitting}
+          >
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
@@ -355,7 +418,9 @@ export default function Percapita() {
       setIsLoading(true);
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita?q=${debouncedSearchTerm}`
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/percapita?q=${debouncedSearchTerm}`
         );
         if (!response.ok) throw new Error("Falha ao buscar percápitas");
         const data = await response.json();
@@ -375,13 +440,19 @@ export default function Percapita() {
   }, [debouncedSearchTerm, refreshKey, toast]);
 
   const handleDelete = async (id: string, itemNome: string) => {
-    if (!confirm(`Tem certeza que deseja deletar a percápita do item ${itemNome}?`)) {
+    if (
+      !confirm(
+        `Tem certeza que deseja deletar a percápita do item ${itemNome}?`
+      )
+    ) {
       return;
     }
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${id}`,
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/percapita/${id}`,
         { method: "DELETE" }
       );
 
@@ -398,14 +469,17 @@ export default function Percapita() {
     } catch (error) {
       toast({
         title: "Erro",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     }
   };
 
   const getCategoriaColor = (categoria: string) => {
-    return categoria === "creche" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800";
+    return categoria === "creche"
+      ? "bg-blue-100 text-blue-800"
+      : "bg-green-100 text-green-800";
   };
 
   return (
@@ -452,7 +526,9 @@ export default function Percapita() {
           {percapitas.length === 0 && !isLoading ? (
             <div className="text-center py-8">
               <Calculator className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium">Nenhuma percápita encontrada</h3>
+              <h3 className="text-lg font-medium">
+                Nenhuma percápita encontrada
+              </h3>
               <p className="text-muted-foreground">
                 {searchTerm
                   ? "Tente ajustar os filtros de busca"
@@ -488,14 +564,20 @@ export default function Percapita() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-mono text-sm">{percapita.itemContrato.contrato.numero}</p>
+                        <p className="font-mono text-sm">
+                          {percapita.itemContrato.contrato.numero}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {percapita.itemContrato.contrato.fornecedor.nome}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getCategoriaColor(percapita.tipoEstudante.categoria)}>
+                      <Badge
+                        className={getCategoriaColor(
+                          percapita.tipoEstudante.categoria
+                        )}
+                      >
                         {percapita.tipoEstudante.nome}
                       </Badge>
                     </TableCell>
@@ -512,20 +594,34 @@ export default function Percapita() {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">
-                      {(percapita.gramagemPorEstudante * percapita.frequenciaSemanal).toFixed(1)}g
+                      {(
+                        percapita.gramagemPorEstudante *
+                        percapita.frequenciaSemanal
+                      ).toFixed(1)}
+                      g
                     </TableCell>
                     <TableCell>
-                      <Badge variant={percapita.ativo ? "default" : "secondary"}>
+                      <Badge
+                        variant={percapita.ativo ? "default" : "secondary"}
+                      >
                         {percapita.ativo ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <PercapitaDialog percapita={percapita} onSuccess={handleSuccess} />
+                        <PercapitaDialog
+                          percapita={percapita}
+                          onSuccess={handleSuccess}
+                        />
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDelete(percapita.id, percapita.itemContrato.nome)}
+                          onClick={() =>
+                            handleDelete(
+                              percapita.id,
+                              percapita.itemContrato.nome
+                            )
+                          }
                           className="text-destructive hover:text-destructive"
                         >
                           Deletar
