@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction  } from "express";
 import cors from "cors";
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -13,14 +13,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
-// Middleware para autenticação
+// Interface estendida para incluir userId no request
 interface AuthenticatedRequest extends Request {
   userId?: string;
 }
 
-const authenticateToken = (req: AuthenticatedRequest, res: Response, next: any) => {
+// Define a tipagem esperada do payload JWT
+interface JwtPayload {
+  userId: string;
+}
+
+// Middleware para autenticação com tipagem correta
+const authenticateToken = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -28,15 +39,24 @@ const authenticateToken = (req: AuthenticatedRequest, res: Response, next: any) 
     return res.status(401).json({ error: "Token de acesso requerido" });
   }
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) {
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err || !decoded || typeof decoded !== 'object' || !('userId' in decoded)) {
       return res.status(403).json({ error: "Token inválido" });
     }
-    req.userId = user.userId;
+
+    const { userId } = decoded as JwtPayload;
+    req.userId = userId;
     next();
   });
 };
 
+interface DadosAtualizacaoUsuario {
+  nome?: string;
+  email?: string;
+  senha?: string;
+  categoria?: string;
+  ativo?: boolean;
+}
 // --- ROTAS DE AUTENTICAÇÃO ---
 
 // Login
@@ -208,7 +228,7 @@ app.put("/api/usuarios/:id", authenticateToken, async (req: Request, res: Respon
   const { nome, email, senha, categoria, ativo } = req.body;
   
   try {
-    const dadosAtualizacao: any = { nome, email, categoria, ativo };
+    const dadosAtualizacao: DadosAtualizacaoUsuario  = { nome, email, categoria, ativo };
     
     if (senha) {
       dadosAtualizacao.senha = await bcrypt.hash(senha, 10);
