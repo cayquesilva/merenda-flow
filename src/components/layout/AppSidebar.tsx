@@ -143,10 +143,10 @@ export function AppSidebar() {
       <SidebarContent className="gap-0">
         {!collapsed && (
           <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold text-foreground tracking-tight">
+            <h2 className="text-lg font-semibold text-sidebar-foreground tracking-tight">
               Sistema Merenda
             </h2>
-            <p className="text-sm text-foreground/70">Gestão de Contratos</p>
+            <p className="text-sm text-sidebar-foreground/70">Gestão de Contratos</p>
           </div>
         )}
 
@@ -165,7 +165,7 @@ export function AppSidebar() {
                 >
                   <span
                     className={
-                      hasActiveItem ? "text-foreground/90 font-medium" : ""
+                      hasActiveItem ? "text-sidebar-foreground/90 font-medium" : ""
                     }
                   >
                     {section.group}
