@@ -1,5 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const bcrypt = require("bcryptjs");
 
 async function main() {
   console.log("Iniciando o processo de seeding...");
@@ -30,9 +31,30 @@ async function main() {
   });
   console.log("Unidades de medida criadas.");
 
+  try {
+    const senhaHash = await bcrypt.hash("admin123", 10);
+
+    const admin = await prisma.usuario.upsert({
+      where: { email: "admin@sistema.gov.br" },
+      update: {}, // nada se já existir
+      create: {
+        nome: "Administrador",
+        email: "admin@sistema.gov.br",
+        senha: senhaHash,
+        categoria: "administracao_tecnica",
+        ativo: true,
+      },
+    });
+
+    console.log("Usuário administrador criado ou já existente:", admin.email);
+  } catch (error) {
+    console.error("Erro ao criar administrador:", error);
+  } finally {
+    await prisma.$disconnect();
+  }
+
   console.log("Seeding finalizado com sucesso!");
 }
-
 main()
   .catch((e) => {
     console.error(e);

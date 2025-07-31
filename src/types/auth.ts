@@ -7,7 +7,10 @@ export interface User {
   createdAt: string;
 }
 
-export type UserCategory = 'administracao_tecnica' | 'gerencia_nutricao' | 'comissao_recebimento';
+export type UserCategory =
+  | "administracao_tecnica"
+  | "gerencia_nutricao"
+  | "comissao_recebimento";
 
 export interface Permission {
   module: string;
@@ -18,41 +21,100 @@ export interface UserPermissions {
   [key: string]: Permission;
 }
 
-export const USER_CATEGORIES = {
+export type ModuleName =
+  | "dashboard"
+  | "contratos"
+  | "fornecedores"
+  | "unidades"
+  | "pedidos"
+  | "recibos"
+  | "confirmacoes"
+  | "estoque"
+  | "relatorios"
+  | "usuarios";
+
+export type ModuleAction = "create" | "update" | "read" | "write" | "delete"; // ou qualquer outro conjunto que você usa
+
+export interface ModulePermission {
+  module: ModuleName;
+  actions: ModuleAction[];
+}
+
+export interface CategoryPermissions {
+  label: string;
+  permissions: Partial<Record<ModuleName, ModulePermission>>;
+}
+
+export const USER_CATEGORIES: Partial<
+  Record<UserCategory, CategoryPermissions>
+> = {
   administracao_tecnica: {
-    label: 'Administração Técnica',
+    label: "Administração Técnica",
     permissions: {
-      dashboard: { module: 'dashboard', actions: ['read'] },
-      contratos: { module: 'contratos', actions: ['read', 'create', 'update', 'delete'] },
-      fornecedores: { module: 'fornecedores', actions: ['read', 'create', 'update', 'delete'] },
-      unidades: { module: 'unidades', actions: ['read', 'create', 'update', 'delete'] },
-      pedidos: { module: 'pedidos', actions: ['read', 'create', 'update', 'delete'] },
-      recibos: { module: 'recibos', actions: ['read', 'create', 'update', 'delete'] },
-      confirmacoes: { module: 'confirmacoes', actions: ['read', 'create', 'update', 'delete'] },
-      estoque: { module: 'estoque', actions: ['read', 'create', 'update', 'delete'] },
-      relatorios: { module: 'relatorios', actions: ['read', 'create', 'update', 'delete'] },
-      usuarios: { module: 'usuarios', actions: ['read', 'create', 'update', 'delete'] }
-    }
+      dashboard: { module: "dashboard", actions: ["read"] },
+      contratos: {
+        module: "contratos",
+        actions: ["read", "create", "update", "delete"],
+      },
+      fornecedores: {
+        module: "fornecedores",
+        actions: ["read", "create", "update", "delete"],
+      },
+      unidades: {
+        module: "unidades",
+        actions: ["read", "create", "update", "delete"],
+      },
+      pedidos: {
+        module: "pedidos",
+        actions: ["read", "create", "update", "delete"],
+      },
+      recibos: {
+        module: "recibos",
+        actions: ["read", "create", "update", "delete"],
+      },
+      confirmacoes: {
+        module: "confirmacoes",
+        actions: ["read", "create", "update", "delete"],
+      },
+      estoque: {
+        module: "estoque",
+        actions: ["read", "create", "update", "delete"],
+      },
+      relatorios: {
+        module: "relatorios",
+        actions: ["read", "create", "update", "delete"],
+      },
+      usuarios: {
+        module: "usuarios",
+        actions: ["read", "create", "update", "delete"],
+      },
+    },
   },
   gerencia_nutricao: {
-    label: 'Gerência de Nutrição',
+    label: "Gerência de Nutrição",
     permissions: {
-      dashboard: { module: 'dashboard', actions: ['read'] },
-      contratos: { module: 'contratos', actions: ['read', 'create', 'update'] },
-      fornecedores: { module: 'fornecedores', actions: ['read', 'create', 'update'] },
-      unidades: { module: 'unidades', actions: ['read', 'create', 'update'] },
-      pedidos: { module: 'pedidos', actions: ['read', 'create', 'update'] },
-      recibos: { module: 'recibos', actions: ['read', 'create', 'update'] },
-      confirmacoes: { module: 'confirmacoes', actions: ['read'] },
-      estoque: { module: 'estoque', actions: ['read', 'update'] },
-      relatorios: { module: 'relatorios', actions: ['read', 'create'] }
-    }
+      dashboard: { module: "dashboard", actions: ["read"] },
+      contratos: { module: "contratos", actions: ["read", "create", "update"] },
+      fornecedores: {
+        module: "fornecedores",
+        actions: ["read", "create", "update"],
+      },
+      unidades: { module: "unidades", actions: ["read", "create", "update"] },
+      pedidos: { module: "pedidos", actions: ["read", "create", "update"] },
+      recibos: { module: "recibos", actions: ["read", "create", "update"] },
+      confirmacoes: { module: "confirmacoes", actions: ["read"] },
+      estoque: { module: "estoque", actions: ["read", "update"] },
+      relatorios: { module: "relatorios", actions: ["read", "create"] },
+    },
   },
   comissao_recebimento: {
-    label: 'Comissão de Recebimento',
+    label: "Comissão de Recebimento",
     permissions: {
-      confirmacoes: { module: 'confirmacoes', actions: ['read', 'create', 'update'] },
-      estoque: { module: 'estoque', actions: ['read'] }
-    }
-  }
+      confirmacoes: {
+        module: "confirmacoes",
+        actions: ["read", "create", "update"],
+      },
+      estoque: { module: "estoque", actions: ["read"] },
+    },
+  },
 } as const;

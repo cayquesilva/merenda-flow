@@ -31,6 +31,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { ModuleName } from "@/types/auth";
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -153,7 +154,7 @@ export function AppSidebar() {
         {navigationItems.map((section) => {
           const isExpanded = expandedGroups.includes(section.group);
           const hasActiveItem = section.items.some(
-            (item) => isActive(item.url) && canAccessModule(item.module)
+            (item) => isActive(item.url) && canAccessModule(item.module as ModuleName)
           );
 
           return (
@@ -183,7 +184,7 @@ export function AppSidebar() {
                   <SidebarMenu>
                     {section.items.map(
                       (item) =>
-                        canAccessModule(item.module) && (
+                        canAccessModule(item.module as ModuleName) && (
                           <SidebarMenuItem key={item.title}>
                             <SidebarMenuButton asChild>
                               <NavLink

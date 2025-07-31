@@ -1,13 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserCategory, USER_CATEGORIES } from '@/types/auth';
-import { apiService } from '@/services/api';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import {
+  User,
+  USER_CATEGORIES,
+  ModuleName,
+  ModuleAction,
+} from "@/types/auth";
+import { apiService } from "@/services/api";
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  hasPermission: (module: string, action: string) => boolean;
-  canAccessModule: (module: string) => boolean;
+  hasPermission: (module: ModuleName, action: ModuleAction) => boolean;
+  canAccessModule: (module: ModuleName) => boolean;
   isLoading: boolean;
 }
 
@@ -19,14 +24,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (token) {
         try {
           const userData = await apiService.getProfile();
           setUser(userData);
         } catch (error) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
         }
       }
       setIsLoading(false);
@@ -39,14 +44,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       const response = await apiService.login(email, password);
-      
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.usuario));
+
+      localStorage.setItem("token", response.token);
+      localStorage.setItem("user", JSON.stringify(response.usuario));
       setUser(response.usuario);
-      
+
       return true;
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error("Erro no login:", error);
       return false;
     } finally {
       setIsLoading(false);
@@ -55,35 +60,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
   };
 
-  const hasPermission = (module: string, action: string): boolean => {
-    if (!user) return false;
-    
+  const hasPermission = (module: ModuleName, action: ModuleAction): boolean => {
+    if (!user || !USER_CATEGORIES[user.categoria]) return false;
+
     const categoryPermissions = USER_CATEGORIES[user.categoria];
-    const modulePermission = categoryPermissions.permissions[module as keyof typeof categoryPermissions.permissions];
-    
-    return modulePermission?.actions.includes(action as any) || false;
+    const modulePermission = categoryPermissions.permissions[module];
+
+    return modulePermission?.actions.includes(action) || false;
   };
 
-  const canAccessModule = (module: string): boolean => {
-    if (!user) return false;
-    
+  const canAccessModule = (module: ModuleName): boolean => {
+    if (!USER_CATEGORIES[user.categoria]) return false;
+
     const categoryPermissions = USER_CATEGORIES[user.categoria];
     return module in categoryPermissions.permissions;
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      login,
-      logout,
-      hasPermission,
-      canAccessModule,
-      isLoading
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        hasPermission,
+        canAccessModule,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -92,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
