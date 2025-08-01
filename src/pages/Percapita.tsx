@@ -69,8 +69,8 @@ interface PercapitaItemDetalhado extends PercapitaItem {
   tipoEstudante: TipoEstudante;
 }
 
-// NOVO: Interface para o formulário com percápitas agrupadas
-interface PercapitaFormItem {
+// NOVO: Interface para o formulário de criação em lote
+interface PercapitaCreateFormItem {
   tipoEstudanteId: string;
   gramagemPorEstudante: number;
   frequenciaMensal: number;
@@ -79,26 +79,18 @@ interface PercapitaFormItem {
   tipoEstudanteCategoria: string;
 }
 
-interface PercapitaDialogProps {
-  percapita?: PercapitaItemDetalhado; // Agora opcional, pois o modal pode ser para criação ou edição
+interface PercapitaCreateDialogProps {
   onSuccess: () => void;
-  onDelete?: () => void;
 }
 
-function PercapitaDialog({
-  percapita,
-  onSuccess,
-  onDelete,
-}: PercapitaDialogProps) {
+// NOVO: Componente de diálogo para CRIAR percápitas
+export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
-  const isEdicao = !!percapita;
-
-  // NOVO: Estado para os dados do formulário
   const [formData, setFormData] = useState({
     itemContratoId: "",
-    percapitas: [] as PercapitaFormItem[],
+    percapitas: [] as PercapitaCreateFormItem[],
   });
 
   const [itensContrato, setItensContrato] = useState<ItemContratoDetalhado[]>(
@@ -135,42 +127,19 @@ function PercapitaDialog({
 
           setItensContrato(itens);
           setTiposEstudante(tipos);
+          
+          setFormData({
+            itemContratoId: "",
+            percapitas: tipos.map((tipo: TipoEstudante) => ({
+              tipoEstudanteId: tipo.id,
+              gramagemPorEstudante: 0,
+              frequenciaMensal: 5,
+              ativo: true,
+              tipoEstudanteNome: tipo.nome,
+              tipoEstudanteCategoria: tipo.categoria,
+            })),
+          });
 
-          if (isEdicao && percapita) {
-            // Lógica de edição para carregar uma percápita existente
-            // A sua lógica original estava por item, mas a nova lógica é por conjunto
-            // Para edição, a gente só pode editar uma por vez.
-            setFormData({
-              itemContratoId: percapita.itemContratoId,
-              percapitas: tipos.map((tipo: TipoEstudante) => {
-                // Encontra a percápita correspondente ou usa valores padrão
-                const percapitaExistente = percapita.itemContrato.percapitas?.find(
-                  (p) => p.tipoEstudanteId === tipo.id
-                );
-                return {
-                  tipoEstudanteId: tipo.id,
-                  gramagemPorEstudante: percapitaExistente?.gramagemPorEstudante || 0,
-                  frequenciaMensal: percapitaExistente?.frequenciaMensal || 5,
-                  ativo: percapitaExistente?.ativo ?? true,
-                  tipoEstudanteNome: tipo.nome,
-                  tipoEstudanteCategoria: tipo.categoria,
-                };
-              }),
-            });
-          } else {
-            // Lógica para criação
-            setFormData({
-              itemContratoId: "",
-              percapitas: tipos.map((tipo: TipoEstudante) => ({
-                tipoEstudanteId: tipo.id,
-                gramagemPorEstudante: 0,
-                frequenciaMensal: 5,
-                ativo: true,
-                tipoEstudanteNome: tipo.nome,
-                tipoEstudanteCategoria: tipo.categoria,
-              })),
-            });
-          }
         } catch (error) {
           toast({
             title: "Erro",
@@ -184,12 +153,11 @@ function PercapitaDialog({
       };
       fetchData();
     }
-  }, [open, percapita, isEdicao, toast]);
+  }, [open, toast]);
 
-  // NOVO: Manipulador de mudança para os campos de percápita
   const handlePercapitaChange = (
-    index: number,
-    field: keyof PercapitaFormItem,
+    index: number, 
+    field: keyof PercapitaCreateFormItem, 
     value: string | number | boolean
   ) => {
     setFormData((prev) => {
@@ -209,12 +177,11 @@ function PercapitaDialog({
       return;
     }
     
-    // Filtra apenas as percápitas com gramagem > 0 para enviar ao backend
     const percápitasValidas = formData.percapitas.filter(p => p.gramagemPorEstudante > 0);
     if (percápitasValidas.length === 0) {
       toast({
         title: "Erro",
-        description: "Preencha a gramagem para pelo menos um tipo de estudante.",
+        description: "Preencha a gramagem para pelo menos um tipo de preparação.",
         variant: "destructive",
       });
       return;
@@ -222,7 +189,7 @@ function PercapitaDialog({
 
     setIsSubmitting(true);
     try {
-      const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/create-batch`; // Nova rota para criação em lote
+      const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/create-batch`;
       const method = "POST";
       
       const payload = {
@@ -276,30 +243,18 @@ function PercapitaDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {isEdicao ? (
-          <Button
-            variant={isEdicao ? "outline" : "default"}
-            size={isEdicao ? "sm" : "default"}
-          >
-            <Edit className="h-3 w-3" />
-            Editar
-          </Button>
-        ) : (
-          <Button variant="default">
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Percápita
-          </Button>
-        )}
+        <Button variant="default">
+          <Plus className="mr-2 h-4 w-4" />
+          Nova Percápita
+        </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto"> {/* Ajustado para altura máxima e rolagem */}
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
-            {isEdicao ? "Editar Percápita" : "Nova Percápita"}
+            Nova Percápita
           </DialogTitle>
           <DialogDescription>
-            {isEdicao
-              ? "Edite as informações da percápita"
-              : "Configure a percápita de consumo por tipo de preparação"}
+            Configure a percápita de consumo por tipo de estudante
           </DialogDescription>
         </DialogHeader>
 
@@ -317,7 +272,7 @@ function PercapitaDialog({
                   onValueChange={(value) =>
                     setFormData({ ...formData, itemContratoId: value })
                   }
-                  disabled={isSubmitting || isEdicao}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um item" />
@@ -333,7 +288,6 @@ function PercapitaDialog({
               </div>
             </div>
             
-            {/* NOVO: Bloco para inserir percápita por tipo de estudante */}
             {formData.itemContratoId && (
                 <Card>
                     <CardHeader>
@@ -416,12 +370,152 @@ function PercapitaDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEdicao ? "Atualizar" : "Cadastrar"}
+            Cadastrar
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+interface PercapitaEditDialogProps {
+    percapita: PercapitaItemDetalhado;
+    onSuccess: () => void;
+}
+
+// NOVO: Componente de diálogo para EDITAR uma única percápita
+export function PercapitaEditDialog({ percapita, onSuccess }: PercapitaEditDialogProps) {
+    const [open, setOpen] = useState(false);
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        gramagemPorEstudante: percapita.gramagemPorEstudante,
+        frequenciaMensal: percapita.frequenciaMensal,
+        ativo: percapita.ativo,
+    });
+
+    const handleSubmit = async () => {
+      if (formData.gramagemPorEstudante <= 0 || formData.frequenciaMensal <= 0) {
+        toast({
+          title: "Erro",
+          description: "Preencha todos os campos corretamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+  
+      setIsSubmitting(true);
+      try {
+        const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${percapita.id}`;
+        const method = "PUT";
+  
+        const response = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+  
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Falha ao salvar percápita.");
+        }
+  
+        toast({
+          title: "Sucesso!",
+          description: "Percápita atualizada com sucesso.",
+        });
+  
+        setOpen(false);
+        onSuccess();
+      } catch (error) {
+        toast({
+          title: "Erro",
+          description:
+            error instanceof Error ? error.message : "Erro desconhecido",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Edit className="h-3 w-3" />
+                    Editar
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-popover-foreground">
+                        Editar Percápita
+                    </DialogTitle>
+                    <DialogDescription>
+                        Edite a percápita para o item{" "}
+                        <span className="font-semibold">{percapita.itemContrato.nome}</span>
+                        {" "}do estudante{" "}
+                        <span className="font-semibold">{percapita.tipoEstudante.nome}</span>.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-4 py-4">
+                    <div>
+                        <Label htmlFor="gramagem">Gramagem por Estudante (g) *</Label>
+                        <Input
+                            id="gramagem"
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={formData.gramagemPorEstudante}
+                            onChange={(e) =>
+                                setFormData({ ...formData, gramagemPorEstudante: parseFloat(e.target.value) || 0 })
+                            }
+                            placeholder="0.0"
+                            disabled={isSubmitting}
+                        />
+                    </div>
+                    <div>
+                        <Label htmlFor="frequencia">Frequência Mensal *</Label>
+                        <Input
+                            id="frequencia"
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={formData.frequenciaMensal}
+                            onChange={(e) =>
+                                setFormData({ ...formData, frequenciaMensal: parseInt(e.target.value) || 0 })
+                            }
+                            placeholder="5"
+                            disabled={isSubmitting}
+                        />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Switch
+                            id="ativo"
+                            checked={formData.ativo}
+                            onCheckedChange={(checked) =>
+                                setFormData({ ...formData, ativo: checked })
+                            }
+                            disabled={isSubmitting}
+                        />
+                        <Label htmlFor="ativo">Percápita ativa</Label>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>
+                        Cancelar
+                    </Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Atualizar
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 function useDebounce(value: string, delay: number) {
@@ -440,6 +534,8 @@ export default function Percapita() {
   const [percapitas, setPercapitas] = useState<PercapitaItemDetalhado[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [percapitaToDelete, setPercapitaToDelete] = useState<{ id: string; nome: string } | null>(null);
 
   const handleSuccess = () => {
     setRefreshKey((prev) => prev + 1);
@@ -471,14 +567,12 @@ export default function Percapita() {
     fetchPercapitas();
   }, [debouncedSearchTerm, refreshKey, toast]);
 
-  const handleDelete = async (id: string, itemNome: string) => {
-    if (!confirm(`Tem certeza que deseja deletar a percápita do item ${itemNome}?`)) {
-      return;
-    }
-
+  const handleDelete = async () => {
+    if (!percapitaToDelete) return;
+    
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${id}`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${percapitaToDelete.id}`,
         { method: "DELETE" }
       );
 
@@ -489,8 +583,10 @@ export default function Percapita() {
 
       toast({
         title: "Percápita deletada!",
-        description: `Percápita do item ${itemNome} foi removida com sucesso`,
+        description: `Percápita do item ${percapitaToDelete.nome} foi removida com sucesso`,
       });
+      setIsDeleteDialogOpen(false); // Fecha o modal após o sucesso
+      setPercapitaToDelete(null); // Limpa o estado
       handleSuccess();
     } catch (error) {
       toast({
@@ -499,7 +595,13 @@ export default function Percapita() {
           error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
+      setIsDeleteDialogOpen(false); // Fecha o modal mesmo em caso de erro
     }
+  };
+
+  const handleOpenDeleteDialog = (id: string, itemNome: string) => {
+    setPercapitaToDelete({ id, nome: itemNome });
+    setIsDeleteDialogOpen(true);
   };
 
   const getCategoriaColor = (categoria: string) => {
@@ -516,10 +618,10 @@ export default function Percapita() {
             Percápita de Estudantes
           </h2>
           <p className="text-muted-foreground">
-            Configure a gramagem e frequência de consumo por tipo de estudante
+            Configure a gramagem e frequência de consumo por tipo de preparação
           </p>
         </div>
-        <PercapitaDialog onSuccess={handleSuccess} />
+        <PercapitaCreateDialog onSuccess={handleSuccess} />
       </div>
 
       {/* Filtros */}
@@ -531,7 +633,7 @@ export default function Percapita() {
           <div className="flex items-center space-x-2">
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por item ou tipo de estudante..."
+              placeholder="Buscar por item ou tipo de preparação..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
@@ -633,9 +735,9 @@ export default function Percapita() {
                         {percapita.ativo ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <PercapitaDialog
+                    <TableCell className="text-right">
+                      <div className="flex items-center gap-2 justify-end">
+                        <PercapitaEditDialog
                           percapita={percapita}
                           onSuccess={handleSuccess}
                         />
@@ -643,7 +745,7 @@ export default function Percapita() {
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            handleDelete(
+                            handleOpenDeleteDialog(
                               percapita.id,
                               percapita.itemContrato.nome
                             )
@@ -662,6 +764,27 @@ export default function Percapita() {
           )}
         </CardContent>
       </Card>
+      {/* NOVO: Modal de Confirmação de Exclusão */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmação de Exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja deletar a percápita do item{" "}
+              <span className="font-bold">{percapitaToDelete?.nome}</span>?
+              Essa ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Deletar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
