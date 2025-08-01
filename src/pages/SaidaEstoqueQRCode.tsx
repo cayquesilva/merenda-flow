@@ -197,7 +197,7 @@ export default function SaidaEstoqueQRCode() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 ">
       <Card className="w-full max-w-md text-center shadow-lg rounded-lg">
         <CardHeader className="bg-primary text-primary-foreground rounded-t-lg p-6">
           <CardTitle className="text-3xl font-extrabold flex items-center justify-center gap-3">

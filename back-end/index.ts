@@ -837,10 +837,7 @@ app.post("/api/pedidos", async (req: Request, res: Response) => {
   ).slice(-6)}`;
 
   try {
-    // Usa uma transação para garantir que todas as operações (criar pedido, criar itens, atualizar saldos)
-    // sejam bem-sucedidas ou nenhuma delas seja aplicada.
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Criar o registo principal do Pedido.
       const novoPedido = await tx.pedido.create({
         data: {
           numero: numeroPedido,
@@ -852,9 +849,7 @@ app.post("/api/pedidos", async (req: Request, res: Response) => {
         },
       });
 
-      // 2. Iterar sobre os itens enviados pelo frontend.
       for (const item of itens) {
-        // 2a. Criar o registo do ItemPedido, ligando-o ao pedido principal.
         await tx.itemPedido.create({
           data: {
             pedidoId: novoPedido.id,
@@ -864,10 +859,25 @@ app.post("/api/pedidos", async (req: Request, res: Response) => {
           },
         });
 
-        // 2b. Atualizar (decrementar) o saldo do item correspondente no contrato.
+        // NOVO: Busca a unidade para determinar o tipo de estoque
+        const unidade = await tx.unidadeEducacional.findUnique({
+          where: { id: item.unidadeEducacionalId },
+        });
+        if (!unidade) throw new Error("Unidade educacional não encontrada.");
+
+        const isCreche =
+          (unidade.estudantesBercario || 0) > 0 ||
+          (unidade.estudantesMaternal || 0) > 0;
+        const campoSaldoAjustar = isCreche ? "saldoCreche" : "saldoEscola";
+
+        // NOVO: Atualiza os saldos de forma segregada no ItemContrato
         await tx.itemContrato.update({
           where: { id: item.itemContratoId },
           data: {
+            [campoSaldoAjustar]: {
+              decrement: item.quantidade,
+            },
+            // Também decrementa o saldo geral para manter a consistência
             saldoAtual: {
               decrement: item.quantidade,
             },
@@ -2588,7 +2598,7 @@ app.get(
 
 /// --- ROTAS DE PERCAPITA --- ///
 
-// COMENTÁRIO: NOVA ROTA: Retorna uma lista de ItemContrato ativos para o formulário de Percápita
+// COMENTÁRIO: Retorna uma lista de ItemContrato ativos para o formulário de Percápita
 app.get(
   "/api/percapita/itens-contrato-ativos",
   async (req: Request, res: Response) => {
@@ -2729,6 +2739,59 @@ app.get("/api/tipos-estudante", async (req: Request, res: Response) => {
     res
       .status(500)
       .json({ error: "Não foi possível buscar os tipos de estudante." });
+  }
+});
+
+// NOVO: Rota para criar percápitas em lote
+app.post("/api/percapita/create-batch", async (req: Request, res: Response) => {
+  const { itemContratoId, percapitas } = req.body;
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Primeiro, deleta as percápitas existentes para o item de contrato,
+      // para evitar duplicatas e lidar com o "upsert" de forma mais simples
+      await tx.percapitaItem.deleteMany({
+        where: {
+          itemContratoId: itemContratoId,
+        },
+      });
+
+      // Defina a interface para o objeto percápita
+      interface PercapitaInput {
+        tipoEstudanteId: string;
+        gramagemPorEstudante: number;
+        frequenciaMensal: number;
+        ativo: boolean;
+      }
+
+      // Em seguida, cria os novos registros
+      const novasPercapitas = await tx.percapitaItem.createMany({
+        data: (percapitas as PercapitaInput[]).map((p) => ({
+          itemContratoId,
+          tipoEstudanteId: p.tipoEstudanteId,
+          gramagemPorEstudante: p.gramagemPorEstudante,
+          frequenciaMensal: p.frequenciaMensal,
+          ativo: p.ativo,
+        })),
+        skipDuplicates: true, // Garante que não haja duplicatas
+      });
+      return novasPercapitas;
+    });
+
+    res.status(201).json({
+      message: `Foram cadastradas ${result.count} percápita(s) com sucesso.`,
+    });
+  } catch (error) {
+    console.error("Erro ao criar percápita em lote:", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return res
+          .status(409)
+          .json({
+            error: "Uma percápita para este tipo de estudante já existe.",
+          });
+      }
+    }
+    res.status(500).json({ error: "Não foi possível criar as percápitas." });
   }
 });
 

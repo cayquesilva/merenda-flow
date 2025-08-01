@@ -63,6 +63,12 @@ interface UnidadeEducacionalConfirmacaoBackend {
   telefone: string;
   email: string;
   ativo: boolean;
+  // NOVO: Adiciona a contagem de estudantes
+  estudantesBercario: number;
+  estudantesMaternal: number;
+  estudantesRegular: number;
+  estudantesIntegral: number;
+  estudantesEja: number;
 }
 
 // Representa a estrutura do Pedido retornado pela API (com 'select' limitado)
@@ -279,8 +285,7 @@ export default function ConfirmacaoRecebimento() {
       if (!response.ok) throw new Error(data.error || "Falha ao confirmar.");
 
       toast({ title: "Recebimento confirmado!", description: data.message });
-      //navigate(`/recibos/imprimir/${recibo?.id}`); // Redireciona para a página de impressão
-      navigate(`/recibos`);
+      navigate(`/recibos`); // Redireciona para a página de recibos
     } catch (err) {
       toast({
         title: "Erro",

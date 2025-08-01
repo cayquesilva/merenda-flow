@@ -69,8 +69,18 @@ interface PercapitaItemDetalhado extends PercapitaItem {
   tipoEstudante: TipoEstudante;
 }
 
+// NOVO: Interface para o formulário com percápitas agrupadas
+interface PercapitaFormItem {
+  tipoEstudanteId: string;
+  gramagemPorEstudante: number;
+  frequenciaMensal: number;
+  ativo: boolean;
+  tipoEstudanteNome: string;
+  tipoEstudanteCategoria: string;
+}
+
 interface PercapitaDialogProps {
-  percapita?: PercapitaItemDetalhado;
+  percapita?: PercapitaItemDetalhado; // Agora opcional, pois o modal pode ser para criação ou edição
   onSuccess: () => void;
   onDelete?: () => void;
 }
@@ -81,29 +91,28 @@ function PercapitaDialog({
   onDelete,
 }: PercapitaDialogProps) {
   const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+
+  const isEdicao = !!percapita;
+
+  // NOVO: Estado para os dados do formulário
   const [formData, setFormData] = useState({
     itemContratoId: "",
-    tipoEstudanteId: "",
-    gramagemPorEstudante: 0,
-    frequenciaMensal: 0,
-    ativo: true,
+    percapitas: [] as PercapitaFormItem[],
   });
+
   const [itensContrato, setItensContrato] = useState<ItemContratoDetalhado[]>(
     []
   );
   const [tiposEstudante, setTiposEstudante] = useState<TipoEstudante[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-
-  const isEdicao = !!percapita;
 
   useEffect(() => {
     if (open) {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          // Busca os dados de suporte (itens de contrato e tipos de estudante) em paralelo.
           const [itensRes, tiposRes] = await Promise.all([
             fetch(
               `${
@@ -121,16 +130,45 @@ function PercapitaDialog({
             throw new Error("Falha ao carregar dados do formulário");
           }
 
-          setItensContrato(await itensRes.json());
-          setTiposEstudante(await tiposRes.json());
+          const itens = await itensRes.json();
+          const tipos = await tiposRes.json();
+
+          setItensContrato(itens);
+          setTiposEstudante(tipos);
 
           if (isEdicao && percapita) {
+            // Lógica de edição para carregar uma percápita existente
+            // A sua lógica original estava por item, mas a nova lógica é por conjunto
+            // Para edição, a gente só pode editar uma por vez.
             setFormData({
               itemContratoId: percapita.itemContratoId,
-              tipoEstudanteId: percapita.tipoEstudanteId,
-              gramagemPorEstudante: percapita.gramagemPorEstudante,
-              frequenciaMensal: percapita.frequenciaMensal,
-              ativo: percapita.ativo,
+              percapitas: tipos.map((tipo: TipoEstudante) => {
+                // Encontra a percápita correspondente ou usa valores padrão
+                const percapitaExistente = percapita.itemContrato.percapitas?.find(
+                  (p) => p.tipoEstudanteId === tipo.id
+                );
+                return {
+                  tipoEstudanteId: tipo.id,
+                  gramagemPorEstudante: percapitaExistente?.gramagemPorEstudante || 0,
+                  frequenciaMensal: percapitaExistente?.frequenciaMensal || 5,
+                  ativo: percapitaExistente?.ativo ?? true,
+                  tipoEstudanteNome: tipo.nome,
+                  tipoEstudanteCategoria: tipo.categoria,
+                };
+              }),
+            });
+          } else {
+            // Lógica para criação
+            setFormData({
+              itemContratoId: "",
+              percapitas: tipos.map((tipo: TipoEstudante) => ({
+                tipoEstudanteId: tipo.id,
+                gramagemPorEstudante: 0,
+                frequenciaMensal: 5,
+                ativo: true,
+                tipoEstudanteNome: tipo.nome,
+                tipoEstudanteCategoria: tipo.categoria,
+              })),
             });
           }
         } catch (error) {
@@ -145,28 +183,38 @@ function PercapitaDialog({
         }
       };
       fetchData();
-    } else {
-      // Reseta o formulário quando o modal é fechado
-      setFormData({
-        itemContratoId: "",
-        tipoEstudanteId: "",
-        gramagemPorEstudante: 0,
-        frequenciaMensal: 5,
-        ativo: true,
-      });
     }
   }, [open, percapita, isEdicao, toast]);
 
+  // NOVO: Manipulador de mudança para os campos de percápita
+  const handlePercapitaChange = (
+    index: number,
+    field: keyof PercapitaFormItem,
+    value: string | number | boolean
+  ) => {
+    setFormData((prev) => {
+      const novasPercapitas = [...prev.percapitas];
+      novasPercapitas[index] = { ...novasPercapitas[index], [field]: value };
+      return { ...prev, percapitas: novasPercapitas };
+    });
+  };
+
   const handleSubmit = async () => {
-    if (
-      !formData.itemContratoId ||
-      !formData.tipoEstudanteId ||
-      formData.gramagemPorEstudante <= 0 ||
-      formData.frequenciaMensal <= 0
-    ) {
+    if (!formData.itemContratoId) {
       toast({
-        title: "Campos Obrigatórios",
-        description: "Por favor, preencha todos os campos corretamente.",
+        title: "Erro",
+        description: "Selecione um item de contrato",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Filtra apenas as percápitas com gramagem > 0 para enviar ao backend
+    const percápitasValidas = formData.percapitas.filter(p => p.gramagemPorEstudante > 0);
+    if (percápitasValidas.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Preencha a gramagem para pelo menos um tipo de estudante.",
         variant: "destructive",
       });
       return;
@@ -174,32 +222,33 @@ function PercapitaDialog({
 
     setIsSubmitting(true);
     try {
-      const url = isEdicao
-        ? `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/percapita/${percapita!.id}`
-        : `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/percapita`;
-
-      const method = isEdicao ? "PUT" : "POST";
+      const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/create-batch`; // Nova rota para criação em lote
+      const method = "POST";
+      
+      const payload = {
+          itemContratoId: formData.itemContratoId,
+          percapitas: percápitasValidas.map(p => ({
+              tipoEstudanteId: p.tipoEstudanteId,
+              gramagemPorEstudante: p.gramagemPorEstudante,
+              frequenciaMensal: p.frequenciaMensal,
+              ativo: p.ativo,
+          }))
+      };
 
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao salvar percápita");
+        throw new Error(errorData.error || "Falha ao salvar percápitas em lote.");
       }
 
       toast({
         title: "Sucesso!",
-        description: `Percápita ${
-          isEdicao ? "atualizada" : "cadastrada"
-        } com sucesso`,
+        description: "Percápitas cadastradas com sucesso.",
       });
 
       setOpen(false);
@@ -216,46 +265,13 @@ function PercapitaDialog({
     }
   };
 
-  const handleDelete = async () => {
-    if (
-      !percapita ||
-      !window.confirm(
-        `Tem certeza que deseja deletar a percápita do item ${percapita.itemContrato.nome} para ${percapita.tipoEstudante.nome}?`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/percapita/${percapita.id}`,
-        { method: "DELETE" }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao deletar percápita");
-      }
-
-      toast({
-        title: "Percápita deletada!",
-        description: `Percápita do item ${percapita.itemContrato.nome} foi removida com sucesso`,
-      });
-      setOpen(false);
-      if (onDelete) {
-        onDelete();
-      }
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description:
-          error instanceof Error ? error.message : "Erro desconhecido",
-        variant: "destructive",
-      });
-    }
+  const getCategoriaColor = (categoria: string) => {
+    return categoria === "creche"
+      ? "bg-blue-100 text-blue-800"
+      : "bg-green-100 text-green-800";
   };
+  
+  const selectedItemContrato = itensContrato.find(i => i.id === formData.itemContratoId);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -275,7 +291,7 @@ function PercapitaDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
             {isEdicao ? "Editar Percápita" : "Nova Percápita"}
@@ -294,7 +310,7 @@ function PercapitaDialog({
         ) : (
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="col-span-1 md:col-span-2">
                 <Label htmlFor="itemContrato">Item do Contrato *</Label>
                 <Select
                   value={formData.itemContratoId}
@@ -315,109 +331,78 @@ function PercapitaDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="tipoEstudante">Tipo de Preparação *</Label>
-                <Select
-                  value={formData.tipoEstudanteId}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, tipoEstudanteId: value })
-                  }
-                  disabled={isSubmitting || isEdicao}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tiposEstudante.map((tipo) => (
-                      <SelectItem key={tipo.id} value={tipo.id}>
-                        {tipo.nome} ({tipo.categoria})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="gramagem">Gramagem por Estudante (g) *</Label>
-                <Input
-                  id="gramagem"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={formData.gramagemPorEstudante}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      gramagemPorEstudante: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="0.0"
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="frequencia">Frequência Mensal *</Label>
-                <Input
-                  id="frequencia"
-                  type="number"
-                  min="1"
-                  max="7"
-                  value={formData.frequenciaMensal}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      frequenciaMensal: parseInt(e.target.value) || 5,
-                    })
-                  }
-                  placeholder="5"
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="ativo"
-                checked={formData.ativo}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, ativo: checked })
-                }
-                disabled={isSubmitting}
-              />
-              <Label htmlFor="ativo">Percápita ativa</Label>
-            </div>
-
-            {formData.gramagemPorEstudante > 0 &&
-              formData.frequenciaMensal > 0 && (
-                <div className="mt-4 p-4 bg-muted rounded-lg">
-                  <h4 className="font-medium mb-2">Cálculo Estimado</h4>
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p>
-                      Consumo diário: {formData.gramagemPorEstudante}g por
-                      estudante
-                    </p>
-                    <p>
-                      Consumo semanal:{" "}
-                      {(
-                        formData.gramagemPorEstudante *
-                        formData.frequenciaMensal
-                      ).toFixed(1)}
-                      g por estudante
-                    </p>
-                    <p>
-                      Consumo mensal:{" "}
-                      {(
-                        formData.gramagemPorEstudante *
-                        formData.frequenciaMensal *
-                        4.33
-                      ).toFixed(1)}
-                      g por estudante
-                    </p>
-                  </div>
-                </div>
-              )}
+            
+            {/* NOVO: Bloco para inserir percápita por tipo de estudante */}
+            {formData.itemContratoId && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Calculator className="h-4 w-4" />
+                            Definir Percápita por Estudante
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {formData.percapitas.map((percapita, index) => (
+                                <Card key={percapita.tipoEstudanteId} className="p-4">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h5 className="font-semibold">{percapita.tipoEstudanteNome} ({percapita.tipoEstudanteCategoria})</h5>
+                                        <Badge variant={percapita.ativo ? "default" : "secondary"}>
+                                            {percapita.ativo ? "Ativo" : "Inativo"}
+                                        </Badge>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <Label htmlFor={`gramagem-${percapita.tipoEstudanteId}`}>Gramagem por Estudante (g) *</Label>
+                                            <Input
+                                                id={`gramagem-${percapita.tipoEstudanteId}`}
+                                                type="number"
+                                                min="0"
+                                                step="0.1"
+                                                value={percapita.gramagemPorEstudante}
+                                                onChange={(e) =>
+                                                    handlePercapitaChange(
+                                                        index,
+                                                        "gramagemPorEstudante",
+                                                        parseFloat(e.target.value) || 0
+                                                    )
+                                                }
+                                                placeholder="0.0"
+                                                disabled={isSubmitting}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor={`frequencia-${percapita.tipoEstudanteId}`}>Frequência Mensal *</Label>
+                                            <Input
+                                                id={`frequencia-${percapita.tipoEstudanteId}`}
+                                                type="number"
+                                                min="1"
+                                                max="30"
+                                                value={percapita.frequenciaMensal}
+                                                onChange={(e) =>
+                                                    handlePercapitaChange(
+                                                        index,
+                                                        "frequenciaMensal",
+                                                        parseInt(e.target.value) || 0
+                                                    )
+                                                }
+                                                placeholder="5"
+                                                disabled={isSubmitting}
+                                            />
+                                        </div>
+                                    </div>
+                                    {percapita.gramagemPorEstudante > 0 && percapita.frequenciaMensal > 0 && (
+                                      <p className="text-sm text-muted-foreground mt-2">
+                                        Consumo mensal: {(percapita.gramagemPorEstudante * percapita.frequenciaMensal).toFixed(1)}g
+                                      </p>
+                                    )}
+                                </Card>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
           </div>
         )}
 
@@ -487,19 +472,13 @@ export default function Percapita() {
   }, [debouncedSearchTerm, refreshKey, toast]);
 
   const handleDelete = async (id: string, itemNome: string) => {
-    if (
-      !confirm(
-        `Tem certeza que deseja deletar a percápita do item ${itemNome}?`
-      )
-    ) {
+    if (!confirm(`Tem certeza que deseja deletar a percápita do item ${itemNome}?`)) {
       return;
     }
 
     try {
       const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/percapita/${id}`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${id}`,
         { method: "DELETE" }
       );
 
