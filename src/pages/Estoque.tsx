@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom"; // Importar useNavigate
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -50,9 +50,8 @@ import {
   History,
   BarChart3,
   Loader2,
-  QrCode, // Adicionado para o QR Code
+  QrCode,
 } from "lucide-react";
-// Importar todas as interfaces necessárias do seu arquivo de tipos
 import {
   Contrato,
   Fornecedor,
@@ -73,8 +72,7 @@ interface EstoqueDetalhado {
   ultimaAtualizacao: string;
   createdAt: string;
   updatedAt: string;
-  tipoEstoque: 'creche' | 'escola';
-
+  tipoEstoque: "creche" | "escola"; // Tipo de estoque
   itemContrato: ItemContrato & {
     unidadeMedida: UnidadeMedida;
     contrato: Contrato & {
@@ -108,7 +106,7 @@ interface MovimentacaoEstoqueDetalhada {
   };
   recibo: {
     numero: string;
-  } | null; // Pode ser nulo se não houver recibo associado
+  } | null;
 }
 
 function useDebounce(value: string, delay: number) {
@@ -121,7 +119,7 @@ function useDebounce(value: string, delay: number) {
 }
 
 interface MovimentacaoDialogProps {
-  estoque: EstoqueDetalhado | null; // Usar a interface detalhada
+  estoque: EstoqueDetalhado | null;
   onSuccess: () => void;
 }
 
@@ -232,7 +230,7 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
           </DialogTitle>
           <DialogDescription>
             {estoque &&
-              `${estoque.itemContrato.nome} - ${estoque.unidadeEducacional.nome}`}
+              `${estoque.itemContrato.nome} - ${estoque.unidadeEducacional.nome} (${estoque.tipoEstoque})`}
           </DialogDescription>
         </DialogHeader>
 
@@ -322,6 +320,7 @@ interface QRCodeDialogProps {
   estoqueId: string;
   itemName: string;
   unidadeNome: string;
+  tipoEstoque: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -330,14 +329,12 @@ function QRCodeDialog({
   estoqueId,
   itemName,
   unidadeNome,
+  tipoEstoque,
   open,
   onOpenChange,
 }: QRCodeDialogProps) {
-  // CORREÇÃO: Usar window.location.origin para obter a base URL dinâmica do frontend
   const frontendBaseUrl = window.location.origin;
-  // URL que será codificada no QR Code, levando para a página de saída via QR Code
   const qrcodeDataUrl = `${frontendBaseUrl}/saida-estoque-qrcode/${estoqueId}`;
-  // URL para o serviço de geração de QR Code
   const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
     qrcodeDataUrl
   )}`;
@@ -350,11 +347,14 @@ function QRCodeDialog({
             QR Code para Saída de Estoque
           </DialogTitle>
           <DialogDescription>
-            Escaneie este QR Code para registrar a saída de 1 unidade de:
+            Escaneie este QR Code para registrar a saída de itens.
             <br />
             <span className="font-bold text-primary">{itemName}</span> na
             unidade{" "}
             <span className="font-bold text-primary">{unidadeNome}</span>
+            <Badge variant="secondary" className="ml-2">
+              {tipoEstoque}
+            </Badge>
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-center p-4">
@@ -389,12 +389,13 @@ export default function Estoque() {
   const [busca, setBusca] = useState("");
   const debouncedBusca = useDebounce(busca, 300);
   const [unidadeSelecionada, setUnidadeSelecionada] = useState("todas");
+  const [tipoEstoqueSelecionado, setTipoEstoqueSelecionado] = useState("todos");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const [estoque, setEstoque] = useState<EstoqueDetalhado[]>([]); // Usar a interface detalhada
+  const [estoque, setEstoque] = useState<EstoqueDetalhado[]>([]);
   const [movimentacoes, setMovimentacoes] = useState<
     MovimentacaoEstoqueDetalhada[]
-  >([]); // Usar a interface detalhada
+  >([]);
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -405,8 +406,8 @@ export default function Estoque() {
   });
 
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Estados para o Dialog de QR Code
   const [isQRCodeDialogOpen, setIsQRCodeDialogOpen] = useState(false);
   const [selectedQRCodeEstoque, setSelectedQRCodeEstoque] =
     useState<EstoqueDetalhado | null>(null);
@@ -437,6 +438,8 @@ export default function Estoque() {
         if (debouncedBusca) params.append("q", debouncedBusca);
         if (unidadeSelecionada !== "todas")
           params.append("unidadeId", unidadeSelecionada);
+        if (tipoEstoqueSelecionado !== "todos")
+          params.append("tipoEstoque", tipoEstoqueSelecionado);
 
         const [estoqueRes, movimentacoesRes] = await Promise.all([
           fetch(
@@ -455,14 +458,13 @@ export default function Estoque() {
           throw new Error("Falha ao buscar dados do estoque");
         }
 
-        const estoqueData: EstoqueDetalhado[] = await estoqueRes.json(); // Tipagem aqui
+        const estoqueData: EstoqueDetalhado[] = await estoqueRes.json();
         const movimentacoesData: MovimentacaoEstoqueDetalhada[] =
-          await movimentacoesRes.json(); // Tipagem aqui
+          await movimentacoesRes.json();
 
         setEstoque(estoqueData);
         setMovimentacoes(movimentacoesData);
 
-        // Calcular estatísticas
         const totalItens = estoqueData.length;
         const itensComEstoque = estoqueData.filter(
           (e) => e.quantidadeAtual > 0
@@ -495,7 +497,13 @@ export default function Estoque() {
     };
 
     fetchEstoque();
-  }, [debouncedBusca, unidadeSelecionada, refreshKey, toast]);
+  }, [
+    debouncedBusca,
+    unidadeSelecionada,
+    tipoEstoqueSelecionado,
+    refreshKey,
+    toast,
+  ]);
 
   const handleSuccess = () => {
     setRefreshKey((prev) => prev + 1);
@@ -544,8 +552,6 @@ export default function Estoque() {
     setIsQRCodeDialogOpen(true);
   };
 
-  // Função para navegar para a página do catálogo de QR Codes
-  const navigate = useNavigate(); // Inicializa o hook useNavigate
   const handleNavigateToQRCodeCatalog = () => {
     navigate("/catalogo-qrcode");
   };
@@ -561,7 +567,6 @@ export default function Estoque() {
             Gerencie o estoque de cada unidade educacional
           </p>
         </div>
-        {/* Botão para Gerar Catálogo de QR Codes */}
         <Button onClick={handleNavigateToQRCodeCatalog} variant="outline">
           <QrCode className="mr-2 h-4 w-4" />
           Gerar Catálogo QR
@@ -670,6 +675,22 @@ export default function Estoque() {
                 </SelectContent>
               </Select>
             </div>
+            {/* NOVO: Filtro por tipo de estoque */}
+            <div className="w-full md:w-40">
+              <Select
+                value={tipoEstoqueSelecionado}
+                onValueChange={setTipoEstoqueSelecionado}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Tipo de Estoque" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="creche">Creche</SelectItem>
+                  <SelectItem value="escola">Escola</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -752,8 +773,16 @@ export default function Estoque() {
                           {item.itemContrato.contrato.fornecedor.nome}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={item.tipoEstoque === 'creche' ? 'default' : 'secondary'}>
-                            {item.tipoEstoque === 'creche' ? 'Creche' : 'Escola'}
+                          <Badge
+                            variant={
+                              item.tipoEstoque === "creche"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {item.tipoEstoque === "creche"
+                              ? "Creche"
+                              : "Escola"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -791,7 +820,6 @@ export default function Estoque() {
                               onClick={() => handleGenerateQRCode(item)}
                             >
                               <QrCode className="h-3 w-3" />
-                              {" Gerar QRCode"}
                             </Button>
                           </div>
                         </TableCell>
@@ -903,7 +931,6 @@ export default function Estoque() {
         </TabsContent>
       </Tabs>
 
-      {/* Dialog para exibir o QR Code */}
       {isQRCodeDialogOpen && selectedQRCodeEstoque && (
         <QRCodeDialog
           open={isQRCodeDialogOpen}
@@ -911,6 +938,7 @@ export default function Estoque() {
           estoqueId={selectedQRCodeEstoque.id}
           itemName={selectedQRCodeEstoque.itemContrato.nome}
           unidadeNome={selectedQRCodeEstoque.unidadeEducacional.nome}
+          tipoEstoque={selectedQRCodeEstoque.tipoEstoque}
         />
       )}
     </div>

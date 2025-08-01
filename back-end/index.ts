@@ -1184,19 +1184,7 @@ app.post(
   "/api/recibos/confirmacao/:id",
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const {
-      responsavel,
-      observacoes,
-      itensConfirmacao,
-      assinaturaDigital,
-      fotoReciboAssinado,
-    } = req.body;
-
-    if (!Array.isArray(itensConfirmacao)) {
-      return res
-        .status(400)
-        .json({ error: "itensConfirmacao deve ser um array" });
-    }
+    const { responsavel, observacoes, itensConfirmacao, assinaturaDigital, fotoReciboAssinado } = req.body;
 
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -1209,10 +1197,20 @@ app.post(
         });
 
         if (!recibo) {
-          throw new Error("Recibo não encontrado");
+            throw new Error("Recibo não encontrado.");
         }
 
-        // Loop para atualizar os itens do recibo
+        const unidade = await tx.unidadeEducacional.findUnique({
+            where: { id: recibo.unidadeEducacionalId }
+        });
+
+        if (!unidade) {
+            throw new Error("Unidade educacional não encontrada.");
+        }
+        
+        const isCreche = (unidade.estudantesBercario || 0) > 0 || (unidade.estudantesMaternal || 0) > 0;
+        const tipoEstoque = isCreche ? 'creche' : 'escola';
+
         for (const item of itensConfirmacao) {
           const itemRecibo = await tx.itemRecibo.update({
             where: { id: item.itemId },
@@ -1224,111 +1222,121 @@ app.post(
             include: { itemPedido: true },
           });
 
-          if (!item.conforme) todosConformes = false;
-          if (Number(item.quantidadeRecebida) > 0) algumRecebido = true;
+          if (!item.conforme) {
+            todosConformes = false;
+          }
+          if (Number(item.quantidadeRecebida) > 0) {
+            algumRecebido = true;
+          }
 
           const diferenca =
             itemRecibo.itemPedido.quantidade - Number(item.quantidadeRecebida);
-
           if (diferenca > 0) {
-            await tx.itemContrato.update({
-              where: { id: itemRecibo.itemPedido.itemContratoId },
-              data: {
-                saldoAtual: {
-                  increment: diferenca,
-                },
-              },
-            });
+            const contratoItem = await tx.itemContrato.findUnique({ where: { id: itemRecibo.itemPedido.itemContratoId } });
+            if (contratoItem) {
+                const campoSaldoAjustar = tipoEstoque === 'creche' ? 'saldoCreche' : 'saldoEscola';
+                await tx.itemContrato.update({
+                  where: { id: itemRecibo.itemPedido.itemContratoId },
+                  data: {
+                    [campoSaldoAjustar]: {
+                      increment: diferenca,
+                    },
+                    saldoAtual: {
+                      increment: diferenca,
+                    }
+                  },
+                });
+            }
           }
 
-          // Controle de estoque e movimentação
           if (Number(item.quantidadeRecebida) > 0) {
-            const quantidadeRecebida = Number(item.quantidadeRecebida);
-
-            const estoqueExistente = await tx.estoque.findUnique({
-              where: {
-                unidadeEducacionalId_itemContratoId_tipoEstoque: {
-                  unidadeEducacionalId: recibo.unidadeEducacionalId,
-                  itemContratoId: itemRecibo.itemPedido.itemContratoId,
-                  tipoEstoque: "escola",
-                },
-              },
-            });
-
-            let estoqueAtualizado;
-
-            if (estoqueExistente) {
-              estoqueAtualizado = await tx.estoque.update({
-                where: { id: estoqueExistente.id },
-                data: {
-                  quantidadeAtual: {
-                    increment: quantidadeRecebida,
+              const estoqueExistente = await tx.estoque.findUnique({
+                where: {
+                  unidadeEducacionalId_itemContratoId_tipoEstoque: {
+                    unidadeEducacionalId: recibo.unidadeEducacionalId,
+                    itemContratoId: itemRecibo.itemPedido.itemContratoId,
+                    tipoEstoque: tipoEstoque
                   },
-                  ultimaAtualizacao: new Date(),
                 },
               });
-            } else {
-              estoqueAtualizado = await tx.estoque.create({
-                data: {
-                  unidadeEducacionalId: recibo.unidadeEducacionalId,
-                  itemContratoId: itemRecibo.itemPedido.itemContratoId,
-                  quantidadeAtual: quantidadeRecebida,
-                  quantidadeMinima: 0,
-                  ultimaAtualizacao: new Date(),
-                },
-              });
-            }
 
-            await tx.movimentacaoEstoque.create({
-              data: {
-                estoqueId: estoqueAtualizado.id,
-                tipo: "entrada",
-                quantidade: quantidadeRecebida,
-                quantidadeAnterior: estoqueExistente?.quantidadeAtual || 0,
-                quantidadeNova: estoqueAtualizado.quantidadeAtual,
-                motivo: `Recebimento confirmado - Recibo ${id}`,
-                reciboId: id,
-                responsavel,
-                dataMovimentacao: new Date(),
-              },
-            });
+              const quantidadeRecebida = Number(item.quantidadeRecebida);
+              let estoqueAtualizado;
+
+              if (estoqueExistente) {
+                estoqueAtualizado = await tx.estoque.update({
+                  where: { id: estoqueExistente.id },
+                  data: {
+                    quantidadeAtual: {
+                      increment: quantidadeRecebida,
+                    },
+                    ultimaAtualizacao: new Date(),
+                  },
+                });
+              } else {
+                estoqueAtualizado = await tx.estoque.create({
+                  data: {
+                    unidadeEducacionalId: recibo.unidadeEducacionalId,
+                    itemContratoId: itemRecibo.itemPedido.itemContratoId,
+                    quantidadeAtual: quantidadeRecebida,
+                    quantidadeMinima: 0,
+                    ultimaAtualizacao: new Date(),
+                    tipoEstoque: tipoEstoque
+                  },
+                });
+              }
+
+              await tx.movimentacaoEstoque.create({
+                data: {
+                  estoqueId: estoqueAtualizado.id,
+                  tipo: "entrada",
+                  quantidade: quantidadeRecebida,
+                  quantidadeAnterior: estoqueExistente?.quantidadeAtual || 0,
+                  quantidadeNova: estoqueAtualizado.quantidadeAtual,
+                  motivo: `Recebimento confirmado - Recibo ${itemRecibo.id}`,
+                  reciboId: id,
+                  responsavel: responsavel,
+                  dataMovimentacao: new Date(),
+                },
+              });
           }
         }
 
-        // Define status final do recibo
         let statusFinal = "rejeitado";
         if (algumRecebido) {
           statusFinal = todosConformes ? "confirmado" : "parcial";
         }
 
-        // Atualiza o recibo com informações e imagens
-        const reciboAtualizado = await tx.recibo.update({
-          where: { id },
-          data: {
+        // CORREÇÃO: Tipando o objeto 'dataParaUpdate' explicitamente
+        const dataParaUpdate: Prisma.ReciboUpdateInput = {
             responsavelRecebimento: responsavel,
             observacoes,
             status: statusFinal,
+        };
 
-            // Assinatura digital: cria, atualiza ou desconecta
-            assinaturaDigital: assinaturaDigital
-              ? {
-                  upsert: {
-                    create: { imagemBase64: assinaturaDigital },
-                    update: { imagemBase64: assinaturaDigital },
-                  },
+        if (assinaturaDigital) {
+            const novaAssinatura = await tx.assinaturaDigital.create({
+                data: {
+                    imagemBase64: assinaturaDigital
                 }
-              : { disconnect: true },
+            });
+            // Usando 'connect' para criar a relação com o novo registro
+            dataParaUpdate.assinaturaDigital = { connect: { id: novaAssinatura.id } };
+        }
 
-            // Foto do recibo assinado: cria, atualiza ou desconecta
-            fotoReciboAssinado: fotoReciboAssinado
-              ? {
-                  upsert: {
-                    create: { url: fotoReciboAssinado },
-                    update: { url: fotoReciboAssinado },
-                  },
+        if (fotoReciboAssinado) {
+            const novaFoto = await tx.fotoReciboAssinado.create({
+                data: {
+                    url: fotoReciboAssinado
                 }
-              : { disconnect: true },
-          },
+            });
+            // Usando 'connect' para criar a relação com o novo registro
+            dataParaUpdate.fotoReciboAssinado = { connect: { id: novaFoto.id } };
+        }
+
+        const reciboAtualizado = await tx.recibo.update({
+          where: { id },
+          data: dataParaUpdate,
         });
 
         return reciboAtualizado;
@@ -1340,13 +1348,15 @@ app.post(
       });
     } catch (error) {
       console.error("Erro ao confirmar recebimento:", error);
-      res.status(500).json({
-        error: "Não foi possível processar a confirmação.",
-        detalhe: error instanceof Error ? error.message : "Erro desconhecido.",
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      res
+        .status(500)
+        .json({ error: errorMessage });
     }
   }
 );
+
 
 // COMENTÁRIO: Rota para buscar os detalhes completos de um recibo para impressão
 app.get("/api/recibos/imprimir/:id", async (req: Request, res: Response) => {
@@ -1577,20 +1587,29 @@ app.get(
 
 // COMENTÁRIO: Lista o estoque consolidado de todas as unidades
 app.get("/api/estoque/consolidado", async (req: Request, res: Response) => {
-  const { q, unidadeId } = req.query;
+  const { q, unidadeId, estoqueId, tipoEstoque } = req.query; // Adicionado tipoEstoque para filtro
 
   try {
+    const whereClause: Prisma.EstoqueWhereInput = {};
+
+    if (unidadeId) {
+      whereClause.unidadeEducacionalId = unidadeId as string;
+    }
+    if (tipoEstoque && tipoEstoque !== "todos") {
+      // Filtro por tipo de estoque
+      whereClause.tipoEstoque = tipoEstoque as string;
+    }
+    if (q) {
+      whereClause.itemContrato = {
+        nome: { contains: q as string, mode: "insensitive" },
+      };
+    }
+    if (estoqueId) {
+      whereClause.id = estoqueId as string;
+    }
+
     const estoque = await prisma.estoque.findMany({
-      where: {
-        ...(unidadeId ? { unidadeEducacionalId: unidadeId as string } : {}),
-        ...(q
-          ? {
-              itemContrato: {
-                nome: { contains: q as string, mode: "insensitive" },
-              },
-            }
-          : {}),
-      },
+      where: whereClause,
       include: {
         itemContrato: {
           include: {
@@ -2673,11 +2692,9 @@ app.get(
       res.json(itensContrato);
     } catch (error) {
       console.error("Erro ao buscar itens de contrato com percápita:", error);
-      res
-        .status(500)
-        .json({
-          error: "Não foi possível buscar os itens de contrato para percápita.",
-        });
+      res.status(500).json({
+        error: "Não foi possível buscar os itens de contrato para percápita.",
+      });
     }
   }
 );
