@@ -10,14 +10,15 @@ async function main() {
   await prisma.recibo.deleteMany();
   await prisma.itemPedido.deleteMany();
   await prisma.pedido.deleteMany();
-  await prisma.movimentacaoEstoque.deleteMany();
+  await prisma.movimentacaoEstoque?.deleteMany();
   await prisma.estoque.deleteMany();
+  await prisma.percapitaItem.deleteMany();
   await prisma.itemContrato.deleteMany();
   await prisma.contrato.deleteMany();
   await prisma.fornecedor.deleteMany();
   await prisma.unidadeEducacional.deleteMany();
   await prisma.unidadeMedida.deleteMany();
-  await prisma.tipoEstudante.deleteMany();
+  await prisma.tipoEstudante?.deleteMany();
 
   console.log("Tabelas limpas.");
 

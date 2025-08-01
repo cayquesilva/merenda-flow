@@ -34,8 +34,10 @@ import {
   BarChart3,
   Layers,
   Loader2,
+  Printer,
 } from "lucide-react";
 import { ConsolidacaoPedido, Recibo } from "@/types";
+import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
 
 interface ConfirmacaoDetalhada extends Recibo {
   percentualConformidade: number;
@@ -381,7 +383,7 @@ export default function Confirmacoes() {
                       <TableHead>Status Consolidação</TableHead>
                       <TableHead>Progresso</TableHead>
                       <TableHead>Valor Total</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="text-center">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -490,7 +492,7 @@ export default function Confirmacoes() {
                       <TableHead>Status</TableHead>
                       <TableHead>Conformidade</TableHead>
                       <TableHead>Eficiência</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="text-center">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -557,8 +559,10 @@ export default function Confirmacoes() {
                             {confirmacao.totalSolicitado}
                           </p>
                         </TableCell>
+
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            <ReciboDetailDialog reciboId={confirmacao.id} />
                             <Button
                               variant="outline"
                               size="sm"
@@ -566,8 +570,8 @@ export default function Confirmacoes() {
                                 navigate(`/recibos/imprimir/${confirmacao.id}`)
                               }
                             >
-                              <Eye className="h-3 w-3 mr-1" />
-                              Detalhes
+                              <Printer className="h-3 w-3 mr-1" />
+                              Imprimir Recibo
                             </Button>
                           </div>
                         </TableCell>

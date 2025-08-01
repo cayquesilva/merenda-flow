@@ -305,7 +305,9 @@ export default function Recibos() {
                   <TableHead>Responsável Entrega</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Itens</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-center">
+                    Ações
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
