@@ -21,11 +21,42 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Minus, ShoppingCart, Package2, Loader2 } from "lucide-react";
-import { Contrato, ItemContrato, UnidadeEducacional } from "@/types";
+import {
+  Plus,
+  Minus,
+  ShoppingCart,
+  Package2,
+  Loader2,
+  Building2,
+} from "lucide-react";
+// Importar as interfaces completas do seu arquivo de tipos
+import {
+  Contrato,
+  ItemContrato,
+  UnidadeEducacional,
+  TipoEstudante,
+  PercapitaItem,
+} from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
-// ALTERAÇÃO: Criamos um tipo específico para a lista de contratos que vem da API de consulta.
+// Interface para o item de contrato com a nova estrutura de estoque
+interface ItemContratoDetalhado extends ItemContrato {
+  unidadeMedida: {
+    id: string;
+    sigla: string;
+    nome: string;
+  };
+  contrato: {
+    id: string;
+    numero: string;
+    fornecedor: {
+      nome: string;
+    };
+  };
+  percapitas: PercapitaItem[]; // Adicionado para incluir a percápita
+}
+
+// Interface para a lista de contratos que vem da API
 interface ContratoDaLista {
   id: string;
   numero: string;
@@ -34,11 +65,15 @@ interface ContratoDaLista {
   };
 }
 
+// Interface para os itens do formulário de pedido
 interface ItemPedidoForm {
-  itemContrato: ItemContrato;
+  itemContrato: ItemContratoDetalhado;
   unidades: {
     unidadeId: string;
     quantidade: number;
+    unidadeNome: string;
+    tipoEstoque: string;
+    sugestao: number; // Nova propriedade para armazenar a sugestão de quantidade
   }[];
 }
 
@@ -48,43 +83,56 @@ interface NovoPedidoDialogProps {
 
 export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   const [open, setOpen] = useState(false);
-  // ALTERAÇÃO: O estado agora usa o novo tipo 'ContratoDaLista'.
   const [contratos, setContratos] = useState<ContratoDaLista[]>([]);
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
   const [contratoSelecionado, setContratoSelecionado] =
     useState<Contrato | null>(null);
-  // COMENTÁRIO: Novo estado para controlar o valor do Select de contratos.
   const [selectedContratoId, setSelectedContratoId] = useState<
     string | undefined
   >();
   const [dataEntrega, setDataEntrega] = useState("");
   const [itensPedido, setItensPedido] = useState<ItemPedidoForm[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [tiposEstudante, setTiposEstudante] = useState<TipoEstudante[]>([]);
   const { toast } = useToast();
 
-  // COMENTÁRIO: Este useEffect busca os dados iniciais (contratos e unidades) quando o modal é aberto.
+  // COMENTÁRIO: Estado para armazenar os itens do contrato com suas percápitas
+  const [itensContratoComPercapita, setItensContratoComPercapita] = useState<
+    ItemContratoDetalhado[]
+  >([]);
+
   useEffect(() => {
     if (open) {
       const fetchInitialData = async () => {
         setIsLoading(true);
         try {
-          const [contratosRes, unidadesRes] = await Promise.all([
-            fetch(
-              `${
-                import.meta.env.VITE_API_URL || "http://localhost:3001"
-              }/api/contratos-ativos`
-            ),
-            fetch(
-              `${
-                import.meta.env.VITE_API_URL || "http://localhost:3001"
-              }/api/unidades-ativas`
-            ),
-          ]);
-          if (!contratosRes.ok || !unidadesRes.ok)
+          // Busca a lista de contratos e as unidades com detalhes de estudantes
+          const [contratosRes, unidadesRes, tiposEstudanteRes] =
+            await Promise.all([
+              fetch(
+                `${
+                  import.meta.env.VITE_API_URL || "http://localhost:3001"
+                }/api/contratos-ativos`
+              ),
+              fetch(
+                `${
+                  import.meta.env.VITE_API_URL || "http://localhost:3001"
+                }/api/unidades-ativas-detalhes`
+              ),
+              fetch(
+                `${
+                  import.meta.env.VITE_API_URL || "http://localhost:3001"
+                }/api/tipos-estudante`
+              ), // Buscamos tipos de estudante aqui
+            ]);
+
+          if (!contratosRes.ok || !unidadesRes.ok || !tiposEstudanteRes.ok)
             throw new Error("Falha ao carregar dados iniciais.");
 
           setContratos(await contratosRes.json());
           setUnidades(await unidadesRes.json());
+          setTiposEstudante(await tiposEstudanteRes.json()); // Salva os tipos de estudante
+          //console.log("Unidades Ativas com detalhes de estudantes:", await unidadesRes.json());
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Erro desconhecido";
@@ -99,36 +147,50 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       };
       fetchInitialData();
     } else {
-      // COMENTÁRIO: Limpa o estado quando o modal é fechado para garantir que não haja dados antigos na próxima vez que for aberto.
+      // Limpa os estados ao fechar o modal
       setContratoSelecionado(null);
       setItensPedido([]);
       setDataEntrega("");
-      // COMENTÁRIO: Limpa o ID do contrato selecionado.
       setSelectedContratoId(undefined);
+      setItensContratoComPercapita([]);
     }
   }, [open, toast]);
 
-  // COMENTÁRIO: Esta função busca os detalhes COMPLETOS de um contrato quando ele é selecionado na lista.
   const handleSelecionarContrato = async (contratoId: string) => {
-    // COMENTÁRIO: Atualiza o estado que controla o valor do Select.
     setSelectedContratoId(contratoId);
     if (!contratoId) {
       setContratoSelecionado(null);
       setItensPedido([]);
+      setItensContratoComPercapita([]);
       return;
     }
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/contratos/${contratoId}`
-      );
-      if (!response.ok)
-        throw new Error("Falha ao buscar detalhes do contrato.");
-      const data = await response.json();
-      setContratoSelecionado(data);
-      setItensPedido([]); // Limpa os itens do pedido anterior
+      // Buscamos os itens do contrato com as percápitas
+      const [contratoRes, itensPercapitaRes] = await Promise.all([
+        fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/contratos/${contratoId}`
+        ),
+        fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/percapita/itens-por-contrato/${contratoId}`
+        ),
+      ]);
+
+      if (!contratoRes.ok || !itensPercapitaRes.ok)
+        throw new Error("Falha ao buscar detalhes do contrato ou percápitas.");
+
+      const contratoData = await contratoRes.json();
+      const itensPercapitaData: ItemContratoDetalhado[] =
+        await itensPercapitaRes.json();
+
+      setContratoSelecionado(contratoData);
+      setItensContratoComPercapita(itensPercapitaData);
+      setItensPedido([]);
+      console.log("Itens de Contrato com Percapita:", itensPercapitaData);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Erro desconhecido";
@@ -142,13 +204,72 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     }
   };
 
-  const handleAdicionarItem = (item: ItemContrato) => {
+  const calcularSugestaoQuantidade = (
+    itemContrato: ItemContratoDetalhado,
+    unidade: UnidadeEducacional
+  ) => {
+    let quantidadeSugerida = 0;
+
+    itemContrato.percapitas.forEach((percapita) => {
+      let numEstudantes = 0;
+      const tipoEstudante = tiposEstudante.find(
+        (t) => t.id === percapita.tipoEstudanteId
+      );
+      if (!tipoEstudante) return;
+
+      switch (tipoEstudante.categoria) {
+        case "creche":
+          numEstudantes =
+            unidade.estudantesBercario + unidade.estudantesMaternal;
+          break;
+        case "escola":
+          numEstudantes =
+            unidade.estudantesRegular +
+            unidade.estudantesIntegral +
+            unidade.estudantesEja;
+          break;
+      }
+
+      if (numEstudantes > 0) {
+        const consumoMensalG =
+          percapita.gramagemPorEstudante * percapita.frequenciaSemanal * 4.33;
+
+        const fatorConversao =
+          itemContrato.unidadeMedida.sigla.toLowerCase() === "kg" ? 1000 : 1;
+
+        quantidadeSugerida += (consumoMensalG * numEstudantes) / fatorConversao;
+      }
+    });
+    console.log(
+      `Sugestão calculada para ${itemContrato.nome} na unidade ${unidade.nome}:`,
+      quantidadeSugerida
+    );
+    return Math.max(0, Math.round(quantidadeSugerida));
+  };
+
+  const handleAdicionarItem = (item: ItemContratoDetalhado) => {
     if (itensPedido.find((ip) => ip.itemContrato.id === item.id)) return;
+
+    const unidadesComSugestao = unidades.map((u) => {
+      const isCreche = u.estudantesBercario > 0 || u.estudantesMaternal > 0;
+      const tipoEstoque = isCreche ? "creche" : "escola";
+
+      const sugestao = calcularSugestaoQuantidade(item, u);
+
+      return {
+        unidadeId: u.id,
+        quantidade: sugestao,
+        unidadeNome: u.nome,
+        tipoEstoque,
+        sugestao,
+      };
+    });
+
     setItensPedido((prev) => [
       ...prev,
       {
         itemContrato: item,
-        unidades: unidades.map((u) => ({ unidadeId: u.id, quantidade: 0 })),
+        unidades: unidadesComSugestao,
       },
     ]);
   };
@@ -157,6 +278,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     setItensPedido((prev) =>
       prev.filter((ip) => ip.itemContrato.id !== itemId)
     );
+
   const handleQuantidadeChange = (
     itemId: string,
     unidadeId: string,
@@ -181,11 +303,75 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   const calcularTotalItem = (item: ItemPedidoForm) =>
     item.unidades.reduce((sum, u) => sum + u.quantidade, 0) *
     item.itemContrato.valorUnitario;
+
   const calcularTotalPedido = () =>
     itensPedido.reduce((sum, item) => sum + calcularTotalItem(item), 0);
 
   const validarPedido = () => {
-    /* ... (seu código de validação) ... */ return true;
+    if (!contratoSelecionado || !dataEntrega) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Selecione o contrato e a data de entrega.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (itensPedido.length === 0) {
+      toast({
+        title: "Nenhum item adicionado",
+        description: "Adicione pelo menos um item ao pedido.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Validação de saldo
+    const saldosCreche: Record<string, number> = {};
+    const saldosEscola: Record<string, number> = {};
+
+    contratoSelecionado.itens.forEach((item) => {
+      saldosCreche[item.id] = item.saldoCreche;
+      saldosEscola[item.id] = item.saldoEscola;
+    });
+
+    for (const item of itensPedido) {
+      let totalCrechePedido = 0;
+      let totalEscolaPedido = 0;
+
+      item.unidades.forEach((u) => {
+        const unidade = unidades.find((un) => un.id === u.unidadeId);
+        if (!unidade) return;
+
+        const isCreche =
+          unidade.estudantesBercario > 0 || unidade.estudantesMaternal > 0;
+        if (isCreche) {
+          totalCrechePedido += u.quantidade;
+        } else {
+          totalEscolaPedido += u.quantidade;
+        }
+      });
+
+      if (totalCrechePedido > (saldosCreche[item.itemContrato.id] ?? 0)) {
+        toast({
+          title: "Saldo Insuficiente (Creche)",
+          description: `O item "${item.itemContrato.nome}" ultrapassa o saldo disponível para creches.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (totalEscolaPedido > (saldosEscola[item.itemContrato.id] ?? 0)) {
+        toast({
+          title: "Saldo Insuficiente (Escola)",
+          description: `O item "${item.itemContrato.nome}" ultrapassa o saldo disponível para escolas.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+
+    return true;
   };
 
   const handleSalvar = async () => {
@@ -244,9 +430,9 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   };
 
   const itensDisponiveis =
-    contratoSelecionado?.itens.filter(
+    itensContratoComPercapita.filter(
       (item) =>
-        item.saldoAtual > 0 &&
+        (item.saldoCreche > 0 || item.saldoEscola > 0) &&
         !itensPedido.find((ip) => ip.itemContrato.id === item.id)
     ) || [];
 
@@ -279,7 +465,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="contrato">Contrato *</Label>
-                {/* ALTERAÇÃO: Adicionado o 'value' para controlar o componente Select. */}
                 <Select
                   value={selectedContratoId}
                   onValueChange={handleSelecionarContrato}
@@ -328,7 +513,8 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                                   {item.nome}
                                 </h4>
                                 <p className="text-xs text-muted-foreground">
-                                  Saldo: {item.saldoAtual}{" "}
+                                  Saldo: C: {item.saldoCreche} E:{" "}
+                                  {item.saldoEscola} | Total: {item.saldoAtual}{" "}
                                   {item.unidadeMedida.sigla}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
@@ -393,29 +579,50 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                               </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {unidades.map((unidade) => {
-                                const unidadeItem = item.unidades.find(
-                                  (u) => u.unidadeId === unidade.id
-                                );
+                              {item.unidades.map((unidade) => {
                                 return (
-                                  <div key={unidade.id} className="space-y-2">
+                                  <div
+                                    key={unidade.unidadeId}
+                                    className="space-y-2"
+                                  >
                                     <Label className="text-sm font-medium">
-                                      {unidade.nome}
+                                      <div className="flex items-center gap-1">
+                                        <Building2 className="h-3 w-3" />
+                                        {unidade.unidadeNome}
+                                        {unidade.tipoEstoque && (
+                                          <Badge
+                                            variant="secondary"
+                                            className="ml-2"
+                                          >
+                                            {unidade.tipoEstoque}
+                                          </Badge>
+                                        )}
+                                      </div>
                                     </Label>
                                     <Input
                                       type="number"
                                       min="0"
-                                      max={item.itemContrato.saldoAtual}
-                                      value={unidadeItem?.quantidade || 0}
+                                      max={
+                                        unidade.tipoEstoque === "creche"
+                                          ? item.itemContrato.saldoCreche
+                                          : item.itemContrato.saldoEscola
+                                      }
+                                      value={unidade.quantidade || 0}
                                       onChange={(e) =>
                                         handleQuantidadeChange(
                                           item.itemContrato.id,
-                                          unidade.id,
+                                          unidade.unidadeId,
                                           parseInt(e.target.value) || 0
                                         )
                                       }
-                                      placeholder="Quantidade"
+                                      placeholder={`Sugestão: ${unidade.sugestao}`}
                                     />
+                                    {unidade.sugestao > 0 && (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Sugerido: {unidade.sugestao}{" "}
+                                        {item.itemContrato.unidadeMedida.sigla}
+                                      </p>
+                                    )}
                                   </div>
                                 );
                               })}

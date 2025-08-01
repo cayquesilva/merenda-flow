@@ -17,7 +17,7 @@ import { Plus, Edit, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 // COMENTÁRIO: Novas importações para a máscara
 import InputMask from "react-input-mask";
-import React from "react"; // Necessário para a tipagem do InputMask
+import React from "react";
 import { unmask } from "@/lib/utils"; // Assumindo que a função unmask está em lib/utils
 
 // COMENTÁRIO: Tipo para os dados da entidade.
@@ -64,7 +64,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
 
   // COMENTÁRIO: Efeito para popular o formulário quando está em modo de edição.
   useEffect(() => {
-    if (unidade && isEdicao) {
+    if (isEdicao && unidade) {
       setFormData({
         nome: unidade.nome,
         codigo: unidade.codigo,
@@ -72,14 +72,29 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
         email: unidade.email,
         endereco: unidade.endereco || "",
         ativo: unidade.ativo,
-        estudantesBercario: unidade.estudantesBercario || 0,
-        estudantesMaternal: unidade.estudantesMaternal || 0,
-        estudantesRegular: unidade.estudantesRegular || 0,
-        estudantesIntegral: unidade.estudantesIntegral || 0,
-        estudantesEja: unidade.estudantesEja || 0,
+        estudantesBercario: unidade.estudantesBercario,
+        estudantesMaternal: unidade.estudantesMaternal,
+        estudantesRegular: unidade.estudantesRegular,
+        estudantesIntegral: unidade.estudantesIntegral,
+        estudantesEja: unidade.estudantesEja,
+      });
+    } else {
+      // COMENTÁRIO: Reseta o formulário para um estado limpo ao fechar ou em modo de criação
+      setFormData({
+        nome: "",
+        codigo: "",
+        telefone: "",
+        email: "",
+        endereco: "",
+        ativo: true,
+        estudantesBercario: 0,
+        estudantesMaternal: 0,
+        estudantesRegular: 0,
+        estudantesIntegral: 0,
+        estudantesEja: 0,
       });
     }
-  }, [unidade, isEdicao]);
+  }, [unidade, isEdicao, open]); // Dependência 'open' adicionada para resetar ao abrir em modo de criação
 
   const handleSubmit = async () => {
     if (
@@ -100,16 +115,22 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
       const url = isEdicao
         ? `${
             import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/unidades/${unidade.id}`
+          }/api/unidades/${unidade?.id}`
         : `${
             import.meta.env.VITE_API_URL || "http://localhost:3001"
           }/api/unidades`;
       const method = isEdicao ? "PUT" : "POST";
 
-      // COMENTÁRIO: Prepara o payload para a API, removendo a máscara do telefone.
+      // COMENTÁRIO: Prepara o payload para a API, incluindo todos os campos do formulário.
       const payload = {
         ...formData,
         telefone: unmask(formData.telefone),
+        // Adicionando os campos de estudantes diretamente ao payload
+        estudantesBercario: formData.estudantesBercario,
+        estudantesMaternal: formData.estudantesMaternal,
+        estudantesRegular: formData.estudantesRegular,
+        estudantesIntegral: formData.estudantesIntegral,
+        estudantesEja: formData.estudantesEja,
       };
 
       const response = await fetch(url, {
@@ -146,11 +167,9 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
       });
     } finally {
       setIsSubmitting(false);
-      resetForm();
     }
   };
 
-  // COMENTÁRIO: Função para limpar o formulário ao fechar ou ao abrir em modo de criação.
   const resetForm = () => {
     setFormData({
       nome: unidade?.nome || "",
@@ -232,7 +251,6 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="telefone">Telefone</Label>
-              {/* COMENTÁRIO: O Input simples foi substituído pelo InputMask. */}
               <InputMask
                 mask="(99) 99999-9999"
                 value={formData.telefone}
@@ -300,7 +318,10 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
                   min="0"
                   value={formData.estudantesBercario}
                   onChange={(e) =>
-                    setFormData({ ...formData, estudantesBercario: parseInt(e.target.value) || 0 })
+                    setFormData({
+                      ...formData,
+                      estudantesBercario: parseInt(e.target.value) || 0,
+                    })
                   }
                   placeholder="0"
                   disabled={isSubmitting}
@@ -314,7 +335,10 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
                   min="0"
                   value={formData.estudantesMaternal}
                   onChange={(e) =>
-                    setFormData({ ...formData, estudantesMaternal: parseInt(e.target.value) || 0 })
+                    setFormData({
+                      ...formData,
+                      estudantesMaternal: parseInt(e.target.value) || 0,
+                    })
                   }
                   placeholder="0"
                   disabled={isSubmitting}
@@ -328,7 +352,10 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
                   min="0"
                   value={formData.estudantesRegular}
                   onChange={(e) =>
-                    setFormData({ ...formData, estudantesRegular: parseInt(e.target.value) || 0 })
+                    setFormData({
+                      ...formData,
+                      estudantesRegular: parseInt(e.target.value) || 0,
+                    })
                   }
                   placeholder="0"
                   disabled={isSubmitting}
@@ -342,7 +369,10 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
                   min="0"
                   value={formData.estudantesIntegral}
                   onChange={(e) =>
-                    setFormData({ ...formData, estudantesIntegral: parseInt(e.target.value) || 0 })
+                    setFormData({
+                      ...formData,
+                      estudantesIntegral: parseInt(e.target.value) || 0,
+                    })
                   }
                   placeholder="0"
                   disabled={isSubmitting}
@@ -356,7 +386,10 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
                   min="0"
                   value={formData.estudantesEja}
                   onChange={(e) =>
-                    setFormData({ ...formData, estudantesEja: parseInt(e.target.value) || 0 })
+                    setFormData({
+                      ...formData,
+                      estudantesEja: parseInt(e.target.value) || 0,
+                    })
                   }
                   placeholder="0"
                   disabled={isSubmitting}
@@ -364,7 +397,8 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
               </div>
             </div>
             <p className="text-sm text-muted-foreground mt-2">
-              Informe a quantidade de estudantes matriculados em cada modalidade para cálculo automático de percápita.
+              Informe a quantidade de estudantes matriculados em cada modalidade
+              para cálculo automático de percápita.
             </p>
           </div>
         </div>

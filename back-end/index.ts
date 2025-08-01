@@ -491,16 +491,41 @@ app.get("/api/contratos/:id", async (req: Request, res: Response) => {
   }
 });
 
+// NOVO: Interface para o payload do item de contrato na requisição POST
+interface ItemContratoPayload {
+  nome: string;
+  unidadeMedidaId: string;
+  valorUnitario: number;
+  quantidadeOriginal: number;
+  quantidadeCreche: number;
+  quantidadeEscola: number;
+  saldoAtual: number;
+  saldoCreche: number;
+  saldoEscola: number;
+}
+
 // COMENTÁRIO: Cria um novo contrato e os seus itens.
 app.post("/api/contratos", async (req: Request, res: Response) => {
   const { itens, ...dadosContrato } = req.body;
+
   try {
     const novoContrato = await prisma.contrato.create({
-      data: { ...dadosContrato, itens: { create: itens } },
+      data: {
+        ...dadosContrato,
+        itens: {
+          create: (itens as ItemContratoPayload[]).map((item) => ({
+            ...item,
+            // Cálculo do saldo total do contrato a partir das quantidades de creche e escola
+            quantidadeOriginal: item.quantidadeCreche + item.quantidadeEscola,
+            saldoAtual: item.quantidadeCreche + item.quantidadeEscola,
+            saldoCreche: item.quantidadeCreche,
+            saldoEscola: item.quantidadeEscola,
+          })),
+        },
+      },
     });
     res.status(201).json(novoContrato);
   } catch (error) {
-    // ALTERAÇÃO: Removido ': any'
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
         return res
@@ -601,15 +626,15 @@ app.get("/api/unidades/:id", async (req: Request, res: Response) => {
 // ROTA 3: Criar uma nova Unidade
 // POST /api/unidades
 app.post("/api/unidades", async (req: Request, res: Response) => {
-  const { nome, codigo, email, telefone, endereco, ativo } = req.body;
+  const { nome, codigo, email, telefone, endereco, ativo, ...estudantes } =
+    req.body;
   try {
     const novaUnidade = await prisma.unidadeEducacional.create({
-      data: { nome, codigo, email, telefone, endereco, ativo },
+      data: { nome, codigo, email, telefone, endereco, ativo, ...estudantes },
     });
     res.status(201).json(novaUnidade);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      // Código 'P2002' indica uma violação de constraint única (ex: email ou código duplicado).
       if (error.code === "P2002") {
         return res.status(409).json({
           error: `O campo ${error.meta?.target} já está em uso.`,
@@ -625,11 +650,12 @@ app.post("/api/unidades", async (req: Request, res: Response) => {
 // PUT /api/unidades/:id
 app.put("/api/unidades/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { nome, codigo, email, telefone, endereco, ativo } = req.body;
+  const { nome, codigo, email, telefone, endereco, ativo, ...estudantes } =
+    req.body;
   try {
     const unidadeAtualizada = await prisma.unidadeEducacional.update({
       where: { id },
-      data: { nome, codigo, email, telefone, endereco, ativo },
+      data: { nome, codigo, email, telefone, endereco, ativo, ...estudantes },
     });
     res.json(unidadeAtualizada);
   } catch (error) {
@@ -2619,6 +2645,70 @@ app.get("/api/tipos-estudante", async (req: Request, res: Response) => {
       .json({ error: "Não foi possível buscar os tipos de estudante." });
   }
 });
+
+// COMENTÁRIO: Nova Rota: Retorna uma lista de ItemContrato ativos e suas percápitas
+// UTILIZAÇÃO: Usada pelo NovoPedidoDialog para pré-preencher a quantidade sugerida
+app.get(
+  "/api/percapita/itens-por-contrato/:contratoId",
+  async (req: Request, res: Response) => {
+    const { contratoId } = req.params;
+    try {
+      const itensContrato = await prisma.itemContrato.findMany({
+        where: {
+          contratoId,
+          contrato: {
+            status: "ativo",
+          },
+        },
+        include: {
+          unidadeMedida: true,
+          percapitas: {
+            include: {
+              tipoEstudante: true,
+            },
+          },
+        },
+      });
+
+      res.json(itensContrato);
+    } catch (error) {
+      console.error("Erro ao buscar itens de contrato com percápita:", error);
+      res
+        .status(500)
+        .json({
+          error: "Não foi possível buscar os itens de contrato para percápita.",
+        });
+    }
+  }
+);
+
+// COMENTÁRIO: Nova Rota: Retorna uma lista de todas as unidades educacionais ativas com detalhes de estudantes
+// UTILIZAÇÃO: Usada pelo NovoPedidoDialog para o cálculo da percápita
+app.get(
+  "/api/unidades-ativas-detalhes",
+  async (req: Request, res: Response) => {
+    try {
+      const unidades = await prisma.unidadeEducacional.findMany({
+        where: { ativo: true },
+        select: {
+          id: true,
+          nome: true,
+          codigo: true,
+          estudantesBercario: true,
+          estudantesMaternal: true,
+          estudantesRegular: true,
+          estudantesIntegral: true,
+          estudantesEja: true,
+        },
+        orderBy: { nome: "asc" },
+      });
+      res.json(unidades);
+    } catch (error) {
+      console.error("Erro ao buscar unidades ativas com detalhes:", error);
+      res.status(500).json({ error: "Não foi possível buscar as unidades." });
+    }
+  }
+);
 
 /// --- FIM ROTA DE PERCAPITA --- ///
 

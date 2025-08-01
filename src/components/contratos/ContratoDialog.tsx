@@ -164,6 +164,11 @@ export function ContratoDialog({
         valorUnitario: 0,
         quantidadeOriginal: 0,
         saldoAtual: 0,
+        // Novos campos
+        quantidadeCreche: 0,
+        quantidadeEscola: 0,
+        saldoCreche: 0,
+        saldoEscola: 0,
       },
     ]);
   };
@@ -171,7 +176,9 @@ export function ContratoDialog({
   useEffect(() => {
     const total = itens.reduce(
       (acc, item) =>
-        acc + (item.valorUnitario || 0) * (item.quantidadeOriginal || 0),
+        acc +
+        (item.valorUnitario || 0) *
+          ((item.quantidadeCreche || 0) + (item.quantidadeEscola || 0)),
       0
     );
     setFormData((prev) => ({ ...prev, valorTotal: total }));
@@ -192,9 +199,11 @@ export function ContratoDialog({
         saldoEscola: 0,
       },
     ]);
+
   const removerItem = (index: number) => {
     if (itens.length > 1) setItens(itens.filter((_, i) => i !== index));
   };
+
   type CamposItem =
     | "nome"
     | "unidadeMedidaId"
@@ -206,6 +215,7 @@ export function ContratoDialog({
     | "saldoCreche"
     | "saldoEscola";
 
+  // Função para atualizar item com tipagem forte usando sobrecarga
   function atualizarItem(
     index: number,
     campo: "nome" | "unidadeMedidaId",
@@ -213,26 +223,39 @@ export function ContratoDialog({
   ): void;
   function atualizarItem(
     index: number,
-    campo: "valorUnitario" | "quantidadeOriginal" | "saldoAtual" | "quantidadeCreche" | "quantidadeEscola" | "saldoCreche" | "saldoEscola",
+    campo: "valorUnitario" | "quantidadeCreche" | "quantidadeEscola",
     valor: number
   ): void;
   function atualizarItem(
     index: number,
     campo: CamposItem,
     valor: string | number
-  ): void {
-    const novosItens = [...itens];
-    novosItens[index] = { ...novosItens[index], [campo]: valor };
-    if (campo === "quantidadeOriginal" || campo === "quantidadeCreche" || campo === "quantidadeEscola") {
-      if (campo === "quantidadeOriginal") {
-        novosItens[index].saldoAtual = valor as number;
-      } else if (campo === "quantidadeCreche") {
-        novosItens[index].saldoCreche = valor as number;
-      } else if (campo === "quantidadeEscola") {
-        novosItens[index].saldoEscola = valor as number;
+  ) {
+    setItens((prevItens) => {
+      const novosItens = [...prevItens];
+      const item = novosItens[index];
+
+      // Atualiza o campo específico
+      if (typeof valor === "string") {
+        item[campo as "nome" | "unidadeMedidaId"] = valor;
+      } else if (typeof valor === "number") {
+        item[
+          campo as "valorUnitario" | "quantidadeCreche" | "quantidadeEscola"
+        ] = valor;
       }
-    }
-    setItens(novosItens);
+
+      // Lógica de cálculo inversa para quantidadeOriginal e saldoAtual
+      if (campo === "quantidadeCreche" || campo === "quantidadeEscola") {
+        const quantidadeCreche = novosItens[index].quantidadeCreche || 0;
+        const quantidadeEscola = novosItens[index].quantidadeEscola || 0;
+        const novaQuantidadeOriginal = quantidadeCreche + quantidadeEscola;
+
+        novosItens[index].quantidadeOriginal = novaQuantidadeOriginal;
+        novosItens[index].saldoAtual = novaQuantidadeOriginal;
+      }
+
+      return novosItens;
+    });
   }
 
   const handleSubmit = async () => {
@@ -251,14 +274,41 @@ export function ContratoDialog({
       return;
     }
 
+    // Validação dos itens
+    if (
+      itens.some(
+        (item) =>
+          !item.nome ||
+          !item.unidadeMedidaId ||
+          (item.quantidadeCreche || 0) + (item.quantidadeEscola || 0) <= 0
+      )
+    ) {
+      toast({
+        title: "Itens Inválidos",
+        description:
+          "Verifique se todos os itens possuem nome, unidade de medida e pelo menos uma quantidade (creche ou escola) maior que zero.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
+    // O payload agora usará os campos de quantidade separados
     const itensPayload = itens.map((item) => ({
       nome: item.nome,
       unidadeMedidaId: item.unidadeMedidaId,
       valorUnitario: Number(item.valorUnitario),
-      quantidadeOriginal: Number(item.quantidadeOriginal),
-      saldoAtual: Number(item.quantidadeOriginal),
+      // Campos calculados no frontend para o backend
+      quantidadeOriginal:
+        Number(item.quantidadeCreche || 0) + Number(item.quantidadeEscola || 0),
+      saldoAtual:
+        Number(item.quantidadeCreche || 0) + Number(item.quantidadeEscola || 0),
+      // Novos campos de quantidade
+      quantidadeCreche: Number(item.quantidadeCreche),
+      quantidadeEscola: Number(item.quantidadeEscola),
+      saldoCreche: Number(item.quantidadeCreche),
+      saldoEscola: Number(item.quantidadeEscola),
     }));
 
     const contratoPayload = {
@@ -454,8 +504,6 @@ export function ContratoDialog({
                 <div className="space-y-4">
                   {itens.map((item, index) => (
                     <Card key={item.id || index} className="p-4">
-                      {" "}
-                      {/* Usar item.id se existir, senão index */}
                       <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
                         <div className="md:col-span-2">
                           <Label>Nome do Item *</Label>
@@ -489,6 +537,39 @@ export function ContratoDialog({
                             </SelectContent>
                           </Select>
                         </div>
+                        {/* Campos de quantidade separados */}
+                        <div>
+                          <Label>Qtd. Creches</Label>
+                          <Input
+                            type="number"
+                            value={item.quantidadeCreche || ""}
+                            onChange={(e) =>
+                              atualizarItem(
+                                index,
+                                "quantidadeCreche",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            placeholder="0"
+                            disabled={isEdicao}
+                          />
+                        </div>
+                        <div>
+                          <Label>Qtd. Escolas</Label>
+                          <Input
+                            type="number"
+                            value={item.quantidadeEscola || ""}
+                            onChange={(e) =>
+                              atualizarItem(
+                                index,
+                                "quantidadeEscola",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            placeholder="0"
+                            disabled={isEdicao}
+                          />
+                        </div>
                         <div>
                           <Label>Valor Unitário *</Label>
                           <Input
@@ -503,55 +584,7 @@ export function ContratoDialog({
                               )
                             }
                             placeholder="0,00"
-                            disabled={isSubmitting || isEdicao}
-                          />
-                        </div>
-                        <div>
-                          <Label>Quantidade *</Label>
-                          <Input
-                            type="number"
-                            value={item.quantidadeOriginal || ""}
-                            onChange={(e) =>
-                              atualizarItem(
-                                index,
-                                "quantidadeOriginal",
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            placeholder="0"
-                            disabled={isSubmitting || isEdicao}
-                          />
-                        </div>
-                        <div>
-                          <Label>Qtd. Creches</Label>
-                          <Input
-                            type="number"
-                            value={item.quantidadeCreche || ""}
-                            onChange={(e) =>
-                              atualizarItem(
-                                index,
-                                "quantidadeCreche",
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            placeholder="0"
-                            disabled={isSubmitting || isEdicao}
-                          />
-                        </div>
-                        <div>
-                          <Label>Qtd. Escolas</Label>
-                          <Input
-                            type="number"
-                            value={item.quantidadeEscola || ""}
-                            onChange={(e) =>
-                              atualizarItem(
-                                index,
-                                "quantidadeEscola",
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            placeholder="0"
-                            disabled={isSubmitting || isEdicao}
+                            disabled={isEdicao}
                           />
                         </div>
                         <div className="flex items-center gap-2">
@@ -561,22 +594,39 @@ export function ContratoDialog({
                               size="sm"
                               onClick={() => removerItem(index)}
                               className="text-destructive"
-                              disabled={isSubmitting || isEdicao}
+                              disabled={isEdicao}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           )}
                         </div>
                       </div>
-                      {item.valorUnitario && item.quantidadeOriginal && (
-                        <div className="mt-2 text-sm text-muted-foreground">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                            <div>Total Geral: R$ {((item.valorUnitario || 0) * (item.quantidadeOriginal || 0)).toFixed(2)}</div>
-                            <div>Creches: R$ {((item.valorUnitario || 0) * (item.quantidadeCreche || 0)).toFixed(2)}</div>
-                            <div>Escolas: R$ {((item.valorUnitario || 0) * (item.quantidadeEscola || 0)).toFixed(2)}</div>
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                          <div>
+                            Total Geral: R${" "}
+                            {(
+                              (item.valorUnitario || 0) *
+                              ((item.quantidadeCreche || 0) +
+                                (item.quantidadeEscola || 0))
+                            ).toFixed(2)}
+                          </div>
+                          <div>
+                            Creches: R${" "}
+                            {(
+                              (item.valorUnitario || 0) *
+                              (item.quantidadeCreche || 0)
+                            ).toFixed(2)}
+                          </div>
+                          <div>
+                            Escolas: R${" "}
+                            {(
+                              (item.valorUnitario || 0) *
+                              (item.quantidadeEscola || 0)
+                            ).toFixed(2)}
                           </div>
                         </div>
-                      )}
+                      </div>
                     </Card>
                   ))}
                 </div>
@@ -597,7 +647,7 @@ export function ContratoDialog({
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => handleOpenChangeInternal(false)} // Usar a função que controla o estado interno e externo
+            onClick={() => handleOpenChangeInternal(false)}
             disabled={isSubmitting || isLoading}
           >
             Cancelar
