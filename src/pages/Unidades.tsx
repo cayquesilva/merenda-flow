@@ -28,7 +28,6 @@ import {
   Building2,
   Loader2,
 } from "lucide-react";
-import { unidadesEducacionais } from "@/data/mockData";
 import { UnidadeDialog } from "@/components/unidades/UnidadeDialog";
 import { formatTelefone } from "@/lib/utils";
 
@@ -41,6 +40,11 @@ interface UnidadeEducacional {
   telefone: string | null;
   email: string;
   ativo: boolean;
+  estudantesBercario: number;
+  estudantesMaternal: number;
+  estudantesRegular: number;
+  estudantesIntegral: number;
+  estudantesEja: number;
 }
 
 // COMENTÁRIO: Hook para "debouncing", que evita chamadas excessivas à API ao digitar na busca.
@@ -155,7 +159,7 @@ export default function Unidades() {
                   <TableHead>Contato</TableHead>
                   <TableHead>Endereço</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Ações</TableHead>
+                  <TableHead className="w-[100px] text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

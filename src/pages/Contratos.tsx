@@ -267,7 +267,7 @@ export default function Contratos() {
                   <TableHead>Valor Total</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Itens</TableHead>
-                  <TableHead className="w-[100px]">Ações</TableHead>
+                  <TableHead className="w-[100px] text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -437,12 +437,20 @@ export default function Contratos() {
                               }
                             >
                               <div className="space-y-1">
-                                <div>Total: {item.saldoAtual} / {item.quantidadeOriginal} {item.unidadeMedida.sigla}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  Creches: {item.saldoCreche} / {item.quantidadeCreche} {item.unidadeMedida.sigla}
+                                <div>
+                                  Total: {item.saldoAtual} /{" "}
+                                  {item.quantidadeOriginal}{" "}
+                                  {item.unidadeMedida.sigla}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  Escolas: {item.saldoEscola} / {item.quantidadeEscola} {item.unidadeMedida.sigla}
+                                  Creches: {item.saldoCreche} /{" "}
+                                  {item.quantidadeCreche}{" "}
+                                  {item.unidadeMedida.sigla}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Escolas: {item.saldoEscola} /{" "}
+                                  {item.quantidadeEscola}{" "}
+                                  {item.unidadeMedida.sigla}
                                 </div>
                               </div>
                             </span>

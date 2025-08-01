@@ -539,7 +539,7 @@ export function ContratoDialog({
                         </div>
                         {/* Campos de quantidade separados */}
                         <div>
-                          <Label>Qtd. Creches</Label>
+                          <Label>Qtd. Creches *</Label>
                           <Input
                             type="number"
                             value={item.quantidadeCreche || ""}
@@ -555,7 +555,7 @@ export function ContratoDialog({
                           />
                         </div>
                         <div>
-                          <Label>Qtd. Escolas</Label>
+                          <Label>Qtd. Escolas *</Label>
                           <Input
                             type="number"
                             value={item.quantidadeEscola || ""}

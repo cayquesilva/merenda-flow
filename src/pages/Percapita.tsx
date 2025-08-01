@@ -279,7 +279,7 @@ function PercapitaDialog({
           <DialogDescription>
             {isEdicao
               ? "Edite as informações da percápita"
-              : "Configure a percápita de consumo por tipo de estudante"}
+              : "Configure a percápita de consumo por tipo de preparação"}
           </DialogDescription>
         </DialogHeader>
 
@@ -312,7 +312,7 @@ function PercapitaDialog({
                 </Select>
               </div>
               <div>
-                <Label htmlFor="tipoEstudante">Tipo de Estudante *</Label>
+                <Label htmlFor="tipoEstudante">Tipo de Preparação *</Label>
                 <Select
                   value={formData.tipoEstudanteId}
                   onValueChange={(value) =>
@@ -588,12 +588,12 @@ export default function Percapita() {
                 <TableRow>
                   <TableHead>Item</TableHead>
                   <TableHead>Contrato</TableHead>
-                  <TableHead>Tipo de Estudante</TableHead>
+                  <TableHead>Tipo de Preparação</TableHead>
                   <TableHead>Gramagem</TableHead>
                   <TableHead>Frequência</TableHead>
-                  <TableHead>Consumo Semanal</TableHead>
+                  <TableHead>Consumo Mensal</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Ações</TableHead>
+                  <TableHead className="w-[100px] text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -633,7 +633,7 @@ export default function Percapita() {
                     <TableCell>
                       <div className="flex items-center">
                         <Calendar className="mr-1 h-3 w-3" />
-                        {percapita.frequenciaMensal}x/semana
+                        {percapita.frequenciaMensal}x/mês
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">

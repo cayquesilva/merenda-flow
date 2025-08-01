@@ -142,7 +142,7 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
     if (!dataEntrega) {
       toast({
         title: "Erro",
-        description: "Informe a data de entrega",
+        description: "Informe o prazo de entrega",
         variant: "destructive",
       });
       return false;
@@ -243,7 +243,7 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="dataEntrega">Data de Entrega *</Label>
+                <Label htmlFor="dataEntrega">Prazo de Entrega *</Label>
                 <Input
                   id="dataEntrega"
                   type="date"
