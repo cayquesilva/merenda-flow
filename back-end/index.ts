@@ -1641,19 +1641,27 @@ app.get("/api/estoque/consolidado", async (req: Request, res: Response) => {
 
 // COMENTÁRIO: Busca as movimentações de estoque
 app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
-  const { estoqueId, unidadeId, dataInicio, dataFim } = req.query;
+  const { estoqueId, unidadeId, dataInicio, dataFim, tipoEstoque } = req.query;
 
   try {
     const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
+    const estoqueWhereClause: Prisma.EstoqueWhereInput = {};
 
     if (estoqueId) {
       whereClause.estoqueId = estoqueId as string;
     }
 
     if (unidadeId) {
-      whereClause.estoque = {
-        unidadeEducacionalId: unidadeId as string,
-      };
+      estoqueWhereClause.unidadeEducacionalId = unidadeId as string;
+    }
+    
+    // CORREÇÃO: Adiciona o filtro por tipo de estoque
+    if (tipoEstoque && tipoEstoque !== 'todos') {
+      estoqueWhereClause.tipoEstoque = tipoEstoque as 'creche' | 'escola';
+    }
+
+    if (Object.keys(estoqueWhereClause).length > 0) {
+      whereClause.estoque = estoqueWhereClause;
     }
 
     if (dataInicio && dataFim) {
@@ -1690,6 +1698,7 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
       .json({ error: "Não foi possível buscar as movimentações." });
   }
 });
+
 
 // COMENTÁRIO: Registra uma movimentação manual de estoque (saída, ajuste)
 app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {

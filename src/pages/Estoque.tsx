@@ -170,6 +170,14 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
 
     setIsSubmitting(true);
     try {
+      // ADICIONADO: Incluir tipoEstoque no payload
+      const payload = {
+        estoqueId: estoque.id,
+        tipoEstoque: estoque.tipoEstoque, // NOVO
+        ...formData,
+        quantidade,
+      };
+
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:3001"
@@ -177,11 +185,7 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            estoqueId: estoque.id,
-            ...formData,
-            quantidade,
-          }),
+          body: JSON.stringify(payload), // Envia o novo payload
         }
       );
 
