@@ -824,6 +824,7 @@ export default function Estoque() {
                               onClick={() => handleGenerateQRCode(item)}
                             >
                               <QrCode className="h-3 w-3" />
+                              Gerar QR
                             </Button>
                           </div>
                         </TableCell>

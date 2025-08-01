@@ -261,8 +261,12 @@ function PercapitaDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {isEdicao ? (
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+          <Button
+            variant={isEdicao ? "outline" : "default"}
+            size={isEdicao ? "sm" : "default"}
+          >
             <Edit className="h-3 w-3" />
+            Editar
           </Button>
         ) : (
           <Button variant="default">
@@ -667,6 +671,7 @@ export default function Percapita() {
                           }
                           className="text-destructive hover:text-destructive"
                         >
+                          <Trash2 />
                           Deletar
                         </Button>
                       </div>

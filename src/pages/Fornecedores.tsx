@@ -99,7 +99,9 @@ export default function Fornecedores() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary">Fornecedores</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">
+            Fornecedores
+          </h2>
           <p className="text-muted-foreground">
             Gerencie os fornecedores cadastrados no sistema
           </p>
@@ -159,7 +161,7 @@ export default function Fornecedores() {
                   <TableHead>Contato</TableHead>
                   <TableHead>Endereço</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Ações</TableHead>
+                  <TableHead className="w-[100px] text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -202,6 +204,7 @@ export default function Fornecedores() {
                       <div className="flex items-center space-x-2">
                         <Button variant="outline" size="sm">
                           <Eye className="h-3 w-3" />
+                          Ver
                         </Button>
                         <FornecedorDialog
                           fornecedor={fornecedor}

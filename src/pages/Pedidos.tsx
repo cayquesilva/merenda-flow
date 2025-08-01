@@ -134,7 +134,9 @@ export default function Pedidos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary">Pedidos</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-primary">
+            Pedidos
+          </h2>
           <p className="text-muted-foreground">
             Gerencie os pedidos de merenda escolar
           </p>
@@ -292,7 +294,7 @@ export default function Pedidos() {
                   <TableHead>Status</TableHead>
                   <TableHead>Valor Total</TableHead>
                   <TableHead>Itens</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -324,7 +326,7 @@ export default function Pedidos() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-center gap-2">
                         <PedidoDetailDialog pedidoId={pedido.id} />
                       </div>
                     </TableCell>

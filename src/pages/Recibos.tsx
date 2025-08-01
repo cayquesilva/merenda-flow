@@ -305,9 +305,7 @@ export default function Recibos() {
                   <TableHead>Responsável Entrega</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Itens</TableHead>
-                  <TableHead className="text-center">
-                    Ações
-                  </TableHead>
+                  <TableHead className="text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -332,7 +330,7 @@ export default function Recibos() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"

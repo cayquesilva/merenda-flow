@@ -164,7 +164,10 @@ export function FornecedorDialog({
           size={isEdicao ? "sm" : "default"}
         >
           {isEdicao ? (
-            <Edit className="h-3 w-3" />
+            <>
+              <Edit className="h-3 w-3" />
+              Editar
+            </>
           ) : (
             <Plus className="mr-2 h-4 w-4" />
           )}

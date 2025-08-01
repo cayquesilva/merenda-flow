@@ -312,6 +312,7 @@ export default function Contratos() {
                           onClick={() => handleViewDetails(contrato.id)}
                         >
                           <Eye className="h-3 w-3" />
+                          Ver
                         </Button>
                         {/* Botão para abrir o diálogo de edição */}
                         <Button
@@ -320,6 +321,7 @@ export default function Contratos() {
                           onClick={() => handleOpenEditDialog(contrato.id)} // Chama a nova função
                         >
                           <Edit className="h-3 w-3" /> {/* Ícone de edição */}
+                          Editar
                         </Button>
                       </div>
                     </TableCell>

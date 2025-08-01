@@ -432,7 +432,7 @@ export default function Confirmacoes() {
                         <TableCell className="font-medium">
                           R$ {consolidacao.pedido.valorTotal.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-center">
                           {/* Botão para imprimir todos os recibos do pedido */}
                           <Button
                             variant="outline"
@@ -561,7 +561,7 @@ export default function Confirmacoes() {
                         </TableCell>
 
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-center gap-2">
                             <ReciboDetailDialog reciboId={confirmacao.id} />
                             <Button
                               variant="outline"
