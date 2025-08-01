@@ -230,7 +230,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
 
       if (numEstudantes > 0) {
         const consumoMensalG =
-          percapita.gramagemPorEstudante * percapita.frequenciaSemanal * 4.33;
+          percapita.gramagemPorEstudante * percapita.frequenciaMensal;
 
         const fatorConversao =
           itemContrato.unidadeMedida.sigla.toLowerCase() === "kg" ? 1000 : 1;

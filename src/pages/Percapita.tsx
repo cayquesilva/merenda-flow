@@ -85,7 +85,7 @@ function PercapitaDialog({
     itemContratoId: "",
     tipoEstudanteId: "",
     gramagemPorEstudante: 0,
-    frequenciaSemanal: 5,
+    frequenciaMensal: 0,
     ativo: true,
   });
   const [itensContrato, setItensContrato] = useState<ItemContratoDetalhado[]>(
@@ -129,7 +129,7 @@ function PercapitaDialog({
               itemContratoId: percapita.itemContratoId,
               tipoEstudanteId: percapita.tipoEstudanteId,
               gramagemPorEstudante: percapita.gramagemPorEstudante,
-              frequenciaSemanal: percapita.frequenciaSemanal,
+              frequenciaMensal: percapita.frequenciaMensal,
               ativo: percapita.ativo,
             });
           }
@@ -151,7 +151,7 @@ function PercapitaDialog({
         itemContratoId: "",
         tipoEstudanteId: "",
         gramagemPorEstudante: 0,
-        frequenciaSemanal: 5,
+        frequenciaMensal: 5,
         ativo: true,
       });
     }
@@ -162,7 +162,7 @@ function PercapitaDialog({
       !formData.itemContratoId ||
       !formData.tipoEstudanteId ||
       formData.gramagemPorEstudante <= 0 ||
-      formData.frequenciaSemanal <= 0
+      formData.frequenciaMensal <= 0
     ) {
       toast({
         title: "Campos Obrigatórios",
@@ -354,17 +354,17 @@ function PercapitaDialog({
                 />
               </div>
               <div>
-                <Label htmlFor="frequencia">Frequência Semanal (dias) *</Label>
+                <Label htmlFor="frequencia">Frequência Mensal *</Label>
                 <Input
                   id="frequencia"
                   type="number"
                   min="1"
                   max="7"
-                  value={formData.frequenciaSemanal}
+                  value={formData.frequenciaMensal}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      frequenciaSemanal: parseInt(e.target.value) || 5,
+                      frequenciaMensal: parseInt(e.target.value) || 5,
                     })
                   }
                   placeholder="5"
@@ -386,7 +386,7 @@ function PercapitaDialog({
             </div>
 
             {formData.gramagemPorEstudante > 0 &&
-              formData.frequenciaSemanal > 0 && (
+              formData.frequenciaMensal > 0 && (
                 <div className="mt-4 p-4 bg-muted rounded-lg">
                   <h4 className="font-medium mb-2">Cálculo Estimado</h4>
                   <div className="text-sm text-muted-foreground space-y-1">
@@ -398,7 +398,7 @@ function PercapitaDialog({
                       Consumo semanal:{" "}
                       {(
                         formData.gramagemPorEstudante *
-                        formData.frequenciaSemanal
+                        formData.frequenciaMensal
                       ).toFixed(1)}
                       g por estudante
                     </p>
@@ -406,7 +406,7 @@ function PercapitaDialog({
                       Consumo mensal:{" "}
                       {(
                         formData.gramagemPorEstudante *
-                        formData.frequenciaSemanal *
+                        formData.frequenciaMensal *
                         4.33
                       ).toFixed(1)}
                       g por estudante
@@ -633,13 +633,13 @@ export default function Percapita() {
                     <TableCell>
                       <div className="flex items-center">
                         <Calendar className="mr-1 h-3 w-3" />
-                        {percapita.frequenciaSemanal}x/semana
+                        {percapita.frequenciaMensal}x/semana
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">
                       {(
                         percapita.gramagemPorEstudante *
-                        percapita.frequenciaSemanal
+                        percapita.frequenciaMensal
                       ).toFixed(1)}
                       g
                     </TableCell>

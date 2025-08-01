@@ -206,7 +206,7 @@ export interface PercapitaItem {
   tipoEstudanteId: string;
   tipoEstudante?: TipoEstudante;
   gramagemPorEstudante: number;
-  frequenciaSemanal: number;
+  frequenciaMensal: number;
   ativo: boolean;
   createdAt: string;
   updatedAt: string;

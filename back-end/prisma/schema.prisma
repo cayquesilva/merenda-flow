@@ -219,7 +219,7 @@ model TipoEstudante {
 model PercapitaItem {
   id                   String   @id @default(uuid())
   gramagemPorEstudante Float    @default(0) @map("gramagem_por_estudante")
-  frequenciaSemanal    Int      @default(5) @map("frequencia_semanal")
+  frequenciaMensal    Int      @default(5) @map("frequencia_mensal")
   ativo                Boolean  @default(true)
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")

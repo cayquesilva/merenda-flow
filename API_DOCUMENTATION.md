@@ -696,7 +696,7 @@ Lista todas as percápitas cadastradas.
   {
     "id": "uuid",
     "gramagemPorEstudante": 150.5,
-    "frequenciaSemanal": 5,
+    "frequenciaMensal": 5,
     "ativo": true,
     "itemContrato": {
       "nome": "Arroz Integral",
@@ -725,7 +725,7 @@ Cria uma nova percápita.
   "itemContratoId": "uuid-do-item-contrato",
   "tipoEstudanteId": "uuid-do-tipo-estudante",
   "gramagemPorEstudante": 150.5,
-  "frequenciaSemanal": 5,
+  "frequenciaMensal": 5,
   "ativo": true
 }
 ```
