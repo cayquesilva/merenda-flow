@@ -132,7 +132,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
           setContratos(await contratosRes.json());
           setUnidades(await unidadesRes.json());
           setTiposEstudante(await tiposEstudanteRes.json()); // Salva os tipos de estudante
-          //console.log("Unidades Ativas com detalhes de estudantes:", await unidadesRes.json());
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Erro desconhecido";
@@ -190,7 +189,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       setContratoSelecionado(contratoData);
       setItensContratoComPercapita(itensPercapitaData);
       setItensPedido([]);
-      console.log("Itens de Contrato com Percapita:", itensPercapitaData);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Erro desconhecido";
@@ -240,10 +238,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
         quantidadeSugerida += (consumoMensalG * numEstudantes) / fatorConversao;
       }
     });
-    console.log(
-      `Sugestão calculada para ${itemContrato.nome} na unidade ${unidade.nome}:`,
-      quantidadeSugerida
-    );
     return Math.max(0, Math.round(quantidadeSugerida));
   };
 
