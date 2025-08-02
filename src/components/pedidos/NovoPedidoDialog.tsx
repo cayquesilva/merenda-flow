@@ -310,7 +310,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     if (!contratoSelecionado || !dataEntrega) {
       toast({
         title: "Campos obrigatórios",
-        description: "Selecione o contrato e a data de entrega.",
+        description: "Selecione o contrato e o prazo de entrega.",
         variant: "destructive",
       });
       return false;
@@ -480,7 +480,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="dataEntrega">Data de Entrega *</Label>
+                <Label htmlFor="dataEntrega">Prazo de Entrega *</Label>
                 <Input
                   id="dataEntrega"
                   type="date"
