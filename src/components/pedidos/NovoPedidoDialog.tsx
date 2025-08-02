@@ -250,7 +250,10 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     if (itensPedido.find((ip) => ip.itemContrato.id === item.id)) return;
 
     const unidadesComSugestao = unidades.map((u) => {
-      const isCreche = u.estudantesBercario > 0 || u.estudantesMaternal > 0 || u.estudantesPreEscola > 0;
+      const isCreche =
+        u.estudantesBercario > 0 ||
+        u.estudantesMaternal > 0 ||
+        u.estudantesPreEscola > 0;
       const tipoEstoque = isCreche ? "creche" : "escola";
 
       const sugestao = calcularSugestaoQuantidade(item, u);
@@ -342,7 +345,9 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
         if (!unidade) return;
 
         const isCreche =
-          unidade.estudantesBercario > 0 || unidade.estudantesMaternal > 0 || unidade.estudantesPreEscola > 0;
+          unidade.estudantesBercario > 0 ||
+          unidade.estudantesMaternal > 0 ||
+          unidade.estudantesPreEscola > 0;
         if (isCreche) {
           totalCrechePedido += u.quantidade;
         } else {
@@ -511,7 +516,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                                   {item.nome}
                                 </h4>
                                 <p className="text-xs text-muted-foreground">
-                                  Saldo: C: {item.saldoCreche} E:{" "}
+                                  Saldo: Cre: {item.saldoCreche} | Esc:{" "}
                                   {item.saldoEscola} | Total: {item.saldoAtual}{" "}
                                   {item.unidadeMedida.sigla}
                                 </p>
@@ -613,15 +618,18 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                                           parseInt(e.target.value) || 0
                                         )
                                       }
-                                      placeholder={unidade.sugestao > 0 ? `Sugestão: ${unidade.sugestao}` : "Sem percápita"}
+                                      placeholder={
+                                        unidade.sugestao > 0
+                                          ? `Sugestão: ${unidade.sugestao}`
+                                          : "0"
+                                      }
                                       disabled={unidade.sugestao === 0} // Desabilita o input se não houver sugestão
                                     />
-                                    {unidade.sugestao > 0 && (
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        Sugerido: {unidade.sugestao}{" "}
-                                        {item.itemContrato.unidadeMedida.sigla}
-                                      </p>
-                                    )}
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {unidade.sugestao > 0
+                                        ? `Sugerido: ${unidade.sugestao}${" "}${item.itemContrato.unidadeMedida.sigla}`
+                                        : "Cadastre a percápita"}
+                                    </p>
                                   </div>
                                 );
                               })}

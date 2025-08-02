@@ -604,26 +604,35 @@ export function ContratoDialog({
                       <div className="mt-2 text-sm text-muted-foreground">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                           <div>
-                            Total Geral: R${" "}
-                            {(
+                            Total Geral:{" "}
+                            {new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            }).format(
                               (item.valorUnitario || 0) *
-                              ((item.quantidadeCreche || 0) +
-                                (item.quantidadeEscola || 0))
-                            ).toFixed(2)}
+                                ((item.quantidadeCreche || 0) +
+                                  (item.quantidadeEscola || 0))
+                            )}
                           </div>
                           <div>
-                            Creches: R${" "}
-                            {(
+                            Creches:{" "}
+                            {new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            }).format(
                               (item.valorUnitario || 0) *
-                              (item.quantidadeCreche || 0)
-                            ).toFixed(2)}
+                                (item.quantidadeCreche || 0)
+                            )}
                           </div>
                           <div>
-                            Escolas: R${" "}
-                            {(
+                            Escolas:{" "}
+                            {new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            }).format(
                               (item.valorUnitario || 0) *
-                              (item.quantidadeEscola || 0)
-                            ).toFixed(2)}
+                                (item.quantidadeEscola || 0)
+                            )}
                           </div>
                         </div>
                       </div>
@@ -636,7 +645,11 @@ export function ContratoDialog({
                       Valor Total do Contrato:
                     </span>
                     <Badge variant="outline" className="text-lg font-bold">
-                      R$ {formData.valorTotal.toFixed(2)}
+                      {" "}
+                      {new Intl.NumberFormat("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      }).format(formData.valorTotal)}
                     </Badge>
                   </div>
                 </div>
