@@ -3,5 +3,5 @@
 #POSTGRES_USER=usuario
 #POSTGRES_PASSWORD=senha
 #FrontEndURL
-#FRONTEND_URL=http://localhost:3000
+#FRONTEND_URL=http://localhost:8080
 #JWT_SECRET=k9N3qL8vT2sYfB7wXm1ZrPdJhVc4A0Ge
