@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
+import { useNavigate } from "react-router-dom";
 
 // ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
 // Isto resolve o erro de tipagem.
@@ -62,6 +63,8 @@ function useDebounce(value: string, delay: number) {
 
 export default function Recibos() {
   const [busca, setBusca] = useState("");
+  const navigate = useNavigate();
+  
   const debouncedBusca = useDebounce(busca, 300);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -144,7 +147,7 @@ export default function Recibos() {
   };
 
   const abrirConfirmacao = (reciboId: string) => {
-    window.open(`/confirmacao-recebimento/${reciboId}`, "_blank");
+    navigate(`/confirmacao-recebimento/${reciboId}`);
   };
 
   return (
@@ -324,7 +327,7 @@ export default function Recibos() {
                     <TableCell>{recibo.responsavelEntrega}</TableCell>
                     <TableCell>{getStatusBadge(recibo.status)}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">
+                      <Badge variant="outline" className="px-1">
                         {recibo._count.itens}{" "}
                         {recibo._count.itens === 1 ? "item" : "itens"}
                       </Badge>

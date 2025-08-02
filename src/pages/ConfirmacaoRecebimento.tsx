@@ -161,7 +161,7 @@ export default function ConfirmacaoRecebimento() {
           setItensConfirmacao(
             recibo.itens.map((item) => ({
               itemId: item.id,
-              conforme: true,
+              conforme: false,
               quantidadeRecebida: item.quantidadeSolicitada,
               observacoes: item.observacoes || "",
             }))
@@ -315,7 +315,7 @@ export default function ConfirmacaoRecebimento() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">{error}</p>
-            <Button onClick={() => navigate("/")} className="mt-4">
+            <Button onClick={() => navigate("/recibos")} className="mt-4">
               Voltar
             </Button>
           </CardContent>
