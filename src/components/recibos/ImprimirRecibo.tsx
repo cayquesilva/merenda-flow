@@ -165,6 +165,7 @@ export default function ImprimirRecibo() {
                   font-size: 0.875rem;
                   text-align: center;
                   width: 80%;
+                  margin-top: 16px;
                 }
               </style>
             </head>
@@ -314,10 +315,6 @@ export default function ImprimirRecibo() {
                   <strong>Responsável Entrega:</strong>{" "}
                   {recibo.responsavelEntrega}
                 </p>
-                <p className="text-sm print:text-xs">
-                  <strong>Responsável Recebimento:</strong>{" "}
-                  {recibo.responsavelRecebimento || "Não informado"}
-                </p>
               </div>
             </div>
 
@@ -360,7 +357,9 @@ export default function ImprimirRecibo() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 print:grid-cols-2 print:gap-4 print:mb-4">
               {/* Assinatura do Fornecedor (Placeholder para assinatura física) */}
               <div className="flex flex-col items-center">
-                <div className="signature-line w-full max-w-[250px]"></div>
+                <p className="signature-label">
+                  _____________________________________
+                </p>
                 <h3 className="font-semibold text-lg mb-2 print:text-base">
                   Assinatura do Fornecedor
                 </h3>
@@ -368,28 +367,13 @@ export default function ImprimirRecibo() {
 
               {/* Assinatura do Recebedor (Placeholder para assinatura física ou texto) */}
               <div className="flex flex-col items-center">
-                <div className="signature-line w-full max-w-[250px]"></div>
+                <p className="signature-label">
+                  _____________________________________
+                </p>
                 <h3 className="font-semibold text-lg mb-2 print:text-base">
                   Assinatura do Recebedor
                 </h3>
               </div>
-
-              {/* Foto do Recibo Assinado (se existir) */}
-              {recibo.fotoReciboAssinado && (
-                <div className="md:col-span-2 text-center flex flex-col items-center">
-                  <h3 className="font-semibold text-lg mb-2 print:text-base">
-                    Foto do Recibo Assinado
-                  </h3>
-                  <img
-                    src={recibo.fotoReciboAssinado}
-                    alt="Recibo Físico Assinado"
-                    className="w-full max-w-sm mx-auto h-auto border border-gray-300 rounded-lg print:border print:border-400"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1 print:text-xs">
-                    Comprovação visual da entrega.
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Área do QR Code */}
