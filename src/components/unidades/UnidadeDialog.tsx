@@ -31,6 +31,7 @@ interface UnidadeEducacional {
   ativo: boolean;
   estudantesBercario: number;
   estudantesMaternal: number;
+  estudantesPreEscola: number;
   estudantesRegular: number;
   estudantesIntegral: number;
   estudantesEja: number;
@@ -56,6 +57,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
     ativo: true,
     estudantesBercario: 0,
     estudantesMaternal: 0,
+    estudantesPreEscola: 0,
     estudantesRegular: 0,
     estudantesIntegral: 0,
     estudantesEja: 0,
@@ -74,6 +76,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
         ativo: unidade.ativo,
         estudantesBercario: unidade.estudantesBercario,
         estudantesMaternal: unidade.estudantesMaternal,
+        estudantesPreEscola: unidade.estudantesPreEscola,
         estudantesRegular: unidade.estudantesRegular,
         estudantesIntegral: unidade.estudantesIntegral,
         estudantesEja: unidade.estudantesEja,
@@ -89,6 +92,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
         ativo: true,
         estudantesBercario: 0,
         estudantesMaternal: 0,
+        estudantesPreEscola: 0,
         estudantesRegular: 0,
         estudantesIntegral: 0,
         estudantesEja: 0,
@@ -128,6 +132,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
         // Adicionando os campos de estudantes diretamente ao payload
         estudantesBercario: formData.estudantesBercario,
         estudantesMaternal: formData.estudantesMaternal,
+        estudantesPreEscola: formData.estudantesPreEscola,
         estudantesRegular: formData.estudantesRegular,
         estudantesIntegral: formData.estudantesIntegral,
         estudantesEja: formData.estudantesEja,
@@ -180,6 +185,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
       ativo: unidade?.ativo ?? true,
       estudantesBercario: unidade?.estudantesBercario || 0,
       estudantesMaternal: unidade?.estudantesMaternal || 0,
+      estudantesPreEscola: unidade?.estudantesPreEscola || 0,
       estudantesRegular: unidade?.estudantesRegular || 0,
       estudantesIntegral: unidade?.estudantesIntegral || 0,
       estudantesEja: unidade?.estudantesEja || 0,
@@ -341,6 +347,23 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
                     setFormData({
                       ...formData,
                       estudantesMaternal: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="0"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <Label htmlFor="estudantesPreEscola">Pré-Escola</Label>
+                <Input
+                  id="estudantesPreEscola"
+                  type="number"
+                  min="0"
+                  value={formData.estudantesPreEscola}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      estudantesPreEscola: parseInt(e.target.value) || 0,
                     })
                   }
                   placeholder="0"

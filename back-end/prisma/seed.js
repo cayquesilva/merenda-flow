@@ -77,25 +77,32 @@ async function main() {
       ordem: 2,
     },
     {
+      id: "pre",
+      nome: "Pré-Escola",
+      sigla: "PRE",
+      categoria: "creche",
+      ordem: 3,
+    },
+    {
       id: "regular",
       nome: "Turmas Regulares",
       sigla: "REG",
       categoria: "escola",
-      ordem: 3,
+      ordem: 4,
     },
     {
       id: "integral",
       nome: "Turmas Integrais",
       sigla: "INT",
       categoria: "escola",
-      ordem: 4,
+      ordem: 5,
     },
     {
       id: "eja",
       nome: "Educação de Jovens e Adultos",
       sigla: "EJA",
       categoria: "escola",
-      ordem: 5,
+      ordem: 6,
     },
   ];
 

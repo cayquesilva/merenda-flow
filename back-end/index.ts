@@ -867,7 +867,8 @@ app.post("/api/pedidos", async (req: Request, res: Response) => {
 
         const isCreche =
           (unidade.estudantesBercario || 0) > 0 ||
-          (unidade.estudantesMaternal || 0) > 0;
+          (unidade.estudantesMaternal || 0) > 0 ||
+          (unidade.estudantesPreEscola || 0) > 0;
         const campoSaldoAjustar = isCreche ? "saldoCreche" : "saldoEscola";
 
         // NOVO: Atualiza os saldos de forma segregada no ItemContrato
@@ -1226,7 +1227,8 @@ app.post(
 
         const isCreche =
           (unidade.estudantesBercario || 0) > 0 ||
-          (unidade.estudantesMaternal || 0) > 0;
+          (unidade.estudantesMaternal || 0) > 0 ||
+          (unidade.estudantesPreEscola || 0) > 0;
         const tipoEstoque = isCreche ? "creche" : "escola";
 
         for (const item of itensConfirmacao) {
@@ -2843,6 +2845,7 @@ app.get(
           codigo: true,
           estudantesBercario: true,
           estudantesMaternal: true,
+          estudantesPreEscola: true,
           estudantesRegular: true,
           estudantesIntegral: true,
           estudantesEja: true,

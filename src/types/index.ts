@@ -54,6 +54,7 @@ export interface UnidadeEducacional {
   ativo: boolean;
   estudantesBercario: number;
   estudantesMaternal: number;
+  estudantesPreEscola: number;
   estudantesRegular: number;
   estudantesIntegral: number;
   estudantesEja: number;

@@ -123,7 +123,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                 `${
                   import.meta.env.VITE_API_URL || "http://localhost:3001"
                 }/api/tipos-estudante`
-              ), // Buscamos tipos de estudante aqui
+              ),
             ]);
 
           if (!contratosRes.ok || !unidadesRes.ok || !tiposEstudanteRes.ok)
@@ -131,7 +131,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
 
           setContratos(await contratosRes.json());
           setUnidades(await unidadesRes.json());
-          setTiposEstudante(await tiposEstudanteRes.json()); // Salva os tipos de estudante
+          setTiposEstudante(await tiposEstudanteRes.json());
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Erro desconhecido";
@@ -146,7 +146,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       };
       fetchInitialData();
     } else {
-      // Limpa os estados ao fechar o modal
       setContratoSelecionado(null);
       setItensPedido([]);
       setDataEntrega("");
@@ -165,7 +164,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     }
     setIsLoading(true);
     try {
-      // Buscamos os itens do contrato com as percápitas
       const [contratoRes, itensPercapitaRes] = await Promise.all([
         fetch(
           `${
@@ -208,23 +206,29 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   ) => {
     let quantidadeSugerida = 0;
 
+    // Itera sobre as percápitas DO ITEM ESPECÍFICO, e não sobre todos os tipos de estudante
     itemContrato.percapitas.forEach((percapita) => {
       let numEstudantes = 0;
-      const tipoEstudante = tiposEstudante.find(
-        (t) => t.id === percapita.tipoEstudanteId
-      );
-      if (!tipoEstudante) return;
 
-      switch (tipoEstudante.categoria) {
-        case "creche":
-          numEstudantes =
-            unidade.estudantesBercario + unidade.estudantesMaternal;
+      // Mapeia a contagem de estudantes com base no tipo de estudante da percápita
+      switch (percapita.tipoEstudante.id) {
+        case "bercario":
+          numEstudantes = unidade.estudantesBercario;
           break;
-        case "escola":
-          numEstudantes =
-            unidade.estudantesRegular +
-            unidade.estudantesIntegral +
-            unidade.estudantesEja;
+        case "maternal":
+          numEstudantes = unidade.estudantesMaternal;
+          break;
+        case "pre":
+          numEstudantes = unidade.estudantesPreEscola;
+          break;
+        case "regular":
+          numEstudantes = unidade.estudantesRegular;
+          break;
+        case "integral":
+          numEstudantes = unidade.estudantesIntegral;
+          break;
+        case "eja":
+          numEstudantes = unidade.estudantesEja;
           break;
       }
 
@@ -238,14 +242,15 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
         quantidadeSugerida += (consumoMensalG * numEstudantes) / fatorConversao;
       }
     });
-    return Math.max(0, Math.round(quantidadeSugerida));
+
+    return Math.max(0, Math.ceil(quantidadeSugerida));
   };
 
   const handleAdicionarItem = (item: ItemContratoDetalhado) => {
     if (itensPedido.find((ip) => ip.itemContrato.id === item.id)) return;
 
     const unidadesComSugestao = unidades.map((u) => {
-      const isCreche = u.estudantesBercario > 0 || u.estudantesMaternal > 0;
+      const isCreche = u.estudantesBercario > 0 || u.estudantesMaternal > 0 || u.estudantesPreEscola > 0;
       const tipoEstoque = isCreche ? "creche" : "escola";
 
       const sugestao = calcularSugestaoQuantidade(item, u);
@@ -305,7 +310,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     if (!contratoSelecionado || !dataEntrega) {
       toast({
         title: "Campos obrigatórios",
-        description: "Selecione o contrato e o prazo de entrega.",
+        description: "Selecione o contrato e a data de entrega.",
         variant: "destructive",
       });
       return false;
@@ -320,7 +325,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       return false;
     }
 
-    // Validação de saldo
     const saldosCreche: Record<string, number> = {};
     const saldosEscola: Record<string, number> = {};
 
@@ -338,7 +342,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
         if (!unidade) return;
 
         const isCreche =
-          unidade.estudantesBercario > 0 || unidade.estudantesMaternal > 0;
+          unidade.estudantesBercario > 0 || unidade.estudantesMaternal > 0 || unidade.estudantesPreEscola > 0;
         if (isCreche) {
           totalCrechePedido += u.quantidade;
         } else {
@@ -476,7 +480,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="dataEntrega">Prazo de Entrega *</Label>
+                <Label htmlFor="dataEntrega">Data de Entrega *</Label>
                 <Input
                   id="dataEntrega"
                   type="date"

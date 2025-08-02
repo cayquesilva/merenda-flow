@@ -66,6 +66,7 @@ interface UnidadeEducacionalConfirmacaoBackend {
   // NOVO: Adiciona a contagem de estudantes
   estudantesBercario: number;
   estudantesMaternal: number;
+  estudantesPreEscola: number;
   estudantesRegular: number;
   estudantesIntegral: number;
   estudantesEja: number;

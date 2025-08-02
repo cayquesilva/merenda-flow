@@ -66,6 +66,7 @@ model UnidadeEducacional {
   // Campos para contagem de estudantes por tipo
   estudantesBercario  Int @default(0) @map("estudantes_bercario")
   estudantesMaternal  Int @default(0) @map("estudantes_maternal")
+  estudantesPreEscola  Int @default(0) @map("estudantes_preescola")
   estudantesRegular   Int @default(0) @map("estudantes_regular")
   estudantesIntegral  Int @default(0) @map("estudantes_integral")
   estudantesEja       Int @default(0) @map("estudantes_eja")
