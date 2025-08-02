@@ -613,7 +613,8 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                                           parseInt(e.target.value) || 0
                                         )
                                       }
-                                      placeholder={`Sugestão: ${unidade.sugestao}`}
+                                      placeholder={unidade.sugestao > 0 ? `Sugestão: ${unidade.sugestao}` : "Sem percápita"}
+                                      disabled={unidade.sugestao === 0} // Desabilita o input se não houver sugestão
                                     />
                                     {unidade.sugestao > 0 && (
                                       <p className="text-xs text-muted-foreground mt-1">
