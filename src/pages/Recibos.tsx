@@ -327,7 +327,7 @@ export default function Recibos() {
                     <TableCell>{recibo.responsavelEntrega}</TableCell>
                     <TableCell>{getStatusBadge(recibo.status)}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="px-1">
+                      <Badge variant="outline" className="text-center px-2">
                         {recibo._count.itens}{" "}
                         {recibo._count.itens === 1 ? "item" : "itens"}
                       </Badge>

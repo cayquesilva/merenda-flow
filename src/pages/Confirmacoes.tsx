@@ -177,14 +177,14 @@ export default function Confirmacoes() {
   const getConformidadeBadge = (percentual: number) => {
     if (percentual === 100) {
       return (
-        <Badge variant="default" className="bg-success text-success-foreground">
-          100% Conforme
+        <Badge variant="default" className="bg-success text-success-foreground px-2">
+          Conforme
         </Badge>
       );
-    } else if (percentual >= 80) {
-      return <Badge variant="outline">Parcialmente Conforme</Badge>;
+    } else if (percentual > 50 && percentual < 100) {
+      return <Badge variant="outline" className="px-2">Parc. Conforme</Badge>;
     } else {
-      return <Badge variant="destructive">Não Conforme</Badge>;
+      return <Badge variant="destructive" className="px-2">Não Conforme</Badge>;
     }
   };
 
