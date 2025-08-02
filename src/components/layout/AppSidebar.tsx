@@ -224,15 +224,8 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2">
-        {!collapsed && user && (
-          <div className="px-3 py-2 mb-2 rounded-lg bg-sidebar-accent/50 border border-sidebar-border">
-            <p className="font-medium text-sidebar-foreground text-sm">
-              {user.nome}
-            </p>
-            <p className="text-xs text-sidebar-foreground/70">{user.email}</p>
-          </div>
-        )}
-        <ThemeToggle />
+        
+        <ThemeToggle collapsed={collapsed}/>
         <Button
           variant="ghost"
           size="sm"
@@ -242,6 +235,14 @@ export function AppSidebar() {
           <LogOut className="h-4 w-4 shrink-0" />
           {!collapsed && <span className="ml-2">Sair</span>}
         </Button>
+        {!collapsed && user && (
+          <div className="px-3 py-2 mb-2 rounded-lg bg-sidebar-accent/50 border border-sidebar-border">
+            <p className="font-medium text-sidebar-foreground text-sm">
+              {user.nome}
+            </p>
+            <p className="text-xs text-sidebar-foreground/70">{user.email}</p>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
