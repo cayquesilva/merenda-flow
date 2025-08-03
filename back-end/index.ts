@@ -1891,7 +1891,7 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
             quantidade: quantidadeNum,
             quantidadeAnterior: quantidadeAnteriorDestino,
             quantidadeNova: quantidadeNovaDestino,
-            motivo: `Remanejamento de ${estoqueOrigem.unidadeEducacional.nome}`,
+            motivo: `Remanejamento de: ${estoqueOrigem.unidadeEducacional.nome}`,
             responsavel,
             dataMovimentacao: new Date(),
           },

@@ -298,6 +298,21 @@ function MovimentacaoDialog({
     }
   };
 
+  useEffect(() => {
+    if (formData.tipo === "remanejamento" && formData.unidadeDestinoId) {
+      const unidadeDestino = unidades.find(
+        (u) => u.id === formData.unidadeDestinoId
+      );
+
+      if (unidadeDestino) {
+        setFormData((prev) => ({
+          ...prev,
+          motivo: `Remanejado para: ${unidadeDestino.nome}`,
+        }));
+      }
+    }
+  }, [formData.tipo, formData.unidadeDestinoId, unidades]);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -406,18 +421,20 @@ function MovimentacaoDialog({
             />
           </div>
 
-          <div>
-            <Label htmlFor="motivo">Motivo *</Label>
-            <Textarea
-              id="motivo"
-              value={formData.motivo}
-              onChange={(e) =>
-                setFormData({ ...formData, motivo: e.target.value })
-              }
-              placeholder="Descreva o motivo da movimentação"
-              rows={3}
-            />
-          </div>
+          {formData.tipo !== "remanejamento" && (
+            <div>
+              <Label htmlFor="motivo">Motivo *</Label>
+              <Textarea
+                id="motivo"
+                value={formData.motivo}
+                onChange={(e) =>
+                  setFormData({ ...formData, motivo: e.target.value })
+                }
+                placeholder="Descreva o motivo da movimentação"
+                rows={3}
+              />
+            </div>
+          )}
           {/* NOVO: Campo de anexo de foto para descarte */}
           {formData.tipo === "descarte" && (
             <div>
