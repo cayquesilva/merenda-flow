@@ -315,12 +315,15 @@ export function RelatorioEntregas() {
             </div>
             <div className="flex items-end gap-2">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
-                <Filter className="h-4 w-4" />
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
                 Gerar Relatório
               </Button>
               {dados && (
                 <Button
-                  variant="outline"
                   onClick={exportarPDF}
                   disabled={isGeneratingPdf}
                 >

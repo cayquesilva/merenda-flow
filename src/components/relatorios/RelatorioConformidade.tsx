@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -27,9 +27,17 @@ import {
   TrendingUp,
   Filter,
   Target,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Recibo } from "@/types"; // Importando a interface Recibo do seu arquivo de tipos
+import { Recibo, UnidadeEducacional } from "@/types"; // Importando a interface Recibo do seu arquivo de tipos
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
 // Interface para os itens do relatório de conformidade, estendendo Recibo
 interface ReciboConformidadeDetalhado extends Recibo {
@@ -53,8 +61,37 @@ export function RelatorioConformidade() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [dados, setDados] = useState<RelatorioConformidadeData | null>(null);
+  const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
+  const [unidadeSelecionada, setUnidadeSelecionada] = useState("all");
+
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchUnidades = async () => {
+      try {
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/unidades-ativas`
+        );
+        if (response.ok) {
+          const data: UnidadeEducacional[] = await response.json(); // Tipagem aqui
+          setUnidades(data);
+        } else {
+          const errorData = await response.json();
+          console.error(
+            "Erro ao buscar unidades:",
+            errorData.error || "Falha ao buscar unidades."
+          );
+        }
+      } catch (error) {
+        console.error("Erro ao buscar unidades:", error);
+      }
+    };
+    fetchUnidades();
+  }, []);
 
   const gerarRelatorio = async () => {
     if (!dataInicio || !dataFim) {
@@ -68,7 +105,11 @@ export function RelatorioConformidade() {
 
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({ dataInicio, dataFim });
+      const params = new URLSearchParams({
+        dataInicio,
+        dataFim,
+        ...(unidadeSelecionada !== "all" && { unidadeId: unidadeSelecionada }),
+      });
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:3001"
@@ -101,6 +142,61 @@ export function RelatorioConformidade() {
     }
   };
 
+  const exportarPDF = async () => {
+    if (!dados || isGeneratingPdf) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/conformidade-pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            dataInicio,
+            dataFim,
+            unidadeId: unidadeSelecionada,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao gerar o PDF.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-conformidade-${dataInicio}_${dataFim}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "PDF gerado!",
+        description: "O relatório de conformidade foi exportado com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na exportação",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível exportar o PDF. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const getConformidadeBadge = (percentual: number) => {
     if (percentual === 100) {
       return (
@@ -113,14 +209,6 @@ export function RelatorioConformidade() {
     } else {
       return <Badge variant="destructive">Não Conforme</Badge>;
     }
-  };
-
-  const exportarPDF = () => {
-    toast({
-      title: "Funcionalidade em desenvolvimento",
-      description: "A exportação em PDF será implementada em breve",
-      variant: "destructive",
-    });
   };
 
   return (
@@ -136,7 +224,7 @@ export function RelatorioConformidade() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
               <Input
@@ -155,15 +243,39 @@ export function RelatorioConformidade() {
                 onChange={(e) => setDataFim(e.target.value)}
               />
             </div>
+            <div>
+              <Label htmlFor="unidade">Unidade (Opcional)</Label>
+              <Select
+                value={unidadeSelecionada}
+                onValueChange={setUnidadeSelecionada}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as unidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Alterado o valor de "" para "all" */}
+                  <SelectItem value="all">Todas as unidades</SelectItem>
+                  {unidades.map((unidade) => (
+                    <SelectItem key={unidade.id} value={unidade.id}>
+                      {unidade.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end gap-2">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
-                <Filter className="mr-2 h-4 w-4" />
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button variant="outline" onClick={exportarPDF}>
-                  <Download className="mr-2 h-4 w-4" />
-                  PDF
+                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
+                  {isGeneratingPdf && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {!isGeneratingPdf && <Download className="h-4 w-4" />}
+                  Exportar PDF
                 </Button>
               )}
             </div>

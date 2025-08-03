@@ -2824,7 +2824,7 @@ app.get("/api/relatorios/entregas", async (req: Request, res: Response) => {
 
 // COMENTÁRIO: Relatório de conformidade das entregas
 app.get("/api/relatorios/conformidade", async (req: Request, res: Response) => {
-  const { dataInicio, dataFim } = req.query;
+  const { dataInicio, dataFim, unidadeId } = req.query;
 
   try {
     // Tipagem explícita para o objeto whereClause
@@ -2835,6 +2835,10 @@ app.get("/api/relatorios/conformidade", async (req: Request, res: Response) => {
         gte: new Date(dataInicio as string),
         lte: new Date(dataFim as string),
       };
+    }
+
+    if (unidadeId && unidadeId !== "all") {
+      whereClause.unidadeEducacionalId = unidadeId as string;
     }
 
     const recibos = await prisma.recibo.findMany({
@@ -2898,14 +2902,6 @@ app.get("/api/relatorios/conformidade", async (req: Request, res: Response) => {
   }
 });
 
-// Interface para o objeto de gastos por fornecedor
-interface GastoFornecedor {
-  fornecedorId: string;
-  fornecedorNome: string;
-  totalGasto: number;
-  totalPedidos: number;
-}
-
 // COMENTÁRIO: Relatório de gastos por fornecedor
 app.get(
   "/api/relatorios/gastos-fornecedor",
@@ -2936,6 +2932,14 @@ app.get(
           contrato: { include: { fornecedor: true } },
         },
       });
+
+      // Interface para o objeto de gastos por fornecedor
+      interface GastoFornecedor {
+        fornecedorId: string;
+        fornecedorNome: string;
+        totalGasto: number;
+        totalPedidos: number;
+      }
 
       const gastosPorFornecedor = pedidos.reduce(
         (acc: Record<string, GastoFornecedor>, pedido) => {
@@ -3598,76 +3602,82 @@ app.post(
   }
 );
 
-app.post("/api/relatorios/entregas-pdf", async (req: Request, res: Response) => {
-  const { dataInicio, dataFim, unidadeId } = req.body;
+app.post(
+  "/api/relatorios/entregas-pdf",
+  async (req: Request, res: Response) => {
+    const { dataInicio, dataFim, unidadeId } = req.body;
 
-  try {
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
+    try {
+      const browser = await puppeteer.launch();
+      const page = await browser.newPage();
 
-    // CORREÇÃO: Definição das interfaces para o relatório
-    interface ReciboRelatorioEntregas {
-      id: string;
-      numero: string;
-      dataEntrega: string;
-      status: string;
-      responsavelEntrega: string;
-      responsavelRecebimento: string;
-      unidadeEducacional: {
-        nome: string;
-      };
-      pedido: {
-        contrato: {
-          fornecedor: {
-            nome: string;
+      // CORREÇÃO: Definição das interfaces para o relatório
+      interface ReciboRelatorioEntregas {
+        id: string;
+        numero: string;
+        dataEntrega: string;
+        status: string;
+        responsavelEntrega: string;
+        responsavelRecebimento: string;
+        unidadeEducacional: {
+          nome: string;
+        };
+        pedido: {
+          contrato: {
+            fornecedor: {
+              nome: string;
+            };
           };
         };
-      };
-    }
-    
-    interface RelatorioEntregasData {
-      recibos: ReciboRelatorioEntregas[];
-      estatisticas: {
-        totalEntregas: number;
-        entregasConfirmadas: number;
-        entregasPendentes: number;
-        entregasAjustadas: number;
-        valorTotalEntregue: number;
-      };
-    }
+      }
 
-    // Busca os dados do relatório a partir da rota de dados existente
-    const params = new URLSearchParams({
-      dataInicio,
-      dataFim,
-      ...(unidadeId && unidadeId !== "all" && { unidadeId }),
-    });
+      interface RelatorioEntregasData {
+        recibos: ReciboRelatorioEntregas[];
+        estatisticas: {
+          totalEntregas: number;
+          entregasConfirmadas: number;
+          entregasPendentes: number;
+          entregasAjustadas: number;
+          valorTotalEntregue: number;
+        };
+      }
 
-    const reportDataResponse = await fetch(
-      `http://localhost:3001/api/relatorios/entregas?${params}`
-    );
-    if (!reportDataResponse.ok) {
-      throw new Error("Falha ao buscar dados do relatório.");
-    }
-    const reportData: RelatorioEntregasData = await reportDataResponse.json();
+      // Busca os dados do relatório a partir da rota de dados existente
+      const params = new URLSearchParams({
+        dataInicio,
+        dataFim,
+        ...(unidadeId && unidadeId !== "all" && { unidadeId }),
+      });
 
-    // NOVO: Renderiza o HTML para o PDF
-    const recibosHtml = reportData.recibos
-      .map(
-        (recibo) => `
+      const reportDataResponse = await fetch(
+        `http://localhost:3001/api/relatorios/entregas?${params}`
+      );
+      if (!reportDataResponse.ok) {
+        throw new Error("Falha ao buscar dados do relatório.");
+      }
+      const reportData: RelatorioEntregasData = await reportDataResponse.json();
+
+      // NOVO: Renderiza o HTML para o PDF
+      const recibosHtml = reportData.recibos
+        .map(
+          (recibo) => `
             <tr>
               <td>${recibo.numero}</td>
               <td>${recibo.unidadeEducacional.nome}</td>
               <td>${recibo.pedido.contrato.fornecedor.nome}</td>
-              <td>${new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}</td>
+              <td>${new Date(recibo.dataEntrega).toLocaleDateString(
+                "pt-BR"
+              )}</td>
               <td>${recibo.status}</td>
-              <td>${recibo.responsavelRecebimento || recibo.responsavelEntrega}</td>
+              <td>${
+                recibo.responsavelRecebimento || recibo.responsavelEntrega
+              }</td>
             </tr>
           `
-      )
-      .join("");
+        )
+        .join("");
 
-    const htmlContent = `
+      const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -3686,11 +3696,17 @@ app.post("/api/relatorios/entregas-pdf", async (req: Request, res: Response) => 
             <h1>Relatório de Entregas por Período</h1>
             <div class="section">
                 <h2>Estatísticas</h2>
-                <p>Total de Entregas: ${reportData.estatisticas.totalEntregas}</p>
-                <p>Confirmadas: ${reportData.estatisticas.entregasConfirmadas}</p>
+                <p>Total de Entregas: ${
+                  reportData.estatisticas.totalEntregas
+                }</p>
+                <p>Confirmadas: ${
+                  reportData.estatisticas.entregasConfirmadas
+                }</p>
                 <p>Pendentes: ${reportData.estatisticas.entregasPendentes}</p>
                 <p>Ajustadas: ${reportData.estatisticas.entregasAjustadas}</p>
-                <p>Valor Total Entregue: R$ ${reportData.estatisticas.valorTotalEntregue.toFixed(2)}</p>
+                <p>Valor Total Entregue: R$ ${reportData.estatisticas.valorTotalEntregue.toFixed(
+                  2
+                )}</p>
             </div>
             <div class="section">
                 <h2>Detalhes das Entregas</h2>
@@ -3714,25 +3730,169 @@ app.post("/api/relatorios/entregas-pdf", async (req: Request, res: Response) => 
         </html>
     `;
 
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({ format: "A4" });
+      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+      const pdfBuffer = await page.pdf({ format: "A4" });
 
-    await browser.close();
+      await browser.close();
 
-    res.set({
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="relatorio-entregas-${dataInicio}_${dataFim}.pdf"`,
-      "Content-Length": pdfBuffer.length,
-    });
-    res.send(pdfBuffer);
-  } catch (error) {
-    console.error("Erro ao gerar PDF do relatório:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório PDF." });
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="relatorio-entregas-${dataInicio}_${dataFim}.pdf"`,
+        "Content-Length": pdfBuffer.length,
+      });
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Erro ao gerar PDF do relatório:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório PDF." });
+    }
   }
-});
+);
 
+app.post(
+  "/api/relatorios/conformidade-pdf",
+  async (req: Request, res: Response) => {
+    const { dataInicio, dataFim, unidadeId } = req.body;
 
+    try {
+      const browser = await puppeteer.launch();
+      const page = await browser.newPage();
 
+      // Busca os dados do relatório a partir da rota de dados existente
+      const params = new URLSearchParams({
+        dataInicio,
+        dataFim,
+        ...(unidadeId && unidadeId !== "all" && { unidadeId }),
+      });
+      
+      const reportDataResponse = await fetch(
+        `http://localhost:3001/api/relatorios/conformidade?${params}`
+      );
+      if (!reportDataResponse.ok) {
+        throw new Error("Falha ao buscar dados do relatório.");
+      }
+      const reportData = await reportDataResponse.json();
+
+      interface ReciboConformidadeDetalhado {
+        id: string;
+        numero: string;
+        dataEntrega: string;
+        totalItens: number;
+        itensConformes: number;
+        percentualConformidade: number;
+        unidadeEducacional: { nome: string };
+        pedido: {
+          contrato: {
+            fornecedor: { nome: string };
+          };
+        };
+      }
+
+      interface RelatorioConformidadeData {
+        analiseConformidade: ReciboConformidadeDetalhado[];
+        estatisticas: {
+          totalRecibos: number;
+          mediaConformidade: number;
+          recibosConformes: number;
+          recibosParciais: number;
+          recibosNaoConformes: number;
+        };
+      }
+
+      const typedReportData: RelatorioConformidadeData = reportData;
+
+      const analiseConformidadeHtml = typedReportData.analiseConformidade
+        .map(
+          (recibo) => `
+        <tr>
+          <td>${recibo.numero}</td>
+          <td>${recibo.unidadeEducacional.nome}</td>
+          <td>${recibo.pedido.contrato.fornecedor.nome}</td>
+          <td>${new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}</td>
+          <td>${recibo.itensConformes}/${recibo.totalItens}</td>
+          <td>${recibo.percentualConformidade.toFixed(2)}%</td>
+        </tr>
+      `
+        )
+        .join("");
+
+      const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Relatório de Conformidade</title>
+          <style>
+              body { font-family: sans-serif; padding: 20px; }
+              h1 { color: #333; }
+              .section { margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th { background-color: #f2f2f2; }
+              h2 { margin-top: 0; }
+          </style>
+      </head>
+      <body>
+          <h1>Relatório de Conformidade das Entregas</h1>
+          <div class="section">
+              <h2>Estatísticas</h2>
+              <p>Total de Recibos: ${
+                typedReportData.estatisticas.totalRecibos
+              }</p>
+              <p>Média de Conformidade: ${typedReportData.estatisticas.mediaConformidade.toFixed(
+                2
+              )}%</p>
+              <p>Recibos Totalmente Conformes: ${
+                typedReportData.estatisticas.recibosConformes
+              }</p>
+              <p>Recibos Parcialmente Conformes: ${
+                typedReportData.estatisticas.recibosParciais
+              }</p>
+              <p>Recibos Não Conformes: ${
+                typedReportData.estatisticas.recibosNaoConformes
+              }</p>
+          </div>
+          <div class="section">
+              <h2>Análise Detalhada</h2>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Recibo</th>
+                          <th>Unidade</th>
+                          <th>Fornecedor</th>
+                          <th>Data Entrega</th>
+                          <th>Itens Conformes</th>
+                          <th>% Conformidade</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${analiseConformidadeHtml}
+                  </tbody>
+              </table>
+          </div>
+      </body>
+      </html>
+    `;
+
+      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+      const pdfBuffer = await page.pdf({ format: "A4" });
+
+      await browser.close();
+
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="relatorio-conformidade-${dataInicio}_${dataFim}.pdf"`,
+        "Content-Length": pdfBuffer.length,
+      });
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Erro ao gerar PDF do relatório de conformidade:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório PDF." });
+    }
+  }
+);
 
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {
