@@ -2434,40 +2434,25 @@ app.get(
 app.get(
   "/api/relatorios/estoque-unidade",
   async (req: Request, res: Response) => {
-    const { unidadeId, dataInicio, dataFim } = req.query;
+    const { unidadeId, dataInicio, dataFim, itemId } = req.query;
 
     try {
       const whereClause: Prisma.EstoqueWhereInput = {};
-
-      if (unidadeId) {
-        whereClause.unidadeEducacionalId = unidadeId as string;
-      }
-
-      // Buscar estoque atual
-      const estoque = await prisma.estoque.findMany({
-        where: whereClause,
-        include: {
-          itemContrato: {
-            include: {
-              unidadeMedida: true,
-              contrato: {
-                select: {
-                  numero: true,
-                  fornecedor: { select: { nome: true } },
-                },
-              },
-            },
-          },
-          unidadeEducacional: { select: { nome: true, codigo: true } },
-        },
-      });
-
-      // Buscar movimentações no período
       const movimentacoesWhere: Prisma.MovimentacaoEstoqueWhereInput = {};
 
-      if (unidadeId) {
+      if (unidadeId && unidadeId !== "all") {
+        whereClause.unidadeEducacionalId = unidadeId as string;
         movimentacoesWhere.estoque = {
           unidadeEducacionalId: unidadeId as string,
+        };
+      }
+
+      // CORREÇÃO: Adiciona o filtro por item de contrato de forma segura
+      if (itemId && itemId !== "all") {
+        whereClause.itemContratoId = itemId as string;
+        movimentacoesWhere.estoque = {
+          ...(movimentacoesWhere.estoque as object),
+          itemContratoId: itemId as string,
         };
       }
 
@@ -2478,20 +2463,39 @@ app.get(
         };
       }
 
-      const movimentacoes = await prisma.movimentacaoEstoque.findMany({
-        where: movimentacoesWhere,
-        include: {
-          estoque: {
-            include: {
-              itemContrato: { include: { unidadeMedida: true } },
-              unidadeEducacional: { select: { nome: true } },
+      const [estoque, movimentacoes] = await Promise.all([
+        prisma.estoque.findMany({
+          where: whereClause,
+          include: {
+            itemContrato: {
+              include: {
+                unidadeMedida: true,
+                contrato: {
+                  select: {
+                    numero: true,
+                    fornecedor: { select: { nome: true } },
+                  },
+                },
+              },
+            },
+            unidadeEducacional: { select: { nome: true, codigo: true } },
+          },
+          orderBy: { itemContrato: { nome: "asc" } },
+        }),
+        prisma.movimentacaoEstoque.findMany({
+          where: movimentacoesWhere,
+          include: {
+            estoque: {
+              include: {
+                itemContrato: { include: { unidadeMedida: true } },
+                unidadeEducacional: { select: { nome: true } },
+              },
             },
           },
-        },
-        orderBy: { dataMovimentacao: "desc" },
-      });
+          orderBy: { dataMovimentacao: "desc" },
+        }),
+      ]);
 
-      // Calcular estatísticas
       const totalItens = estoque.length;
       const itensComEstoque = estoque.filter(
         (e) => e.quantidadeAtual > 0
@@ -3894,53 +3898,62 @@ app.post(
   }
 );
 
-app.post("/api/relatorios/gastos-fornecedor-pdf", async (req: Request, res: Response) => {
-  const { dataInicio, dataFim, fornecedorId } = req.body;
+app.post(
+  "/api/relatorios/gastos-fornecedor-pdf",
+  async (req: Request, res: Response) => {
+    const { dataInicio, dataFim, fornecedorId } = req.body;
 
-  try {
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
+    try {
+      const browser = await puppeteer.launch();
+      const page = await browser.newPage();
 
-    // Busca os dados do relatório a partir da rota de dados existente
-    const params = new URLSearchParams({
-      dataInicio,
-      dataFim,
-      ...(fornecedorId && fornecedorId !== 'all' && { fornecedorId }),
-    });
+      // Busca os dados do relatório a partir da rota de dados existente
+      const params = new URLSearchParams({
+        dataInicio,
+        dataFim,
+        ...(fornecedorId && fornecedorId !== "all" && { fornecedorId }),
+      });
 
-    const reportDataResponse = await fetch(
-      `http://localhost:3001/api/relatorios/gastos-fornecedor?${params}`
-    );
-    if (!reportDataResponse.ok) {
-      throw new Error("Falha ao buscar dados do relatório.");
-    }
-    const reportData = await reportDataResponse.json();
+      const reportDataResponse = await fetch(
+        `http://localhost:3001/api/relatorios/gastos-fornecedor?${params}`
+      );
+      if (!reportDataResponse.ok) {
+        throw new Error("Falha ao buscar dados do relatório.");
+      }
+      const reportData = await reportDataResponse.json();
 
-    // Definição das interfaces para tipagem dos dados do relatório
-    interface GastoFornecedor {
+      // Definição das interfaces para tipagem dos dados do relatório
+      interface GastoFornecedor {
         fornecedorId: string;
         fornecedorNome: string;
         totalGasto: number;
         totalPedidos: number;
-    }
+      }
 
-    interface RelatorioGastosData {
+      interface RelatorioGastosData {
         gastosPorFornecedor: GastoFornecedor[];
         estatisticas: {
-            totalFornecedores: number;
-            gastoTotal: number;
-            pedidosTotal: number;
+          totalFornecedores: number;
+          gastoTotal: number;
+          pedidosTotal: number;
         };
-    }
-    
-    const typedReportData: RelatorioGastosData = reportData;
+      }
 
-    const rankingHtml = typedReportData.gastosPorFornecedor.map((fornecedor, index) => {
-        const ticketMedio = fornecedor.totalPedidos > 0 ? fornecedor.totalGasto / fornecedor.totalPedidos : 0;
-        const percentualParticipacao = typedReportData.estatisticas.gastoTotal > 0
-            ? (fornecedor.totalGasto / typedReportData.estatisticas.gastoTotal) * 100
-            : 0;
-        return `
+      const typedReportData: RelatorioGastosData = reportData;
+
+      const rankingHtml = typedReportData.gastosPorFornecedor
+        .map((fornecedor, index) => {
+          const ticketMedio =
+            fornecedor.totalPedidos > 0
+              ? fornecedor.totalGasto / fornecedor.totalPedidos
+              : 0;
+          const percentualParticipacao =
+            typedReportData.estatisticas.gastoTotal > 0
+              ? (fornecedor.totalGasto /
+                  typedReportData.estatisticas.gastoTotal) *
+                100
+              : 0;
+          return `
             <tr>
                 <td>#${index + 1}</td>
                 <td>${fornecedor.fornecedorNome}</td>
@@ -3950,10 +3963,10 @@ app.post("/api/relatorios/gastos-fornecedor-pdf", async (req: Request, res: Resp
                 <td>${percentualParticipacao.toFixed(1)}%</td>
             </tr>
         `;
-    }).join('');
+        })
+        .join("");
 
-
-    const htmlContent = `
+      const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -3972,9 +3985,15 @@ app.post("/api/relatorios/gastos-fornecedor-pdf", async (req: Request, res: Resp
           <h1>Relatório de Gastos por Fornecedor</h1>
           <div class="section">
               <h2>Estatísticas</h2>
-              <p>Gasto Total: R$ ${typedReportData.estatisticas.gastoTotal.toFixed(2)}</p>
-              <p>Total de Fornecedores: ${typedReportData.estatisticas.totalFornecedores}</p>
-              <p>Total de Pedidos: ${typedReportData.estatisticas.pedidosTotal}</p>
+              <p>Gasto Total: R$ ${typedReportData.estatisticas.gastoTotal.toFixed(
+                2
+              )}</p>
+              <p>Total de Fornecedores: ${
+                typedReportData.estatisticas.totalFornecedores
+              }</p>
+              <p>Total de Pedidos: ${
+                typedReportData.estatisticas.pedidosTotal
+              }</p>
           </div>
           <div class="section">
               <h2>Ranking de Gastos</h2>
@@ -3998,23 +4017,235 @@ app.post("/api/relatorios/gastos-fornecedor-pdf", async (req: Request, res: Resp
       </html>
     `;
 
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({ format: "A4" });
+      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+      const pdfBuffer = await page.pdf({ format: "A4" });
 
-    await browser.close();
+      await browser.close();
 
-    res.set({
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="relatorio-gastos-${dataInicio}_${dataFim}.pdf"`,
-      "Content-Length": pdfBuffer.length,
-    });
-    res.send(pdfBuffer);
-  } catch (error) {
-    console.error("Erro ao gerar PDF do relatório de gastos:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório PDF." });
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="relatorio-gastos-${dataInicio}_${dataFim}.pdf"`,
+        "Content-Length": pdfBuffer.length,
+      });
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Erro ao gerar PDF do relatório de gastos:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório PDF." });
+    }
   }
-});
+);
 
+app.post(
+  "/api/relatorios/estoque-unidade-pdf",
+  async (req: Request, res: Response) => {
+    const { dataInicio, dataFim, unidadeId } = req.body;
+
+    // CORREÇÃO: Mover as interfaces para o mesmo arquivo para evitar erros de tipagem
+    interface EstoqueDetalhadoRelatorio {
+      id: string;
+      quantidadeAtual: number;
+      quantidadeMinima: number;
+      itemContrato: {
+        nome: string;
+        valorUnitario: number;
+        unidadeMedida: { sigla: string };
+        contrato: {
+          numero: string;
+          fornecedor: { nome: string };
+        };
+      };
+      unidadeEducacional: { nome: string };
+    }
+
+    interface MovimentacaoEstoqueDetalhadaRelatorio {
+      id: string;
+      dataMovimentacao: string;
+      tipo: string;
+      quantidade: number;
+      responsavel: string;
+      motivo: string;
+      estoque: {
+        itemContrato: {
+          nome: string;
+          unidadeMedida: { sigla: string };
+        };
+        unidadeEducacional: { nome: string };
+      };
+    }
+
+    interface RelatorioEstoqueData {
+      estoque: EstoqueDetalhadoRelatorio[];
+      movimentacoes: MovimentacaoEstoqueDetalhadaRelatorio[];
+      estatisticas: {
+        totalItens: number;
+        itensComEstoque: number;
+        itensAbaixoMinimo: number;
+        valorTotalEstoque: number;
+        totalEntradas: number;
+        totalSaidas: number;
+      };
+    }
+
+    try {
+      const browser = await puppeteer.launch();
+      const page = await browser.newPage();
+
+      const params = new URLSearchParams({
+        dataInicio,
+        dataFim,
+        ...(unidadeId && unidadeId !== "all" && { unidadeId }),
+      });
+
+      const reportDataResponse = await fetch(
+        `http://localhost:3001/api/relatorios/estoque-unidade?${params}`
+      );
+      if (!reportDataResponse.ok) {
+        throw new Error("Falha ao buscar dados do relatório.");
+      }
+      const reportData = await reportDataResponse.json();
+
+      const typedReportData: RelatorioEstoqueData = reportData;
+
+      const estoqueHtml = typedReportData.estoque
+        .map(
+          (item) => `
+        <tr>
+            <td>${item.itemContrato.nome}</td>
+            <td>${item.unidadeEducacional.nome}</td>
+            <td>${item.itemContrato.contrato.fornecedor.nome}</td>
+            <td>${item.quantidadeAtual} ${
+            item.itemContrato.unidadeMedida.sigla
+          }</td>
+            <td>${item.quantidadeMinima} ${
+            item.itemContrato.unidadeMedida.sigla
+          }</td>
+            <td>R$ ${(
+              item.quantidadeAtual * item.itemContrato.valorUnitario
+            ).toFixed(2)}</td>
+        </tr>
+    `
+        )
+        .join("");
+
+      const movimentacoesHtml = typedReportData.movimentacoes
+        .map(
+          (mov) => `
+        <tr>
+            <td>${new Date(mov.dataMovimentacao).toLocaleDateString(
+              "pt-BR"
+            )}</td>
+            <td>${mov.tipo}</td>
+            <td>${mov.estoque.itemContrato.nome}</td>
+            <td>${mov.estoque.unidadeEducacional.nome}</td>
+            <td>${mov.quantidade} ${
+            mov.estoque.itemContrato.unidadeMedida.sigla
+          }</td>
+            <td>${mov.responsavel}</td>
+            <td>${mov.motivo}</td>
+        </tr>
+    `
+        )
+        .join("");
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório de Estoque</title>
+            <style>
+                body { font-family: sans-serif; padding: 20px; }
+                h1 { color: #333; }
+                .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; }
+                h2 { margin-top: 0; }
+            </style>
+        </head>
+        <body>
+            <h1>Relatório de Estoque por Unidade</h1>
+            <div class="section">
+                <h2>Estatísticas Gerais</h2>
+                <p>Total de Itens em Estoque: ${
+                  typedReportData.estatisticas.totalItens
+                }</p>
+                <p>Itens Abaixo do Mínimo: ${
+                  typedReportData.estatisticas.itensAbaixoMinimo
+                }</p>
+                <p>Valor Total do Estoque: R$ ${typedReportData.estatisticas.valorTotalEstoque.toFixed(
+                  2
+                )}</p>
+                <p>Total de Entradas: ${
+                  typedReportData.estatisticas.totalEntradas
+                }</p>
+                <p>Total de Saídas: ${
+                  typedReportData.estatisticas.totalSaidas
+                }</p>
+            </div>
+
+            <div class="section" style="page-break-inside: avoid;">
+                <h2>Estoque Atual</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Unidade</th>
+                            <th>Fornecedor</th>
+                            <th>Quantidade</th>
+                            <th>Mínimo</th>
+                            <th>Valor Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${estoqueHtml}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section" style="page-break-inside: avoid;">
+                <h2>Histórico de Movimentações</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Tipo</th>
+                            <th>Item</th>
+                            <th>Unidade</th>
+                            <th>Quantidade</th>
+                            <th>Responsável</th>
+                            <th>Motivo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${movimentacoesHtml}
+                    </tbody>
+                </table>
+            </div>
+        </body>
+        </html>
+    `;
+
+      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+      const pdfBuffer = await page.pdf({ format: "A4" });
+
+      await browser.close();
+
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="relatorio-estoque-${dataInicio}_${dataFim}.pdf"`,
+        "Content-Length": pdfBuffer.length,
+      });
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Erro ao gerar PDF do relatório de estoque:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório PDF." });
+    }
+  }
+);
 
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {

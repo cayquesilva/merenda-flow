@@ -65,22 +65,21 @@ interface EstoqueDetalhadoRelatorio extends BaseEstoque {
   unidadeEducacional: UnidadeEducacional;
 }
 
-// CORREÇÃO: Usando Omit para remover 'estoque' e 'recibo' da interface base
 interface MovimentacaoEstoqueDetalhadaRelatorio
   extends Omit<BaseMovimentacaoEstoque, "estoque" | "recibo"> {
   estoque: {
-    id: string; // O ID do estoque é o único que vem diretamente aqui, o resto está aninhado
-    itemContrato: ItemContratoDetalhado; // Reutiliza a interface detalhada
+    id: string;
+    itemContrato: ItemContratoDetalhado;
     unidadeEducacional: UnidadeEducacional;
   };
   recibo: {
     numero: string;
-  } | null; // Pode ser nulo
+  } | null;
 }
 
 interface RelatorioEstoqueData {
-  estoque: EstoqueDetalhadoRelatorio[]; // Usar a interface detalhada aqui
-  movimentacoes: MovimentacaoEstoqueDetalhadaRelatorio[]; // Usar a interface detalhada aqui
+  estoque: EstoqueDetalhadoRelatorio[];
+  movimentacoes: MovimentacaoEstoqueDetalhadaRelatorio[];
   estatisticas: {
     totalItens: number;
     itensComEstoque: number;
@@ -100,31 +99,56 @@ interface RelatorioEstoqueData {
   };
 }
 
+// NOVO: Interface para a lista de itens
+interface ItemSimplificado {
+  id: string;
+  nome: string;
+}
+
 export function RelatorioEstoque() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [unidadeSelecionada, setUnidadeSelecionada] = useState("all");
+  const [itemSelecionado, setItemSelecionado] = useState("all"); // NOVO: Estado para o filtro por item
   const [dados, setDados] = useState<RelatorioEstoqueData | null>(null);
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
+  const [itens, setItens] = useState<ItemSimplificado[]>([]); // NOVO: Estado para a lista de itens
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchUnidades = async () => {
+    const fetchDados = async () => {
       try {
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/unidades-ativas`
-        );
-        if (response.ok) {
-          setUnidades(await response.json());
+        const [unidadesRes, itensRes] = await Promise.all([
+          fetch(
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/unidades-ativas`
+          ),
+          fetch(
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/percapita/itens-contrato-ativos` // NOVA ROTA para buscar itens ativos
+          ),
+        ]);
+        if (unidadesRes.ok) {
+          const data: UnidadeEducacional[] = await unidadesRes.json();
+          setUnidades(data);
+        } else {
+          console.error("Erro ao buscar unidades");
+        }
+        if (itensRes.ok) {
+          const data: ItemSimplificado[] = await itensRes.json();
+          setItens(data);
+        } else {
+          console.error("Erro ao buscar itens");
         }
       } catch (error) {
-        console.error("Erro ao buscar unidades:", error);
+        console.error("Erro ao buscar dados iniciais:", error);
       }
     };
-    fetchUnidades();
+    fetchDados();
   }, []);
 
   const gerarRelatorio = async () => {
@@ -143,6 +167,7 @@ export function RelatorioEstoque() {
         dataInicio,
         dataFim,
         ...(unidadeSelecionada !== "all" && { unidadeId: unidadeSelecionada }),
+        ...(itemSelecionado !== "all" && { itemId: itemSelecionado }), // NOVO
       });
 
       const response = await fetch(
@@ -152,7 +177,7 @@ export function RelatorioEstoque() {
       );
 
       if (response.ok) {
-        const data: RelatorioEstoqueData = await response.json(); // Tipagem aqui
+        const data: RelatorioEstoqueData = await response.json();
         setDados(data);
         toast({
           title: "Relatório gerado!",
@@ -176,16 +201,63 @@ export function RelatorioEstoque() {
     }
   };
 
-  const exportarPDF = () => {
-    toast({
-      title: "Funcionalidade em desenvolvimento",
-      description: "A exportação em PDF será implementada em breve",
-      variant: "destructive",
-    });
+  const exportarPDF = async () => {
+    if (!dados || isGeneratingPdf) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/estoque-unidade-pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            dataInicio,
+            dataFim,
+            unidadeId: unidadeSelecionada,
+            itemId: itemSelecionado,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao gerar o PDF.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-estoque-${dataInicio}_${dataFim}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "PDF gerado!",
+        description: "O relatório de estoque foi exportado com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na exportação",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível exportar o PDF. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const getStatusBadge = (estoque: EstoqueDetalhadoRelatorio) => {
-    // Usar a interface detalhada
     if (estoque.quantidadeAtual === 0) {
       return <Badge variant="destructive">Sem Estoque</Badge>;
     }
@@ -225,7 +297,7 @@ export function RelatorioEstoque() {
 
     return (
       <Badge variant={variants[tipo as keyof typeof variants] || "outline"}>
-        {icons[tipo as keyof typeof icons]}
+        {icons[tipo as keyof typeof variants]}
         {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
       </Badge>
     );
@@ -244,7 +316,7 @@ export function RelatorioEstoque() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
               <Input
@@ -282,15 +354,38 @@ export function RelatorioEstoque() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label htmlFor="item">Item (Opcional)</Label>
+              <Select
+                value={itemSelecionado}
+                onValueChange={setItemSelecionado}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os itens" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os itens</SelectItem>
+                  {itens.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end gap-2">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
-                <Filter className="mr-2 h-4 w-4" />
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button variant="outline" onClick={exportarPDF}>
-                  <Download className="mr-2 h-4 w-4" />
-                  PDF
+                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
+                  {isGeneratingPdf && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {!isGeneratingPdf && <Download className=" h-4 w-4" />}
+                  Exportar PDF
                 </Button>
               )}
             </div>
@@ -300,7 +395,6 @@ export function RelatorioEstoque() {
 
       {dados && (
         <>
-          {/* Estatísticas */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -375,132 +469,6 @@ export function RelatorioEstoque() {
             </Card>
           </div>
 
-          {/* Resumo de Movimentações */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumo de Movimentações no Período</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-primary">
-                      {dados.estatisticas.totalMovimentacoes}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Total de Movimentações
-                    </p>
-                    <Progress value={100} className="h-2" />
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-success">
-                      {dados.estatisticas.contaEntradas}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Total de Entradas
-                    </p>
-                    <Progress
-                      value={
-                        dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.contaEntradas /
-                              dados.estatisticas.totalMovimentacoes) *
-                            100
-                          : 0
-                      }
-                      className="h-2"
-                    />
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-success">
-                      {dados.estatisticas.contaAjustes}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Total de Ajustes
-                    </p>
-                    <Progress
-                      value={
-                        dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.contaAjustes /
-                              dados.estatisticas.totalMovimentacoes) *
-                            100
-                          : 0
-                      }
-                      className="h-2"
-                    />
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-destructive">
-                      {dados.estatisticas.contaSaidas}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Total de Saídas
-                    </p>
-                    <Progress
-                      value={
-                        dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.contaSaidas /
-                              dados.estatisticas.totalMovimentacoes) *
-                            100
-                          : 0
-                      }
-                      className="h-2"
-                    />
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-destructive">
-                      {dados.estatisticas.contaDescartes}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Total de Descartes
-                    </p>
-                    <Progress
-                      value={
-                        dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.contaDescartes /
-                              dados.estatisticas.totalMovimentacoes) *
-                            100
-                          : 0
-                      }
-                      className="h-2"
-                    />
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-destructive">
-                      {dados.estatisticas.contaRemanejamentos}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Total de Remanejamentos{" "}
-                      <span className="text-success text-[10px]">
-                        (Entrada e Saída)
-                      </span>
-                    </p>
-                    <Progress
-                      value={
-                        dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.contaRemanejamentos /
-                              dados.estatisticas.totalMovimentacoes) *
-                            100
-                          : 0
-                      }
-                      className="h-2"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Estoque Atual */}
           <Card>
             <CardHeader>
               <CardTitle>Estoque Atual por Unidade</CardTitle>
@@ -566,7 +534,6 @@ export function RelatorioEstoque() {
             </CardContent>
           </Card>
 
-          {/* Movimentações */}
           <Card>
             <CardHeader>
               <CardTitle>Movimentações no Período</CardTitle>
