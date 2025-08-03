@@ -36,6 +36,8 @@ import {
   AlertTriangle,
   BarChart3,
   Loader2,
+  Truck,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 // Importar as interfaces base do seu arquivo de tipos
@@ -86,6 +88,8 @@ interface RelatorioEstoqueData {
     valorTotalEstoque: number;
     totalEntradas: number;
     totalSaidas: number;
+    totalDescartes: number;
+    totalRemanejamentos: number;
     totalMovimentacoes: number;
   };
 }
@@ -197,12 +201,16 @@ export function RelatorioEstoque() {
       entrada: "default",
       saida: "destructive",
       ajuste: "outline",
+      descarte: "destructive",
+      remanejamento: "outline",
     } as const;
 
     const icons = {
       entrada: <TrendingUp className="h-3 w-3 mr-1" />,
       saida: <TrendingDown className="h-3 w-3 mr-1" />,
       ajuste: <BarChart3 className="h-3 w-3 mr-1" />,
+      descarte: <Trash2 className="h-3 w-3 mr-1" />,
+      remanejamento: <Truck className="h-3 w-3 mr" />,
     };
 
     return (
@@ -532,12 +540,12 @@ export function RelatorioEstoque() {
                       <TableCell>
                         <span
                           className={
-                            mov.tipo === "saida"
+                            mov.tipo === "saida" || mov.tipo === "descarte"
                               ? "text-destructive"
                               : "text-success"
                           }
                         >
-                          {mov.tipo === "saida" ? "-" : "+"}
+                          {mov.tipo === "saida" || mov.tipo === "descarte" ? "-" : "+"}
                           {mov.quantidade}{" "}
                           {mov.estoque.itemContrato.unidadeMedida.sigla}
                         </span>

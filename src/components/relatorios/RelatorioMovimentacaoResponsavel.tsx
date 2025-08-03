@@ -370,12 +370,12 @@ export default function RelatorioMovimentacaoResponsavel() {
                         <TableCell>
                           <span
                             className={
-                              mov.tipo === "saida"
+                              mov.tipo === "saida" || mov.tipo === "descarte"
                                 ? "text-destructive"
                                 : "text-success"
                             }
                           >
-                            {mov.tipo === "saida" ? "-" : "+"}
+                            {mov.tipo === "saida" || mov.tipo === "descarte" ? "-" : "+"}
                             {mov.quantidade}{" "}
                             {mov.estoque.itemContrato.unidadeMedida.sigla}
                           </span>
