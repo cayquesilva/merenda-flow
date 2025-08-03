@@ -4,6 +4,7 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import puppeteer from "puppeteer";
 
 dotenv.config();
 
@@ -2661,7 +2662,7 @@ app.get(
         where: { id: contratoId },
         include: {
           fornecedor: true,
-          itens: { include: { unidadeMedida: true } }, // Inclui unidadeMedida para o cálculo
+          itens: { include: { unidadeMedida: true } },
         },
       });
 
@@ -2678,10 +2679,29 @@ app.get(
               unidadeEducacional: true,
             },
           },
+          // NOVO: Inclui os recibos e seus itens
+          recibos: {
+            include: {
+              unidadeEducacional: { select: { nome: true } },
+              itens: {
+                include: {
+                  itemPedido: {
+                    include: {
+                      itemContrato: {
+                        select: {
+                          nome: true,
+                          unidadeMedida: { select: { sigla: true } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       });
 
-      // Consolidação dos dados (movida do frontend para o backend)
       const itensPorContrato = contrato.itens.map((itemContrato) => {
         const quantidadePedida = pedidos
           .flatMap((p) => p.itens)
@@ -2718,12 +2738,12 @@ app.get(
 
       res.json({
         contrato,
-        pedidos, // Inclui os pedidos para a tabela de histórico
+        pedidos,
         totalPedidos: pedidos.length,
         valorTotalPedidos: pedidos.reduce((sum, p) => sum + p.valorTotal, 0),
         unidadesAtendidas,
         pedidosPorStatus,
-        itensPorContrato, // Dados consolidados por item
+        itensPorContrato,
       });
     } catch (error) {
       console.error("Erro ao buscar dados consolidados do relatório:", error);
@@ -3400,6 +3420,185 @@ app.get("/api/dashboard-data", async (req: Request, res: Response) => {
       .json({ error: "Não foi possível carregar os dados do dashboard." });
   }
 });
+
+/// --- ROTAS DE RELATÓRIOS PDF --- ///
+
+app.post(
+  "/api/relatorios/consolidado-pedidos-pdf/:contratoId",
+  async (req: Request, res: Response) => {
+    const { contratoId } = req.params;
+
+    try {
+      const browser = await puppeteer.launch();
+      const page = await browser.newPage();
+
+      // Busca os dados do relatório a partir da rota de dados existente
+      const reportDataResponse = await fetch(
+        `http://localhost:3001/api/relatorios/consolidado-pedidos-data/${contratoId}`
+      );
+      if (!reportDataResponse.ok) {
+        throw new Error("Falha ao buscar dados do relatório.");
+      }
+      const reportData = await reportDataResponse.json();
+
+      // CORREÇÃO: Tipagem para a nova estrutura de dados
+      interface RelatorioItemConsolidado {
+        nome: string;
+        unidadeMedida: { sigla: string };
+        quantidadeOriginal: number;
+        quantidadePedida: number;
+        saldoRestante: number;
+      }
+
+      interface ReciboDetalhes {
+        id: string;
+        numero: string;
+        unidadeEducacional: { nome: string };
+        itens: {
+          conforme: boolean;
+          quantidadeSolicitada: number;
+          quantidadeRecebida: number;
+          itemPedido: {
+            itemContrato: {
+              nome: string;
+              unidadeMedida: { sigla: string };
+            };
+          };
+        }[];
+      }
+
+      interface PedidoDetalhes {
+        id: string;
+        numero: string;
+        status: string;
+        dataPedido: string;
+        valorTotal: number;
+        recibos: ReciboDetalhes[];
+      }
+
+      interface ReportData {
+        contrato: {
+          numero: string;
+          fornecedor: { nome: string };
+          valorTotal: number;
+        };
+        pedidos: PedidoDetalhes[];
+        totalPedidos: number;
+        valorTotalPedidos: number;
+        unidadesAtendidas: string[];
+        itensPorContrato: RelatorioItemConsolidado[];
+        pedidosPorStatus: Record<string, number>;
+      }
+
+      const typedReportData: ReportData = reportData;
+
+      // NOVO: Renderiza os detalhes de cada pedido
+      const pedidosHtml = typedReportData.pedidos
+        .map((pedido) => {
+          const recibosHtml = pedido.recibos
+            .map((recibo) => {
+              const itensDoReciboHtml = recibo.itens
+                .map((item) => {
+                  const status = item.conforme ? "Conforme" : "Não Conforme";
+                  const statusColor = item.conforme ? "green" : "red";
+                  return `
+                    <tr>
+                        <td>${item.itemPedido.itemContrato.nome}</td>
+                        <td>${item.quantidadeSolicitada} ${item.itemPedido.itemContrato.unidadeMedida.sigla}</td>
+                        <td>${item.quantidadeRecebida} ${item.itemPedido.itemContrato.unidadeMedida.sigla}</td>
+                        <td style="color: ${statusColor};">${status}</td>
+                    </tr>
+                `;
+                })
+                .join("");
+
+              return `
+                <div class="subsection">
+                    <h3>Recibo #${recibo.numero} - Unidade: ${recibo.unidadeEducacional.nome}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Qtd. Solicitada</th>
+                                <th>Qtd. Recebida</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itensDoReciboHtml}
+                        </tbody>
+                    </table>
+                </div>
+                <br/>
+            `;
+            })
+            .join("");
+
+          return `
+            <div class="section" style="page-break-inside: avoid;">
+                <h2>Pedido: ${pedido.numero}</h2>
+                <p>Status: ${pedido.status}</p>
+                <p>Data do Pedido: ${new Date(
+                  pedido.dataPedido
+                ).toLocaleDateString("pt-BR")}</p>
+                <p>Valor Total: R$ ${pedido.valorTotal.toFixed(2)}</p>
+                ${recibosHtml}
+            </div>
+        `;
+        })
+        .join("");
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório Consolidado de Pedidos</title>
+            <style>
+                body { font-family: sans-serif; padding: 20px; }
+                h1 { color: #333; }
+                .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+                .subsection { margin-bottom: 15px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; }
+                h2, h3 { margin-top: 0; }
+            </style>
+        </head>
+        <body>
+            <h1>Relatório Consolidado de Pedidos</h1>
+            <div class="section">
+                <h2>Contrato: ${typedReportData.contrato.numero}</h2>
+                <p>Fornecedor: ${typedReportData.contrato.fornecedor.nome}</p>
+                <p>Valor Total do Contrato: R$ ${typedReportData.contrato.valorTotal.toFixed(
+                  2
+                )}</p>
+            </div>
+            
+            ${pedidosHtml}
+
+        </body>
+        </html>
+    `;
+
+      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+      const pdfBuffer = await page.pdf({ format: "A4" });
+
+      await browser.close();
+
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="relatorio-consolidado-${typedReportData.contrato.numero}.pdf"`,
+        "Content-Length": pdfBuffer.length,
+      });
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Erro ao gerar PDF do relatório:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório PDF." });
+    }
+  }
+);
 
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {

@@ -180,49 +180,39 @@ export function RelatorioConsolidadoPedidos() {
 
     setIsGeneratingPdf(true);
     try {
-      // A rota POST já gera o JSON, mas você mencionou PDF.
-      // Se o backend realmente gerar um PDF, o tipo de resposta seria 'application/pdf'.
-      // Se for apenas JSON, o download de PDF precisa ser feito no frontend (ex: com jsPDF)
-      // Por enquanto, manterei a lógica de download de blob, assumindo que o backend envia um PDF.
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/relatorios/consolidado-pedidos/${contratoSelecionado}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json", // Ou 'application/pdf' se o backend estiver configurado para isso
-          },
-        }
-      );
+      const response = await fetch(`http://localhost:3001/api/relatorios/consolidado-pedidos-pdf/${contratoSelecionado}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ // Envia o reportData para o backend
+            reportData: consolidacao
+        })
+      });
 
-      if (response.ok) {
-        // Se o backend retornar um BLOB (como PDF), faça o download
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `relatorio-consolidado-${consolidacao.contrato.numero}.pdf`; // Nome do arquivo
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-
-        toast({
-          title: "Relatório gerado!",
-          description: "O relatório consolidado foi gerado com sucesso.",
-        });
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao gerar relatório");
+        throw new Error(errorData.error || 'Falha ao gerar relatório');
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio-consolidado-${consolidacao.contrato.numero}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Relatório gerado!",
+        description: "O relatório consolidado foi gerado com sucesso.",
+      });
     } catch (error) {
       toast({
         title: "Erro ao gerar relatório",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Não foi possível gerar o relatório. Tente novamente.",
+        description: error instanceof Error ? error.message : "Não foi possível gerar o relatório. Tente novamente.",
         variant: "destructive",
       });
     } finally {
