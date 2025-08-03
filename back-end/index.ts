@@ -1500,7 +1500,7 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
     const consolidacoes = pedidos.map((pedido) => {
       const totalRecibos = pedido.recibos.length;
       const recibosConfirmados = pedido.recibos.filter(
-        (r) => r.status === "confirmado" || r.status === "parcial"
+        (r) => r.status === "confirmado" || r.status === "parcial" || r.status === "ajustado"
       ).length;
 
       let statusConsolidacao: "pendente" | "parcial" | "completo" = "pendente";
