@@ -636,7 +636,7 @@ export default function Estoque() {
     useState<EstoqueDetalhado | null>(null);
 
   useEffect(() => {
-    const fetchUnidades = async () => {
+    const fetchUnidadesComTipo = async () => {
       try {
         const response = await fetch(
           `${
@@ -645,6 +645,24 @@ export default function Estoque() {
         );
         if (response.ok) {
           setUnidadesComTipoEstoque(await response.json());
+        }
+      } catch (error) {
+        console.error("Erro ao buscar unidades com tipo de estoque:", error);
+      }
+    };
+    fetchUnidadesComTipo();
+  }, []);
+
+  useEffect(() => {
+    const fetchUnidades = async () => {
+      try {
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/api/unidades-ativas`
+        );
+        if (response.ok) {
+          setUnidades(await response.json());
         }
       } catch (error) {
         console.error("Erro ao buscar unidades:", error);
