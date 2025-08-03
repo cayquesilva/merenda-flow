@@ -34,6 +34,8 @@ import {
   TrendingDown,
   BarChart3,
   Building2,
+  Trash2,
+  Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +75,8 @@ interface RelatorioMovimentacaoData {
     totalEntradas: number;
     totalSaidas: number;
     totalAjustes: number;
+    totalDescartes: number;
+    totalRemanejamentos: number;
   };
 }
 
@@ -171,12 +175,16 @@ export default function RelatorioMovimentacaoResponsavel() {
       entrada: "default",
       saida: "destructive",
       ajuste: "outline",
+      descarte: "destructive",
+      remanejamento: "outline",
     } as const;
 
     const icons = {
       entrada: <TrendingUp className="h-3 w-3 mr-1" />,
       saida: <TrendingDown className="h-3 w-3 mr-1" />,
       ajuste: <BarChart3 className="h-3 w-3 mr-1" />,
+      descarte: <Trash2 className="h-3 w-3 mr-1" />,
+      remanejamento: <Truck className="h-3 w-3 mr-1" />,
     };
 
     return (

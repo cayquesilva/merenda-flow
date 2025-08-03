@@ -138,7 +138,7 @@ export interface MovimentacaoEstoque {
   id: string;
   estoqueId: string;
   estoque: Estoque;
-  tipo: "entrada" | "saida" | "ajuste";
+  tipo: "entrada" | "saida" | "ajuste" | "descarte" | "remanejamento";
   quantidade: number;
   quantidadeAnterior: number;
   quantidadeNova: number;

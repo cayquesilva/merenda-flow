@@ -36,6 +36,7 @@ import {
   Clock,
   Filter,
   AlertTriangle,
+  Replace,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -80,16 +81,11 @@ interface RelatorioEntregasData {
     totalEntregas: number;
     entregasConfirmadas: number;
     entregasPendentes: number;
+    entregasAjustadas: number;
     valorTotalEntregue: number;
   };
 }
 
-// A interface UnidadeEducacional já está definida no seu arquivo de tipos e é usada aqui
-// interface UnidadeEducacional {
-//   id: string;
-//   nome: string;
-//   codigo: string;
-// }
 
 export function RelatorioEntregas() {
   const [dataInicio, setDataInicio] = useState("");
@@ -189,6 +185,7 @@ export function RelatorioEntregas() {
       confirmado: "default",
       parcial: "outline",
       rejeitado: "destructive",
+      ajustado: "outline",
     } as const;
 
     const labels = {
@@ -196,6 +193,7 @@ export function RelatorioEntregas() {
       confirmado: "Confirmado",
       parcial: "Parcial",
       rejeitado: "Rejeitado",
+      ajustado: "Ajustado",
     };
 
     const icons = {
@@ -203,6 +201,8 @@ export function RelatorioEntregas() {
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <TrendingUp className="h-3 w-3 mr-1" />, // Usando TrendingUp para parcial
       rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
+      ajustado: <Replace className="h-3 w-3 mr-1" />,
+
     };
 
     return (
@@ -333,6 +333,24 @@ export function RelatorioEntregas() {
                     </p>
                     <p className="text-2xl font-bold">
                       {dados.estatisticas.entregasPendentes}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-warning/10 rounded-lg">
+                    <Clock className="h-6 w-6 text-warning" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Ajustadas
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {dados.estatisticas.entregasAjustadas}
                     </p>
                   </div>
                 </div>

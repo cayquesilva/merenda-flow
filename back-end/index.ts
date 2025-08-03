@@ -2728,6 +2728,7 @@ app.get("/api/relatorios/entregas", async (req: Request, res: Response) => {
       entregasConfirmadas: recibos.filter((r) => r.status === "confirmado")
         .length,
       entregasPendentes: recibos.filter((r) => r.status === "pendente").length,
+      entregasAjustadas: recibos.filter((r) => r.status === "ajustado").length,
       valorTotalEntregue: recibos.reduce((sum, r) => {
         return (
           sum +
