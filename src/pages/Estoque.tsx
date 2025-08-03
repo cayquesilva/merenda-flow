@@ -55,6 +55,7 @@ import {
   Trash2,
   Camera,
   X,
+  CameraOff,
 } from "lucide-react";
 import {
   Contrato,
@@ -548,12 +549,21 @@ function FotoDescarte({ mov }) {
 
   return (
     <>
-      {mov.tipo === "descarte" && mov.fotoDescarte?.url && (
+      {mov.tipo === "descarte" && mov.fotoDescarte?.url ? (
         <button
           onClick={() => setIsModalOpen(true)}
           className="focus:outline-none"
+          disabled={mov.tipo !== "descarte"}
         >
           <Camera className="h-4 w-4 text-primary hover:text-primary/80" />
+        </button>
+      ) : (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="focus:outline-none"
+          disabled={mov.tipo !== "descarte"}
+        >
+          <CameraOff className="h-4 w-4 text-secondary" />
         </button>
       )}
 
@@ -1121,9 +1131,7 @@ export default function Estoque() {
                           <span className="text-sm">{mov.motivo}</span>
                         </TableCell>
                         <TableCell>
-                          {mov.tipo === "descarte" && mov.fotoDescarte?.url && (
-                            <FotoDescarte mov={mov} />
-                          )}
+                          <FotoDescarte mov={mov} />
                         </TableCell>
                       </TableRow>
                     ))}
