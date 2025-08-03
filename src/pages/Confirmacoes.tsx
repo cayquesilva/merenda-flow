@@ -35,6 +35,7 @@ import {
   Layers,
   Loader2,
   Printer,
+  Replace,
 } from "lucide-react";
 import { ConsolidacaoPedido, Recibo } from "@/types";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
@@ -148,6 +149,7 @@ export default function Confirmacoes() {
       parcial: "outline",
       rejeitado: "destructive",
       completo: "default",
+      ajustado: "outline"
     } as const;
 
     const labels = {
@@ -156,6 +158,7 @@ export default function Confirmacoes() {
       parcial: "Parcial",
       rejeitado: "Rejeitado",
       completo: "Completo",
+      ajustado: "Ajustado"
     };
 
     const icons = {
@@ -164,6 +167,7 @@ export default function Confirmacoes() {
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
       rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
       completo: <CheckCircle className="h-3 w-3 mr-1" />,
+      ajustado: <Replace className="h-3 w-3 mr-1" />
     };
 
     return (

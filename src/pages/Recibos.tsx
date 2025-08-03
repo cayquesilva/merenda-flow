@@ -26,6 +26,7 @@ import {
   ExternalLink,
   Loader2,
   Receipt,
+  Replace,
 } from "lucide-react";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
@@ -130,7 +131,7 @@ export default function Recibos() {
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
       rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
-      ajustado: <AlertTriangle className="h-3 w-3 mr-1" />,
+      ajustado: <Replace className="h-3 w-3 mr-1" />,
     };
 
     return (

@@ -408,7 +408,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                           <div className="space-y-2">
                             <div>
                               <span className="text-sm text-muted-foreground">
-                                Quantidade:
+                                Solicitado:
                               </span>
                               <p className="font-medium">
                                 {item.quantidadeSolicitada}{" "}
