@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -42,7 +42,6 @@ import {
   Package,
   AlertTriangle,
   TrendingUp,
-  TrendingDown,
   Building2,
   Plus,
   Minus,
@@ -51,6 +50,10 @@ import {
   BarChart3,
   Loader2,
   QrCode,
+  XCircle,
+  Truck,
+  Trash2,
+  Camera,
 } from "lucide-react";
 import {
   Contrato,
@@ -82,12 +85,17 @@ interface EstoqueDetalhado {
   unidadeEducacional: UnidadeEducacional;
 }
 
+// NOVO: Interface para as unidades com tipo de estoque
+interface UnidadeComTipoEstoque extends UnidadeEducacional {
+  tipoEstoque: "creche" | "escola";
+}
+
 // Refinando a interface MovimentacaoEstoque para refletir os includes do backend
 interface MovimentacaoEstoqueDetalhada {
   id: string;
   estoqueId: string;
   dataMovimentacao: string;
-  tipo: "entrada" | "saida" | "ajuste";
+  tipo: "entrada" | "saida" | "ajuste" | "remanejamento" | "descarte";
   quantidade: number;
   quantidadeAnterior: number;
   quantidadeNova: number;
@@ -96,6 +104,10 @@ interface MovimentacaoEstoqueDetalhada {
   reciboId: string | null;
   createdAt: string;
   updatedAt: string;
+  unidadeDestino?: UnidadeEducacional | null;
+  fotoDescarte?: {
+    url: string | null;
+  } | null;
 
   estoque: {
     id: string;
@@ -121,29 +133,76 @@ function useDebounce(value: string, delay: number) {
 interface MovimentacaoDialogProps {
   estoque: EstoqueDetalhado | null;
   onSuccess: () => void;
+  unidades: UnidadeEducacional[]; // Passa a lista de unidades para o dialog
 }
 
-function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
+function MovimentacaoDialog({
+  estoque,
+  onSuccess,
+  unidades,
+}: MovimentacaoDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
-    tipo: "saida" as "entrada" | "saida" | "ajuste",
+    tipo: "saida" as
+      | "entrada"
+      | "saida"
+      | "ajuste"
+      | "remanejamento"
+      | "descarte",
     quantidade: "",
     motivo: "",
     responsavel: "",
+    unidadeDestinoId: "", // NOVO: Unidade de destino
+    fotoDescarte: null as string | null, // NOVO: Foto para descarte
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          fotoDescarte: reader.result as string,
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async () => {
     if (
       !estoque ||
       !formData.quantidade ||
       !formData.motivo ||
-      !formData.responsavel
+      !formData.responsavel ||
+      !formData.tipo
     ) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validação específica para remanejamento
+    if (formData.tipo === "remanejamento" && !formData.unidadeDestinoId) {
+      toast({
+        title: "Erro",
+        description: "Selecione a unidade de destino para remanejamento.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.tipo === "descarte" && !formData.fotoDescarte) {
+      toast({
+        title: "Erro",
+        description: "Anexe uma foto para comprovar o descarte.",
         variant: "destructive",
       });
       return;
@@ -159,7 +218,12 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
       return;
     }
 
-    if (formData.tipo === "saida" && quantidade > estoque.quantidadeAtual) {
+    if (
+      (formData.tipo === "saida" ||
+        formData.tipo === "remanejamento" ||
+        formData.tipo === "descarte") &&
+      quantidade > estoque.quantidadeAtual
+    ) {
       toast({
         title: "Erro",
         description: "Quantidade insuficiente em estoque",
@@ -170,12 +234,18 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
 
     setIsSubmitting(true);
     try {
-      // ADICIONADO: Incluir tipoEstoque no payload
       const payload = {
         estoqueId: estoque.id,
-        tipoEstoque: estoque.tipoEstoque, // NOVO
+        tipoEstoque: estoque.tipoEstoque,
         ...formData,
         quantidade,
+        // Envia o ID da unidade de destino apenas se for remanejamento
+        unidadeDestinoId:
+          formData.tipo === "remanejamento"
+            ? formData.unidadeDestinoId
+            : undefined,
+        fotoDescarte:
+          formData.tipo === "descarte" ? formData.fotoDescarte : null,
       };
 
       const response = await fetch(
@@ -185,7 +255,7 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload), // Envia o novo payload
+          body: JSON.stringify(payload),
         }
       );
 
@@ -201,10 +271,17 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
 
       setOpen(false);
       setFormData({
-        tipo: "saida",
+        tipo: "saida" as
+          | "entrada"
+          | "saida"
+          | "ajuste"
+          | "remanejamento"
+          | "descarte",
         quantidade: "",
         motivo: "",
         responsavel: "",
+        unidadeDestinoId: "",
+        fotoDescarte: null,
       });
       onSuccess();
     } catch (error) {
@@ -227,7 +304,7 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
           Movimentar
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
             Registrar Movimentação
@@ -243,20 +320,56 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
             <Label htmlFor="tipo">Tipo de Movimentação *</Label>
             <Select
               value={formData.tipo}
-              onValueChange={(value: "entrada" | "saida" | "ajuste") =>
-                setFormData({ ...formData, tipo: value })
-              }
+              onValueChange={(
+                value:
+                  | "entrada"
+                  | "saida"
+                  | "ajuste"
+                  | "remanejamento"
+                  | "descarte"
+              ) => setFormData({ ...formData, tipo: value })}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="entrada">Entrada</SelectItem>
-                <SelectItem value="saida">Saída</SelectItem>
+                <SelectItem value="saida">Saída (Consumo)</SelectItem>
+                <SelectItem value="remanejamento">Remanejamento</SelectItem>
+                <SelectItem value="descarte">Descarte</SelectItem>
                 <SelectItem value="ajuste">Ajuste</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {formData.tipo === "remanejamento" && (
+            <div>
+              <Label htmlFor="unidadeDestino">Unidade de Destino *</Label>
+              <Select
+                value={formData.unidadeDestinoId}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, unidadeDestinoId: value })
+                }
+                disabled={isSubmitting}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a unidade de destino" />
+                </SelectTrigger>
+                <SelectContent>
+                  {unidades
+                    .filter(
+                      (u) =>
+                        u.id !== estoque?.unidadeEducacionalId &&
+                        u.tipoEstoque === estoque?.tipoEstoque
+                    )
+                    .map((unidade) => (
+                      <SelectItem key={unidade.id} value={unidade.id}>
+                        {unidade.nome}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="quantidade">Quantidade *</Label>
@@ -303,13 +416,54 @@ function MovimentacaoDialog({ estoque, onSuccess }: MovimentacaoDialogProps) {
               rows={3}
             />
           </div>
+          {/* NOVO: Campo de anexo de foto para descarte */}
+          {formData.tipo === "descarte" && (
+            <div>
+              <Label htmlFor="fotoDescarte">
+                Anexar Foto do Descarte (Obrigatório)
+              </Label>
+              <Input
+                id="fotoDescarte"
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                ref={fileInputRef}
+              />
+              {formData.fotoDescarte && (
+                <div className="mt-4 relative group">
+                  <img
+                    src={formData.fotoDescarte}
+                    alt="Foto do Descarte"
+                    className="max-w-full h-auto rounded-lg border"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, fotoDescarte: null }));
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              isSubmitting ||
+              (formData.tipo === "descarte" && !formData.fotoDescarte)
+            }
+          >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Registrar
           </Button>
@@ -401,6 +555,9 @@ export default function Estoque() {
     MovimentacaoEstoqueDetalhada[]
   >([]);
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
+  const [unidadesComTipoEstoque, setUnidadesComTipoEstoque] = useState<
+    UnidadeComTipoEstoque[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalItens: 0,
@@ -422,10 +579,10 @@ export default function Estoque() {
         const response = await fetch(
           `${
             import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/unidades-ativas`
+          }/api/unidades-com-tipo-estoque`
         );
         if (response.ok) {
-          setUnidades(await response.json());
+          setUnidadesComTipoEstoque(await response.json());
         }
       } catch (error) {
         console.error("Erro ao buscar unidades:", error);
@@ -535,17 +692,21 @@ export default function Estoque() {
       entrada: "default",
       saida: "destructive",
       ajuste: "outline",
+      remanejamento: "secondary",
+      descarte: "destructive",
     } as const;
 
     const icons = {
       entrada: <Plus className="h-3 w-3 mr-1" />,
       saida: <Minus className="h-3 w-3 mr-1" />,
       ajuste: <Edit className="h-3 w-3 mr-1" />,
+      remanejamento: <Truck className="h-3 w-3 mr-1" />,
+      descarte: <Trash2 className="h-3 w-3 mr-1" />,
     };
 
     return (
       <Badge variant={variants[tipo as keyof typeof variants] || "outline"}>
-        {icons[tipo as keyof typeof icons]}
+        {icons[tipo as keyof typeof variants]}
         {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
       </Badge>
     );
@@ -578,9 +739,9 @@ export default function Estoque() {
       </div>
 
       {/* Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
+      <Card>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="flex items-center gap-4">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <Package className="h-6 w-6 text-primary" />
@@ -592,11 +753,7 @@ export default function Estoque() {
                 <p className="text-2xl font-bold">{stats.totalItens}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="p-2 bg-success/10 rounded-lg">
                 <TrendingUp className="h-6 w-6 text-success" />
@@ -608,11 +765,7 @@ export default function Estoque() {
                 <p className="text-2xl font-bold">{stats.itensComEstoque}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="p-2 bg-warning/10 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-warning" />
@@ -624,11 +777,7 @@ export default function Estoque() {
                 <p className="text-2xl font-bold">{stats.itensAbaixoMinimo}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <BarChart3 className="h-6 w-6 text-primary" />
@@ -642,9 +791,9 @@ export default function Estoque() {
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtros */}
       <Card>
@@ -817,6 +966,7 @@ export default function Estoque() {
                             <MovimentacaoDialog
                               estoque={item}
                               onSuccess={handleSuccess}
+                              unidades={unidadesComTipoEstoque}
                             />
                             <Button
                               variant="outline"
@@ -873,6 +1023,7 @@ export default function Estoque() {
                       <TableHead>Saldo Novo</TableHead>
                       <TableHead>Responsável</TableHead>
                       <TableHead>Motivo</TableHead>
+                      <TableHead>Foto</TableHead> {/* NOVO */}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -904,12 +1055,20 @@ export default function Estoque() {
                         <TableCell>
                           <span
                             className={
-                              mov.tipo === "saida"
+                              mov.tipo === "saida" ||
+                              (mov.tipo === "remanejamento" &&
+                                mov.quantidadeAnterior > mov.quantidadeNova) ||
+                              mov.tipo === "descarte"
                                 ? "text-destructive"
                                 : "text-success"
                             }
                           >
-                            {mov.tipo === "saida" ? "-" : "+"}
+                            {mov.tipo === "saida" ||
+                            (mov.tipo === "remanejamento" &&
+                              mov.quantidadeAnterior > mov.quantidadeNova) ||
+                            mov.tipo === "descarte"
+                              ? "-"
+                              : "+"}
                             {mov.quantidade}{" "}
                             {mov.estoque.itemContrato.unidadeMedida.sigla}
                           </span>
@@ -925,6 +1084,17 @@ export default function Estoque() {
                         <TableCell>{mov.responsavel}</TableCell>
                         <TableCell>
                           <span className="text-sm">{mov.motivo}</span>
+                        </TableCell>
+                        <TableCell>
+                          {mov.tipo === "descarte" && mov.fotoDescarte?.url && (
+                            <a
+                              href={mov.fotoDescarte.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Camera className="h-4 w-4 text-primary hover:text-primary/80" />
+                            </a>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

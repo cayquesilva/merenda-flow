@@ -19,7 +19,7 @@ model Usuario {
   nome      String
   email     String   @unique
   senha     String
-  categoria String   // 'administracao_tecnica', 'gerencia_nutricao', 'comissao_recebimento'
+  categoria String // 'administracao_tecnica', 'gerencia_nutricao', 'comissao_recebimento'
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -66,7 +66,7 @@ model UnidadeEducacional {
   // Campos para contagem de estudantes por tipo
   estudantesBercario  Int @default(0) @map("estudantes_bercario")
   estudantesMaternal  Int @default(0) @map("estudantes_maternal")
-  estudantesPreEscola  Int @default(0) @map("estudantes_preescola")
+  estudantesPreEscola Int @default(0) @map("estudantes_preescola")
   estudantesRegular   Int @default(0) @map("estudantes_regular")
   estudantesIntegral  Int @default(0) @map("estudantes_integral")
   estudantesEja       Int @default(0) @map("estudantes_eja")
@@ -75,6 +75,7 @@ model UnidadeEducacional {
   pedidos  ItemPedido[]
   recibos  Recibo[]
   estoques Estoque[]
+  movimentacoesRemanejadas MovimentacaoEstoque[] @relation("MovimentacaoRemanejamento")
 }
 
 // ===================================
@@ -101,17 +102,17 @@ model Contrato {
 }
 
 model ItemContrato {
-  id                 String @id @default(uuid())
-  nome               String
-  valorUnitario      Float  @map("valor_unitario")
-  
+  id            String @id @default(uuid())
+  nome          String
+  valorUnitario Float  @map("valor_unitario")
+
   // Quantidades separadas por tipo de estoque
-  quantidadeOriginal Float  @map("quantidade_original") // Mantido para compatibilidade
-  saldoAtual         Float  @map("saldo_atual") // Mantido para compatibilidade
-  quantidadeCreche   Float  @default(0) @map("quantidade_creche")
-  quantidadeEscola   Float  @default(0) @map("quantidade_escola")
-  saldoCreche        Float  @default(0) @map("saldo_creche")
-  saldoEscola        Float  @default(0) @map("saldo_escola")
+  quantidadeOriginal Float @map("quantidade_original") // Mantido para compatibilidade
+  saldoAtual         Float @map("saldo_atual") // Mantido para compatibilidade
+  quantidadeCreche   Float @default(0) @map("quantidade_creche")
+  quantidadeEscola   Float @default(0) @map("quantidade_escola")
+  saldoCreche        Float @default(0) @map("saldo_creche")
+  saldoEscola        Float @default(0) @map("saldo_escola")
 
   // Relação com Contrato
   contrato   Contrato @relation(fields: [contratoId], references: [id])
@@ -220,7 +221,7 @@ model TipoEstudante {
 model PercapitaItem {
   id                   String   @id @default(uuid())
   gramagemPorEstudante Float    @default(0) @map("gramagem_por_estudante")
-  frequenciaMensal    Int      @default(5) @map("frequencia_mensal")
+  frequenciaMensal     Int      @default(5) @map("frequencia_mensal")
   ativo                Boolean  @default(true)
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
@@ -293,7 +294,7 @@ model Estoque {
 
 model MovimentacaoEstoque {
   id                 String   @id @default(uuid())
-  tipo               String // 'entrada', 'saida', 'ajuste'
+  tipo               String // 'entrada', 'saida', 'ajuste', 'remanejamento', 'descarte'
   quantidade         Float
   quantidadeAnterior Float    @map("quantidade_anterior")
   quantidadeNova     Float    @map("quantidade_nova")
@@ -308,4 +309,22 @@ model MovimentacaoEstoque {
   // Relação opcional com Recibo (para movimentações automáticas)
   recibo   Recibo? @relation(fields: [reciboId], references: [id])
   reciboId String? @map("recibo_id")
+
+  // NOVO: Relação para Remanejamento
+  unidadeDestinoId String? @map("unidade_destino_id")
+  unidadeDestino   UnidadeEducacional? @relation("MovimentacaoRemanejamento", fields: [unidadeDestinoId], references: [id])
+
+  // NOVO: Relação para Descarte com foto
+  fotoDescarte   FotoDescarte? @relation(fields: [fotoDescarteId], references: [id])
+  fotoDescarteId String?       @unique @map("foto_descarte_id")
+}
+
+model FotoDescarte {
+  id          String   @id @default(uuid())
+  url         String   @db.Text
+  motivo      String
+  responsavel String
+  criadoEm    DateTime @default(now())
+
+  movimentacao MovimentacaoEstoque?
 }

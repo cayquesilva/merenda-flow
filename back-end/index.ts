@@ -11,7 +11,8 @@ const prisma = new PrismaClient();
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// NOVO: Aumenta o limite de tamanho do corpo da requisição para 10MB
+app.use(express.json({ limit: '10mb' }));
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -1676,7 +1677,6 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
       estoqueWhereClause.unidadeEducacionalId = unidadeId as string;
     }
 
-    // CORREÇÃO: Adiciona o filtro por tipo de estoque
     if (tipoEstoque && tipoEstoque !== "todos") {
       estoqueWhereClause.tipoEstoque = tipoEstoque as "creche" | "escola";
     }
@@ -1692,6 +1692,7 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
       };
     }
 
+    // NOVO: Adicionado include para unidadeDestino e fotoDescarte
     const movimentacoes = await prisma.movimentacaoEstoque.findMany({
       where: whereClause,
       include: {
@@ -1706,9 +1707,11 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
           },
         },
         recibo: { select: { numero: true } },
+        unidadeDestino: { select: { nome: true } },
+        fotoDescarte: { select: { url: true } },
       },
       orderBy: { dataMovimentacao: "desc" },
-      take: 100, // Limitar para performance
+      take: 100,
     });
 
     res.json(movimentacoes);
@@ -1720,97 +1723,185 @@ app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
   }
 });
 
-// COMENTÁRIO: Registra uma movimentação manual de estoque (saída, ajuste)
+// COMENTÁRIO: Registra uma movimentação manual de estoque (saída, ajuste, remanejamento, descarte)
 app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
-  const { estoqueId, tipo, quantidade, motivo, responsavel } = req.body;
+  const {
+    estoqueId,
+    tipo,
+    quantidade,
+    motivo,
+    responsavel,
+    unidadeDestinoId,
+    fotoDescarte,
+  } = req.body;
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const estoque = await tx.estoque.findUnique({
+      const estoqueOrigem = await tx.estoque.findUnique({
         where: { id: estoqueId },
+        // CORREÇÃO: Incluído a relação com a Unidade Educacional para acessar o nome
+        include: {
+          itemContrato: true,
+          unidadeEducacional: true,
+        },
       });
 
-      if (!estoque) {
-        throw new Error("Estoque não encontrado");
+      if (!estoqueOrigem) {
+        throw new Error("Estoque de origem não encontrado");
       }
 
-      const quantidadeAnterior = estoque.quantidadeAtual;
-      let quantidadeNova = quantidadeAnterior;
-
-      const tipoMovimentacao = tipo as "entrada" | "saida" | "ajuste";
       const quantidadeNum = Number(quantidade);
+      const tipoMovimentacao = tipo as
+        | "entrada"
+        | "saida"
+        | "ajuste"
+        | "remanejamento"
+        | "descarte";
 
+      if (
+        (tipoMovimentacao === "saida" ||
+          tipoMovimentacao === "remanejamento" ||
+          tipoMovimentacao === "descarte") &&
+        quantidadeNum > estoqueOrigem.quantidadeAtual
+      ) {
+        throw new Error("Quantidade insuficiente em estoque");
+      }
+
+      if (tipoMovimentacao === "remanejamento" && !unidadeDestinoId) {
+        throw new Error("Unidade de destino é obrigatória para remanejamento.");
+      }
+
+      if (tipoMovimentacao === "descarte" && !fotoDescarte) {
+        throw new Error("A foto do descarte é obrigatória.");
+      }
+
+      const quantidadeAnteriorOrigem = estoqueOrigem.quantidadeAtual;
+      let quantidadeNovaOrigem = quantidadeAnteriorOrigem;
+
+      // Lógica de atualização do estoque de origem
       switch (tipoMovimentacao) {
-        case "saida":
-          quantidadeNova = quantidadeAnterior - quantidadeNum;
-          if (quantidadeNova < 0) {
-            throw new Error("Quantidade insuficiente em estoque");
-          }
-          break;
         case "entrada":
-          quantidadeNova = quantidadeAnterior + quantidadeNum;
+          quantidadeNovaOrigem += quantidadeNum;
+          break;
+        case "saida":
+        case "remanejamento":
+        case "descarte":
+          quantidadeNovaOrigem -= quantidadeNum;
           break;
         case "ajuste":
-          quantidadeNova = quantidadeNum;
+          quantidadeNovaOrigem = quantidadeNum;
           break;
-        default:
-          throw new Error("Tipo de movimentação inválido");
       }
 
-      const estoqueAtualizado = await tx.estoque.update({
-        where: { id: estoqueId },
-        data: {
-          quantidadeAtual: quantidadeNova,
-          ultimaAtualizacao: new Date(),
-        },
-        include: {
-          // Incluído para obter o itemContrato
-          itemContrato: {
-            include: {
-              contrato: true,
-            },
-          },
-        },
-      });
-
-      // NOVO: Atualiza o saldo do contrato com base no tipo de estoque
-      const campoSaldoAjustar =
-        estoqueAtualizado.tipoEstoque === "creche"
-          ? "saldoCreche"
-          : "saldoEscola";
-      const valorAjuste =
-        tipoMovimentacao === "entrada"
-          ? quantidadeNum
-          : tipoMovimentacao === "saida"
-          ? -quantidadeNum
-          : quantidadeNova - quantidadeAnterior;
+      const campoSaldoOrigem =
+        estoqueOrigem.tipoEstoque === "creche" ? "saldoCreche" : "saldoEscola";
+      const valorAjusteOrigem =
+        tipoMovimentacao === "entrada" ? quantidadeNum : -quantidadeNum;
 
       await tx.itemContrato.update({
-        where: { id: estoqueAtualizado.itemContratoId },
+        where: { id: estoqueOrigem.itemContratoId },
         data: {
-          [campoSaldoAjustar]: {
-            increment: valorAjuste,
+          [campoSaldoOrigem]: {
+            increment: valorAjusteOrigem,
           },
           saldoAtual: {
-            increment: valorAjuste,
+            increment: valorAjusteOrigem,
           },
         },
       });
 
-      const movimentacao = await tx.movimentacaoEstoque.create({
+      const estoqueOrigemAtualizado = await tx.estoque.update({
+        where: { id: estoqueId },
+        data: {
+          quantidadeAtual: quantidadeNovaOrigem,
+          ultimaAtualizacao: new Date(),
+        },
+      });
+
+      let fotoDescarteId = null;
+      if (tipoMovimentacao === "descarte" && fotoDescarte) {
+        const novaFotoDescarte = await tx.fotoDescarte.create({
+          data: {
+            url: fotoDescarte,
+            motivo: motivo,
+            responsavel: responsavel,
+          },
+        });
+        fotoDescarteId = novaFotoDescarte.id;
+      }
+
+      // Registrar a movimentação de SAÍDA (origem)
+      const movimentacaoSaida = await tx.movimentacaoEstoque.create({
         data: {
           estoqueId,
-          tipo,
+          tipo: tipoMovimentacao,
           quantidade: Math.abs(quantidadeNum),
-          quantidadeAnterior,
-          quantidadeNova,
+          quantidadeAnterior: quantidadeAnteriorOrigem,
+          quantidadeNova: quantidadeNovaOrigem,
           motivo,
           responsavel,
           dataMovimentacao: new Date(),
+          unidadeDestinoId:
+            tipoMovimentacao === "remanejamento" ? unidadeDestinoId : null,
+          fotoDescarteId: fotoDescarteId,
         },
       });
 
-      return { estoque: estoqueAtualizado, movimentacao };
+      // NOVO: Lógica para criar a movimentação de ENTRADA (destino)
+      if (tipoMovimentacao === "remanejamento" && unidadeDestinoId) {
+        let estoqueDestino = await tx.estoque.findUnique({
+          where: {
+            unidadeEducacionalId_itemContratoId_tipoEstoque: {
+              unidadeEducacionalId: unidadeDestinoId,
+              itemContratoId: estoqueOrigem.itemContratoId,
+              tipoEstoque: estoqueOrigem.tipoEstoque,
+            },
+          },
+        });
+
+        const quantidadeAnteriorDestino = estoqueDestino?.quantidadeAtual || 0;
+        const quantidadeNovaDestino =
+          (estoqueDestino?.quantidadeAtual || 0) + quantidadeNum;
+
+        if (estoqueDestino) {
+          estoqueDestino = await tx.estoque.update({
+            where: { id: estoqueDestino.id },
+            data: {
+              quantidadeAtual: { increment: quantidadeNum },
+              ultimaAtualizacao: new Date(),
+            },
+          });
+        } else {
+          estoqueDestino = await tx.estoque.create({
+            data: {
+              unidadeEducacionalId: unidadeDestinoId,
+              itemContratoId: estoqueOrigem.itemContratoId,
+              quantidadeAtual: quantidadeNum,
+              quantidadeMinima: 0,
+              ultimaAtualizacao: new Date(),
+              tipoEstoque: estoqueOrigem.tipoEstoque,
+            },
+          });
+        }
+
+        await tx.movimentacaoEstoque.create({
+          data: {
+            estoqueId: estoqueDestino.id,
+            tipo: "remanejamento",
+            quantidade: quantidadeNum,
+            quantidadeAnterior: quantidadeAnteriorDestino,
+            quantidadeNova: quantidadeNovaDestino,
+            motivo: `Remanejamento de ${estoqueOrigem.unidadeEducacional.nome}`,
+            responsavel,
+            dataMovimentacao: new Date(),
+          },
+        });
+      }
+
+      return {
+        estoque: estoqueOrigemAtualizado,
+        movimentacao: movimentacaoSaida,
+      };
     });
 
     res.status(201).json({
@@ -2028,17 +2119,24 @@ app.get(
             },
           },
           recibo: { select: { numero: true } },
+          unidadeDestino: { select: { nome: true } }, // Incluído
+          fotoDescarte: { select: { url: true } }, // Incluído
         },
         orderBy: { dataMovimentacao: "desc" },
       });
 
-      // Calcular estatísticas
       const totalMovimentacoes = movimentacoes.length;
       const totalEntradas = movimentacoes
         .filter((m) => m.tipo === "entrada")
         .reduce((sum, m) => sum + m.quantidade, 0);
       const totalSaidas = movimentacoes
         .filter((m) => m.tipo === "saida")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalRemanejamentos = movimentacoes
+        .filter((m) => m.tipo === "remanejamento")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalDescartes = movimentacoes
+        .filter((m) => m.tipo === "descarte")
         .reduce((sum, m) => sum + m.quantidade, 0);
       const totalAjustes = movimentacoes
         .filter((m) => m.tipo === "ajuste")
@@ -2050,6 +2148,8 @@ app.get(
           totalMovimentacoes,
           totalEntradas,
           totalSaidas,
+          totalRemanejamentos,
+          totalDescartes,
           totalAjustes,
         },
       });
@@ -2786,11 +2886,9 @@ app.post("/api/percapita/create-batch", async (req: Request, res: Response) => {
     console.error("Erro ao criar percápita em lote:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
-        return res
-          .status(409)
-          .json({
-            error: "Uma percápita para este tipo de estudante já existe.",
-          });
+        return res.status(409).json({
+          error: "Uma percápita para este tipo de estudante já existe.",
+        });
       }
     }
     res.status(500).json({ error: "Não foi possível criar as percápitas." });
@@ -2827,6 +2925,47 @@ app.get(
       res.status(500).json({
         error: "Não foi possível buscar os itens de contrato para percápita.",
       });
+    }
+  }
+);
+
+// NOVO: Rota para buscar unidades ativas com o tipo de estoque
+app.get(
+  "/api/unidades-com-tipo-estoque",
+  async (req: Request, res: Response) => {
+    try {
+      const unidades = await prisma.unidadeEducacional.findMany({
+        where: { ativo: true },
+        select: {
+          id: true,
+          nome: true,
+          estudantesBercario: true,
+          estudantesMaternal: true,
+          estudantesPreEscola: true,
+          estudantesRegular: true,
+          estudantesIntegral: true,
+          estudantesEja: true,
+        },
+        orderBy: { nome: "asc" },
+      });
+
+      // Anexar o tipo de estoque a cada unidade
+      const unidadesComTipoEstoque = unidades.map((unidade) => {
+        const isCreche =
+          unidade.estudantesBercario > 0 ||
+          unidade.estudantesMaternal > 0 ||
+          unidade.estudantesPreEscola > 0;
+        const tipoEstoque = isCreche ? "creche" : "escola";
+        return {
+          ...unidade,
+          tipoEstoque,
+        };
+      });
+
+      res.json(unidadesComTipoEstoque);
+    } catch (error) {
+      console.error("Erro ao buscar unidades com tipo de estoque:", error);
+      res.status(500).json({ error: "Não foi possível buscar as unidades." });
     }
   }
 );

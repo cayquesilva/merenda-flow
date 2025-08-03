@@ -58,6 +58,7 @@ export interface UnidadeEducacional {
   estudantesRegular: number;
   estudantesIntegral: number;
   estudantesEja: number;
+  tipoEstoque: 'creche' | 'escola';
 }
 
 export interface ItemPedido {
