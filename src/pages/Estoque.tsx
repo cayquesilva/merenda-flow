@@ -767,12 +767,12 @@ export default function Estoque() {
     return <Badge variant="default">Normal</Badge>;
   };
 
-  const getTipoMovimentacaoBadge = (tipo: string) => {
+  const getTipoMovimentacaoBadge = (tipo: string, anterior: number, nova: number) => {
     const variants = {
       entrada: "default",
       saida: "destructive",
       ajuste: "outline",
-      remanejamento: "secondary",
+      remanejamento: anterior > nova ? "destructive" : "default",
       descarte: "destructive",
     } as const;
 
@@ -976,7 +976,6 @@ export default function Estoque() {
                       <TableHead>Quantidade Atual</TableHead>
                       <TableHead>Quantidade Mínima</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Valor Total</TableHead>
                       <TableHead>Última Atualização</TableHead>
                       <TableHead className="text-center">Ações</TableHead>
                     </TableRow>
@@ -1029,13 +1028,6 @@ export default function Estoque() {
                           {item.itemContrato.unidadeMedida.sigla}
                         </TableCell>
                         <TableCell>{getStatusBadge(item)}</TableCell>
-                        <TableCell className="font-medium">
-                          R${" "}
-                          {(
-                            item.quantidadeAtual *
-                            item.itemContrato.valorUnitario
-                          ).toFixed(2)}
-                        </TableCell>
                         <TableCell>
                           {new Date(item.ultimaAtualizacao).toLocaleDateString(
                             "pt-BR"
@@ -1115,7 +1107,7 @@ export default function Estoque() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {getTipoMovimentacaoBadge(mov.tipo)}
+                          {getTipoMovimentacaoBadge(mov.tipo, mov.quantidadeAnterior, mov.quantidadeNova)}
                         </TableCell>
                         <TableCell>
                           <div>

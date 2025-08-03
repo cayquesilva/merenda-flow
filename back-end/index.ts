@@ -1500,10 +1500,14 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
     const consolidacoes = pedidos.map((pedido) => {
       const totalRecibos = pedido.recibos.length;
       const recibosConfirmados = pedido.recibos.filter(
-        (r) => r.status === "confirmado" || r.status === "parcial" || r.status === "ajustado"
+        (r) =>
+          r.status === "confirmado" ||
+          r.status === "parcial" ||
+          r.status === "ajustado"
       ).length;
 
-      let statusConsolidacao: "pendente" | "parcial" | "completo" | "ajustado" = "pendente";
+      let statusConsolidacao: "pendente" | "parcial" | "completo" | "ajustado" =
+        "pendente";
       if (totalRecibos > 0) {
         if (recibosConfirmados === totalRecibos) {
           statusConsolidacao = "completo";
@@ -2355,6 +2359,22 @@ app.get(
         .filter((m) => m.tipo === "ajuste")
         .reduce((sum, m) => sum + m.quantidade, 0);
 
+      const contaEntradas = movimentacoes.filter(
+        (m) => m.tipo === "entrada"
+      ).length;
+      const contaSaidas = movimentacoes.filter(
+        (m) => m.tipo === "saida"
+      ).length;
+      const contaDescartes = movimentacoes.filter(
+        (m) => m.tipo === "descarte"
+      ).length;
+      const contaRemanejamentos = movimentacoes.filter(
+        (m) => m.tipo === "remanejamento"
+      ).length;
+      const contaAjustes = movimentacoes.filter(
+        (m) => m.tipo === "ajuste"
+      ).length;
+
       res.json({
         movimentacoes,
         estatisticas: {
@@ -2364,6 +2384,11 @@ app.get(
           totalRemanejamentos,
           totalDescartes,
           totalAjustes,
+          contaAjustes,
+          contaDescartes,
+          contaRemanejamentos,
+          contaSaidas,
+          contaEntradas,
         },
       });
     } catch (error) {
@@ -2480,8 +2505,27 @@ app.get(
 
       const entradas = movimentacoes.filter((m) => m.tipo === "entrada");
       const saidas = movimentacoes.filter((m) => m.tipo === "saida");
+      const descartes = movimentacoes.filter((m) => m.tipo === "descarte");
+      const remanejamentos = movimentacoes.filter(
+        (m) => m.tipo === "remanejamento"
+      );
+      const ajustes = movimentacoes.filter((m) => m.tipo === "ajuste");
       const totalEntradas = entradas.reduce((sum, m) => sum + m.quantidade, 0);
       const totalSaidas = saidas.reduce((sum, m) => sum + m.quantidade, 0);
+      const totalDescartes = descartes.reduce(
+        (sum, m) => sum + m.quantidade,
+        0
+      );
+      const totalRemanejamentos = remanejamentos.reduce(
+        (sum, m) => sum + m.quantidade,
+        0
+      );
+      const totalAjustes = ajustes.reduce((sum, m) => sum + m.quantidade, 0);
+      const contaEntradas = entradas.length;
+      const contaSaidas = saidas.length;
+      const contaDescartes = descartes.length;
+      const contaRemanejamentos = remanejamentos.length;
+      const contaAjustes = ajustes.length;
 
       res.json({
         estoque,
@@ -2493,6 +2537,14 @@ app.get(
           valorTotalEstoque,
           totalEntradas,
           totalSaidas,
+          totalDescartes,
+          totalRemanejamentos,
+          totalAjustes,
+          contaEntradas,
+          contaSaidas,
+          contaDescartes,
+          contaRemanejamentos,
+          contaAjustes,
           totalMovimentacoes: movimentacoes.length,
         },
       });

@@ -49,6 +49,7 @@ import {
   UnidadeEducacional,
   Recibo,
 } from "@/types"; // Importar tipos necessários
+import { Progress } from "../ui/progress";
 
 // Interfaces detalhadas para corresponder ao retorno da API
 interface ItemContratoRelatorio extends ItemContrato {
@@ -77,6 +78,11 @@ interface RelatorioMovimentacaoData {
     totalAjustes: number;
     totalDescartes: number;
     totalRemanejamentos: number;
+    contaEntradas: number;
+    contaSaidas: number;
+    contaDescartes: number;
+    contaRemanejamentos: number;
+    contaAjustes: number;
   };
 }
 
@@ -170,13 +176,17 @@ export default function RelatorioMovimentacaoResponsavel() {
     }
   };
 
-  const getTipoMovimentacaoBadge = (tipo: string) => {
+  const getTipoMovimentacaoBadge = (
+    tipo: string,
+    anterior: number,
+    novo: number
+  ) => {
     const variants = {
       entrada: "default",
       saida: "destructive",
       ajuste: "outline",
       descarte: "destructive",
-      remanejamento: "outline",
+      remanejamento: anterior > novo ? "destructive" : "default",
     } as const;
 
     const icons = {
@@ -277,28 +287,112 @@ export default function RelatorioMovimentacaoResponsavel() {
                       {dados.estatisticas.totalMovimentacoes}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Movimentações Registradas
+                      Total de Movimentações
                     </p>
+                    <Progress value={100} className="h-2" />
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="space-y-2">
                     <p className="text-2xl font-bold text-success">
-                      {dados.estatisticas.totalEntradas}
+                      {dados.estatisticas.contaEntradas}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Total de Entradas
                     </p>
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaEntradas /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="space-y-2">
+                    <p className="text-2xl font-bold text-success">
+                      {dados.estatisticas.contaAjustes}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Ajustes
+                    </p>
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaAjustes /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="space-y-2">
                     <p className="text-2xl font-bold text-destructive">
-                      {dados.estatisticas.totalSaidas}
+                      {dados.estatisticas.contaSaidas}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Total de Saídas
                     </p>
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaSaidas /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="space-y-2">
+                    <p className="text-2xl font-bold text-destructive">
+                      {dados.estatisticas.contaDescartes}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Descartes
+                    </p>
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaDescartes /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="space-y-2">
+                    <p className="text-2xl font-bold text-destructive">
+                      {dados.estatisticas.contaRemanejamentos}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Remanejamentos{" "}
+                      <span className="text-success text-[10px]">
+                        (Entrada e Saída)
+                      </span>
+                    </p>
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaRemanejamentos /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
                   </div>
                 </div>
               </div>
@@ -346,7 +440,11 @@ export default function RelatorioMovimentacaoResponsavel() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {getTipoMovimentacaoBadge(mov.tipo)}
+                          {getTipoMovimentacaoBadge(
+                            mov.tipo,
+                            mov.quantidadeAnterior,
+                            mov.quantidadeNova
+                          )}
                         </TableCell>
                         <TableCell>
                           <div>
@@ -370,12 +468,20 @@ export default function RelatorioMovimentacaoResponsavel() {
                         <TableCell>
                           <span
                             className={
-                              mov.tipo === "saida" || mov.tipo === "descarte"
+                              mov.tipo === "saida" ||
+                              mov.tipo === "descarte" ||
+                              (mov.tipo === "remanejamento" &&
+                                mov.quantidadeAnterior > mov.quantidadeNova)
                                 ? "text-destructive"
                                 : "text-success"
                             }
                           >
-                            {mov.tipo === "saida" || mov.tipo === "descarte" ? "-" : "+"}
+                            {mov.tipo === "saida" ||
+                            mov.tipo === "descarte" ||
+                            (mov.tipo === "remanejamento" &&
+                              mov.quantidadeAnterior > mov.quantidadeNova)
+                              ? "-"
+                              : "+"}
                             {mov.quantidade}{" "}
                             {mov.estoque.itemContrato.unidadeMedida.sigla}
                           </span>

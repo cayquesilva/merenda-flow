@@ -90,7 +90,13 @@ interface RelatorioEstoqueData {
     totalSaidas: number;
     totalDescartes: number;
     totalRemanejamentos: number;
+    totalAjustes: number;
     totalMovimentacoes: number;
+    contaSaidas: number;
+    contaEntradas: number;
+    contaDescartes: number;
+    contaRemanejamentos: number;
+    contaAjustes: number;
   };
 }
 
@@ -196,13 +202,17 @@ export function RelatorioEstoque() {
     return <Badge variant="default">Normal</Badge>;
   };
 
-  const getTipoMovimentacaoBadge = (tipo: string) => {
+  const getTipoMovimentacaoBadge = (
+    tipo: string,
+    anterior: number,
+    novo: number
+  ) => {
     const variants = {
       entrada: "default",
       saida: "destructive",
       ajuste: "outline",
       descarte: "destructive",
-      remanejamento: "outline",
+      remanejamento: anterior > novo ? "destructive" : "default",
     } as const;
 
     const icons = {
@@ -210,7 +220,7 @@ export function RelatorioEstoque() {
       saida: <TrendingDown className="h-3 w-3 mr-1" />,
       ajuste: <BarChart3 className="h-3 w-3 mr-1" />,
       descarte: <Trash2 className="h-3 w-3 mr-1" />,
-      remanejamento: <Truck className="h-3 w-3 mr" />,
+      remanejamento: <Truck className="h-3 w-3 mr-1" />,
     };
 
     return (
@@ -374,8 +384,19 @@ export function RelatorioEstoque() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="space-y-2">
+                    <p className="text-2xl font-bold text-primary">
+                      {dados.estatisticas.totalMovimentacoes}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Movimentações
+                    </p>
+                    <Progress value={100} className="h-2" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="space-y-2">
                     <p className="text-2xl font-bold text-success">
-                      {dados.estatisticas.totalEntradas}
+                      {dados.estatisticas.contaEntradas}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Total de Entradas
@@ -383,7 +404,27 @@ export function RelatorioEstoque() {
                     <Progress
                       value={
                         dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.totalEntradas /
+                          ? (dados.estatisticas.contaEntradas /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="space-y-2">
+                    <p className="text-2xl font-bold text-success">
+                      {dados.estatisticas.contaAjustes}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Ajustes
+                    </p>
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaAjustes /
                               dados.estatisticas.totalMovimentacoes) *
                             100
                           : 0
@@ -395,7 +436,7 @@ export function RelatorioEstoque() {
                 <div className="text-center">
                   <div className="space-y-2">
                     <p className="text-2xl font-bold text-destructive">
-                      {dados.estatisticas.totalSaidas}
+                      {dados.estatisticas.contaSaidas}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Total de Saídas
@@ -403,7 +444,7 @@ export function RelatorioEstoque() {
                     <Progress
                       value={
                         dados.estatisticas.totalMovimentacoes > 0
-                          ? (dados.estatisticas.totalSaidas /
+                          ? (dados.estatisticas.contaSaidas /
                               dados.estatisticas.totalMovimentacoes) *
                             100
                           : 0
@@ -414,13 +455,45 @@ export function RelatorioEstoque() {
                 </div>
                 <div className="text-center">
                   <div className="space-y-2">
-                    <p className="text-2xl font-bold text-primary">
-                      {dados.estatisticas.totalMovimentacoes}
+                    <p className="text-2xl font-bold text-destructive">
+                      {dados.estatisticas.contaDescartes}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Total de Movimentações
+                      Total de Descartes
                     </p>
-                    <Progress value={100} className="h-2" />
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaDescartes /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="space-y-2">
+                    <p className="text-2xl font-bold text-destructive">
+                      {dados.estatisticas.contaRemanejamentos}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de Remanejamentos{" "}
+                      <span className="text-success text-[10px]">
+                        (Entrada e Saída)
+                      </span>
+                    </p>
+                    <Progress
+                      value={
+                        dados.estatisticas.totalMovimentacoes > 0
+                          ? (dados.estatisticas.contaRemanejamentos /
+                              dados.estatisticas.totalMovimentacoes) *
+                            100
+                          : 0
+                      }
+                      className="h-2"
+                    />
                   </div>
                 </div>
               </div>
@@ -520,7 +593,11 @@ export function RelatorioEstoque() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {getTipoMovimentacaoBadge(mov.tipo)}
+                        {getTipoMovimentacaoBadge(
+                          mov.tipo,
+                          mov.quantidadeAnterior,
+                          mov.quantidadeNova
+                        )}
                       </TableCell>
                       <TableCell>
                         <div>
@@ -540,12 +617,20 @@ export function RelatorioEstoque() {
                       <TableCell>
                         <span
                           className={
-                            mov.tipo === "saida" || mov.tipo === "descarte"
+                            mov.tipo === "saida" ||
+                            mov.tipo === "descarte" ||
+                            (mov.tipo === "remanejamento" &&
+                              mov.quantidadeAnterior > mov.quantidadeNova)
                               ? "text-destructive"
                               : "text-success"
                           }
                         >
-                          {mov.tipo === "saida" || mov.tipo === "descarte" ? "-" : "+"}
+                          {mov.tipo === "saida" ||
+                          mov.tipo === "descarte" ||
+                          (mov.tipo === "remanejamento" &&
+                            mov.quantidadeAnterior > mov.quantidadeNova)
+                            ? "-"
+                            : "+"}
                           {mov.quantidade}{" "}
                           {mov.estoque.itemContrato.unidadeMedida.sigla}
                         </span>
