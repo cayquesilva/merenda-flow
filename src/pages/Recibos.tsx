@@ -114,6 +114,7 @@ export default function Recibos() {
       confirmado: "default",
       parcial: "outline",
       rejeitado: "destructive",
+      ajustado: "outline",
     } as const;
 
     const labels = {
@@ -121,6 +122,7 @@ export default function Recibos() {
       confirmado: "Confirmado",
       parcial: "Parcial",
       rejeitado: "Rejeitado",
+      ajustado: "Ajustado",
     };
 
     const icons = {
@@ -128,6 +130,7 @@ export default function Recibos() {
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
       rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
+      ajustado: <AlertTriangle className="h-3 w-3 mr-1" />,
     };
 
     return (
@@ -140,10 +143,6 @@ export default function Recibos() {
 
   const handleSuccess = () => {
     setRefreshKey((prev) => prev + 1);
-  };
-
-  const abrirQRCode = (qrcode: string) => {
-    window.open(qrcode, "_blank");
   };
 
   const abrirConfirmacao = (reciboId: string) => {

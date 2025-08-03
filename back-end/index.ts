@@ -12,7 +12,7 @@ const app = express();
 
 app.use(cors());
 // NOVO: Aumenta o limite de tamanho do corpo da requisição para 10MB
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: "10mb" }));
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -1000,6 +1000,10 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
           },
         },
         _count: { select: { itens: true } },
+        historicoAjustes: {
+          orderBy: { dataAjuste: "desc" },
+          take: 1, // Pega o último ajuste
+        },
       },
       orderBy: { dataEntrega: "desc" },
     });
@@ -1029,6 +1033,11 @@ app.get("/api/recibos/:id", async (req: Request, res: Response) => {
               },
             },
           },
+        },
+        assinaturaDigital: true,
+        fotoReciboAssinado: true,
+        historicoAjustes: {
+          orderBy: { dataAjuste: "desc" },
         },
       },
     });
@@ -1559,6 +1568,210 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Erro ao buscar dados de confirmações:", error);
     res.status(500).json({ error: "Não foi possível buscar os dados." });
+  }
+});
+
+// COMENTÁRIO: NOVA ROTA: Busca os detalhes de um recibo específico para a tela de ajuste
+app.get("/api/recibos/ajuste/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const recibo = await prisma.recibo.findUnique({
+      where: { id },
+      include: {
+        unidadeEducacional: true,
+        pedido: {
+          include: {
+            contrato: {
+              include: {
+                fornecedor: true,
+              },
+            },
+          },
+        },
+        itens: {
+          include: {
+            itemPedido: {
+              include: {
+                itemContrato: {
+                  include: {
+                    unidadeMedida: true,
+                  },
+                },
+                unidadeEducacional: true,
+              },
+            },
+          },
+        },
+        assinaturaDigital: true,
+        fotoReciboAssinado: true,
+      },
+    });
+
+    if (!recibo) {
+      return res.status(404).json({ error: "Recibo não encontrado." });
+    }
+    res.json(recibo);
+  } catch (error) {
+    console.error("Erro ao buscar recibo para ajuste:", error);
+    res
+      .status(500)
+      .json({ error: "Não foi possível carregar o recibo para ajuste." });
+  }
+});
+
+// COMENTÁRIO: NOVA ROTA: Processa o ajuste de recebimento de um recibo
+app.post("/api/recibos/ajuste/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { responsavel, observacoes, itensAjuste } = req.body;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const reciboOriginal = await tx.recibo.findUnique({
+        where: { id },
+        include: {
+          unidadeEducacional: true,
+          itens: {
+            include: {
+              itemPedido: {
+                include: {
+                  itemContrato: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!reciboOriginal) {
+        throw new Error("Recibo não encontrado.");
+      }
+
+      const mudancas = [];
+      let todosConformes = true;
+
+      for (const itemAjuste of itensAjuste) {
+        const itemReciboOriginal = reciboOriginal.itens.find(
+          (i) => i.id === itemAjuste.itemId
+        );
+        if (!itemReciboOriginal) continue;
+
+        const quantidadeRecebidaAntiga = itemReciboOriginal.quantidadeRecebida;
+        const quantidadeRecebidaNova = itemAjuste.quantidadeRecebida;
+        const diferenca = quantidadeRecebidaNova;
+
+        // 1. Atualizar o item do recibo
+        await tx.itemRecibo.update({
+          where: { id: itemAjuste.itemId },
+          data: {
+            quantidadeRecebida: quantidadeRecebidaNova,
+            conforme: itemAjuste.conforme,
+            observacoes: itemAjuste.observacoes,
+          },
+        });
+
+        if (!itemAjuste.conforme) {
+          todosConformes = false;
+        }
+
+        // 2. Ajustar o saldo do estoque da unidade e do contrato
+        if (diferenca !== 0) {
+          const unidade = reciboOriginal.unidadeEducacional;
+          const isCreche =
+            (unidade.estudantesBercario || 0) > 0 ||
+            (unidade.estudantesMaternal || 0) > 0 ||
+            (unidade.estudantesPreEscola || 0) > 0;
+          const tipoEstoque = isCreche ? "creche" : "escola";
+
+          const itemContratoId = itemReciboOriginal.itemPedido.itemContrato.id;
+
+          // a) Atualiza o saldo do contrato
+          const campoSaldoAjustar =
+            tipoEstoque === "creche" ? "saldoCreche" : "saldoEscola";
+          await tx.itemContrato.update({
+            where: { id: itemContratoId },
+            data: {
+              [campoSaldoAjustar]: { decrement: diferenca },
+              saldoAtual: { decrement: diferenca },
+            },
+          });
+
+          // b) Atualiza a quantidade do estoque da unidade
+          const estoqueExistente = await tx.estoque.findUnique({
+            where: {
+              unidadeEducacionalId_itemContratoId_tipoEstoque: {
+                unidadeEducacionalId: reciboOriginal.unidadeEducacionalId,
+                itemContratoId: itemContratoId,
+                tipoEstoque: tipoEstoque,
+              },
+            },
+          });
+
+          if (estoqueExistente) {
+            await tx.estoque.update({
+              where: { id: estoqueExistente.id },
+              data: {
+                quantidadeAtual: { increment: diferenca },
+                ultimaAtualizacao: new Date(),
+              },
+            });
+
+            // c) Registra a movimentação de ajuste
+            await tx.movimentacaoEstoque.create({
+              data: {
+                estoqueId: estoqueExistente.id,
+                tipo: "ajuste",
+                quantidade: Math.abs(diferenca),
+                quantidadeAnterior: estoqueExistente.quantidadeAtual,
+                quantidadeNova: estoqueExistente.quantidadeAtual + diferenca,
+                motivo: `Ajuste de recebimento - Recibo ${reciboOriginal.numero}`,
+                responsavel,
+                dataMovimentacao: new Date(),
+                reciboId: id,
+              },
+            });
+          }
+        }
+
+        // Salvar as mudanças para o histórico
+        mudancas.push({
+          itemId: itemAjuste.itemId,
+          quantidadeAntiga: quantidadeRecebidaAntiga,
+          quantidadeNova: quantidadeRecebidaNova,
+          conforme: itemAjuste.conforme,
+        });
+      }
+
+      // 3. Atualizar o status do recibo
+      const novoStatus = todosConformes ? "ajustado" : "parcial";
+      const reciboAtualizado = await tx.recibo.update({
+        where: { id },
+        data: {
+          status: novoStatus,
+          responsavelRecebimento: responsavel,
+          observacoes,
+        },
+      });
+
+      // 4. Registrar o histórico do ajuste
+      await tx.historicoAjusteRecibo.create({
+        data: {
+          reciboId: id,
+          responsavel,
+          observacoes,
+          mudancas: mudancas,
+        },
+      });
+
+      return reciboAtualizado;
+    });
+
+    res.status(200).json({
+      message: "Ajuste de recebimento realizado com sucesso!",
+      recibo: result,
+    });
+  } catch (error) {
+    console.error("Erro ao ajustar recebimento:", error);
+    res.status(500).json({ error: "Não foi possível processar o ajuste." });
   }
 });
 

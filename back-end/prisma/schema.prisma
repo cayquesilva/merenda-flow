@@ -72,9 +72,9 @@ model UnidadeEducacional {
   estudantesEja       Int @default(0) @map("estudantes_eja")
 
   // Relações
-  pedidos  ItemPedido[]
-  recibos  Recibo[]
-  estoques Estoque[]
+  pedidos                  ItemPedido[]
+  recibos                  Recibo[]
+  estoques                 Estoque[]
   movimentacoesRemanejadas MovimentacaoEstoque[] @relation("MovimentacaoRemanejamento")
 }
 
@@ -197,10 +197,21 @@ model Recibo {
   assinaturaDigital   AssinaturaDigital? @relation(fields: [assinaturaDigitalId], references: [id])
   assinaturaDigitalId String?            @unique
 
-  fotoReciboAssinado   FotoReciboAssinado? @relation(fields: [fotoReciboAssinadoId], references: [id])
-  fotoReciboAssinadoId String?             @unique
+  fotoReciboAssinado   FotoReciboAssinado?     @relation(fields: [fotoReciboAssinadoId], references: [id])
+  fotoReciboAssinadoId String?                 @unique
+  historicoAjustes     HistoricoAjusteRecibo[]
 
   @@unique([pedidoId, unidadeEducacionalId])
+}
+
+model HistoricoAjusteRecibo {
+  id          String   @id @default(uuid())
+  reciboId    String   @map("recibo_id")
+  recibo      Recibo   @relation(fields: [reciboId], references: [id])
+  dataAjuste  DateTime @default(now()) @map("data_ajuste")
+  responsavel String
+  observacoes String?
+  mudancas    Json // Armazena um JSON com as mudanças feitas nos itens
 }
 
 // ===================================
@@ -311,7 +322,7 @@ model MovimentacaoEstoque {
   reciboId String? @map("recibo_id")
 
   // NOVO: Relação para Remanejamento
-  unidadeDestinoId String? @map("unidade_destino_id")
+  unidadeDestinoId String?             @map("unidade_destino_id")
   unidadeDestino   UnidadeEducacional? @relation("MovimentacaoRemanejamento", fields: [unidadeDestinoId], references: [id])
 
   // NOVO: Relação para Descarte com foto
