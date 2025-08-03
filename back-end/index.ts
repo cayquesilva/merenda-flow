@@ -3765,7 +3765,7 @@ app.post(
         dataFim,
         ...(unidadeId && unidadeId !== "all" && { unidadeId }),
       });
-      
+
       const reportDataResponse = await fetch(
         `http://localhost:3001/api/relatorios/conformidade?${params}`
       );
@@ -3893,6 +3893,128 @@ app.post(
     }
   }
 );
+
+app.post("/api/relatorios/gastos-fornecedor-pdf", async (req: Request, res: Response) => {
+  const { dataInicio, dataFim, fornecedorId } = req.body;
+
+  try {
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+
+    // Busca os dados do relatório a partir da rota de dados existente
+    const params = new URLSearchParams({
+      dataInicio,
+      dataFim,
+      ...(fornecedorId && fornecedorId !== 'all' && { fornecedorId }),
+    });
+
+    const reportDataResponse = await fetch(
+      `http://localhost:3001/api/relatorios/gastos-fornecedor?${params}`
+    );
+    if (!reportDataResponse.ok) {
+      throw new Error("Falha ao buscar dados do relatório.");
+    }
+    const reportData = await reportDataResponse.json();
+
+    // Definição das interfaces para tipagem dos dados do relatório
+    interface GastoFornecedor {
+        fornecedorId: string;
+        fornecedorNome: string;
+        totalGasto: number;
+        totalPedidos: number;
+    }
+
+    interface RelatorioGastosData {
+        gastosPorFornecedor: GastoFornecedor[];
+        estatisticas: {
+            totalFornecedores: number;
+            gastoTotal: number;
+            pedidosTotal: number;
+        };
+    }
+    
+    const typedReportData: RelatorioGastosData = reportData;
+
+    const rankingHtml = typedReportData.gastosPorFornecedor.map((fornecedor, index) => {
+        const ticketMedio = fornecedor.totalPedidos > 0 ? fornecedor.totalGasto / fornecedor.totalPedidos : 0;
+        const percentualParticipacao = typedReportData.estatisticas.gastoTotal > 0
+            ? (fornecedor.totalGasto / typedReportData.estatisticas.gastoTotal) * 100
+            : 0;
+        return `
+            <tr>
+                <td>#${index + 1}</td>
+                <td>${fornecedor.fornecedorNome}</td>
+                <td>R$ ${fornecedor.totalGasto.toFixed(2)}</td>
+                <td>${fornecedor.totalPedidos}</td>
+                <td>R$ ${ticketMedio.toFixed(2)}</td>
+                <td>${percentualParticipacao.toFixed(1)}%</td>
+            </tr>
+        `;
+    }).join('');
+
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Relatório de Gastos por Fornecedor</title>
+          <style>
+              body { font-family: sans-serif; padding: 20px; }
+              h1 { color: #333; }
+              .section { margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th { background-color: #f2f2f2; }
+              h2 { margin-top: 0; }
+          </style>
+      </head>
+      <body>
+          <h1>Relatório de Gastos por Fornecedor</h1>
+          <div class="section">
+              <h2>Estatísticas</h2>
+              <p>Gasto Total: R$ ${typedReportData.estatisticas.gastoTotal.toFixed(2)}</p>
+              <p>Total de Fornecedores: ${typedReportData.estatisticas.totalFornecedores}</p>
+              <p>Total de Pedidos: ${typedReportData.estatisticas.pedidosTotal}</p>
+          </div>
+          <div class="section">
+              <h2>Ranking de Gastos</h2>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Posição</th>
+                          <th>Fornecedor</th>
+                          <th>Total Gasto</th>
+                          <th>Total Pedidos</th>
+                          <th>Ticket Médio</th>
+                          <th>% do Total</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${rankingHtml}
+                  </tbody>
+              </table>
+          </div>
+      </body>
+      </html>
+    `;
+
+    await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+    const pdfBuffer = await page.pdf({ format: "A4" });
+
+    await browser.close();
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="relatorio-gastos-${dataInicio}_${dataFim}.pdf"`,
+      "Content-Length": pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("Erro ao gerar PDF do relatório de gastos:", error);
+    res.status(500).json({ error: "Não foi possível gerar o relatório PDF." });
+  }
+});
+
 
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {

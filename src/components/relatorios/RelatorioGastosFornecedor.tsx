@@ -32,6 +32,7 @@ import {
   TrendingUp,
   Filter,
   Users,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -67,6 +68,7 @@ export function RelatorioGastosFornecedor() {
     []
   ); // Estado para a lista de fornecedores
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // NOVO
   const { toast } = useToast();
 
   // Efeito para buscar a lista de fornecedores ativos ao carregar o componente
@@ -79,7 +81,7 @@ export function RelatorioGastosFornecedor() {
           }/api/fornecedores/lista`
         );
         if (response.ok) {
-          const data: FornecedorSimplificado[] = await response.json();
+          const data: FornecedorSimplificado[] = await response.json(); // Tipagem aqui
           setFornecedores(data);
         } else {
           const errorData = await response.json();
@@ -147,12 +149,60 @@ export function RelatorioGastosFornecedor() {
     }
   };
 
-  const exportarPDF = () => {
-    toast({
-      title: "Funcionalidade em desenvolvimento",
-      description: "A exportação em PDF será implementada em breve",
-      variant: "destructive",
-    });
+  // NOVO: Função para exportar o relatório como PDF
+  const exportarPDF = async () => {
+    if (!dados || isGeneratingPdf) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/gastos-fornecedor-pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            dataInicio,
+            dataFim,
+            fornecedorId: fornecedorSelecionado,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao gerar o PDF.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-gastos-${dataInicio}_${dataFim}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "PDF gerado!",
+        description: "O relatório de gastos foi exportado com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na exportação",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível exportar o PDF. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -169,8 +219,6 @@ export function RelatorioGastosFornecedor() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {" "}
-            {/* Alterado para 4 colunas */}
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
               <Input
@@ -199,8 +247,7 @@ export function RelatorioGastosFornecedor() {
                   <SelectValue placeholder="Todos os fornecedores" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os fornecedores</SelectItem>{" "}
-                  {/* Valor 'all' */}
+                  <SelectItem value="all">Todos os fornecedores</SelectItem>
                   {fornecedores.map((fornecedor) => (
                     <SelectItem key={fornecedor.id} value={fornecedor.id}>
                       {fornecedor.nome}
@@ -211,13 +258,17 @@ export function RelatorioGastosFornecedor() {
             </div>
             <div className="flex items-end gap-2">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
-                <Filter className="mr-2 h-4 w-4" />
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button variant="outline" onClick={exportarPDF}>
-                  <Download className="mr-2 h-4 w-4" />
-                  PDF
+                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
+                  {isGeneratingPdf && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {!isGeneratingPdf && <Download className="h-4 w-4" />}
+                  Exportar PDF
                 </Button>
               )}
             </div>
@@ -227,7 +278,6 @@ export function RelatorioGastosFornecedor() {
 
       {dados && (
         <>
-          {/* Estatísticas */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -284,7 +334,6 @@ export function RelatorioGastosFornecedor() {
             </Card>
           </div>
 
-          {/* Ranking de Fornecedores */}
           <Card>
             <CardHeader>
               <CardTitle>Ranking de Gastos por Fornecedor</CardTitle>
@@ -308,8 +357,9 @@ export function RelatorioGastosFornecedor() {
                 <TableBody>
                   {dados.gastosPorFornecedor.map((fornecedor, index) => {
                     const ticketMedio =
-                      fornecedor.totalGasto / fornecedor.totalPedidos;
-                    // Garante que dados.estatisticas.gastoTotal não é zero para evitar divisão por zero
+                      fornecedor.totalPedidos > 0
+                        ? fornecedor.totalGasto / fornecedor.totalPedidos
+                        : 0;
                     const percentualParticipacao =
                       dados.estatisticas.gastoTotal > 0
                         ? (fornecedor.totalGasto /
@@ -357,7 +407,6 @@ export function RelatorioGastosFornecedor() {
             </CardContent>
           </Card>
 
-          {/* Análise de Concentração */}
           <Card>
             <CardHeader>
               <CardTitle>Análise de Concentração</CardTitle>
