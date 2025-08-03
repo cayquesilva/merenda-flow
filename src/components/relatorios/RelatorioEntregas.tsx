@@ -37,6 +37,7 @@ import {
   Filter,
   AlertTriangle,
   Replace,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -86,7 +87,6 @@ interface RelatorioEntregasData {
   };
 }
 
-
 export function RelatorioEntregas() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
@@ -94,6 +94,7 @@ export function RelatorioEntregas() {
   const [unidadeSelecionada, setUnidadeSelecionada] = useState("all");
   const [dados, setDados] = useState<RelatorioEntregasData | null>(null);
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -171,12 +172,60 @@ export function RelatorioEntregas() {
     }
   };
 
-  const exportarPDF = () => {
-    toast({
-      title: "Funcionalidade em desenvolvimento",
-      description: "A exportação em PDF será implementada em breve",
-      variant: "destructive",
-    });
+  // NOVO: Função para exportar o relatório como PDF
+  const exportarPDF = async () => {
+    if (!dados || isGeneratingPdf) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/entregas-pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            dataInicio,
+            dataFim,
+            unidadeId: unidadeSelecionada,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao gerar o PDF.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-entregas-${dataInicio}_${dataFim}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "PDF gerado!",
+        description: "O relatório de entregas foi exportado com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na exportação",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível exportar o PDF. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const getStatusBadge = (status: ReciboRelatorioEntregas["status"]) => {
@@ -202,7 +251,6 @@ export function RelatorioEntregas() {
       parcial: <TrendingUp className="h-3 w-3 mr-1" />, // Usando TrendingUp para parcial
       rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
       ajustado: <Replace className="h-3 w-3 mr-1" />,
-
     };
 
     return (
@@ -267,13 +315,21 @@ export function RelatorioEntregas() {
             </div>
             <div className="flex items-end gap-2">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
-                <Filter className="mr-2 h-4 w-4" />
+                <Filter className="h-4 w-4" />
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button variant="outline" onClick={exportarPDF}>
-                  <Download className="mr-2 h-4 w-4" />
-                  PDF
+                <Button
+                  variant="outline"
+                  onClick={exportarPDF}
+                  disabled={isGeneratingPdf}
+                >
+                  {isGeneratingPdf ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  Exportar PDF
                 </Button>
               )}
             </div>
