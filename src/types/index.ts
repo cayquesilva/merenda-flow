@@ -39,7 +39,7 @@ export interface Contrato {
   dataInicio: string;
   dataFim: string;
   valorTotal: number;
-  status: 'ativo' | 'inativo' | 'vencido';
+  status: "ativo" | "inativo" | "vencido";
   itens: ItemContrato[];
   createdAt: string;
 }
@@ -58,7 +58,7 @@ export interface UnidadeEducacional {
   estudantesRegular: number;
   estudantesIntegral: number;
   estudantesEja: number;
-  tipoEstoque: 'creche' | 'escola';
+  tipoEstoque: "creche" | "escola";
 }
 
 export interface ItemPedido {
@@ -78,7 +78,7 @@ export interface Pedido {
   contrato: Contrato;
   dataPedido: string;
   dataEntregaPrevista: string;
-  status: 'pendente' | 'confirmado' | 'entregue' | 'cancelado';
+  status: "pendente" | "confirmado" | "entregue" | "cancelado";
   valorTotal: number;
   itens: ItemPedido[];
   createdAt: string;
@@ -105,7 +105,7 @@ export interface Recibo {
   dataEntrega: string;
   responsavelEntrega: string;
   responsavelRecebimento?: string;
-  status: 'pendente' | 'confirmado' | 'parcial' | 'rejeitado';
+  status: "pendente" | "confirmado" | "parcial" | "rejeitado" | "ajustado";
   qrcode: string;
   itens: ItemRecibo[];
   observacoes?: string;
@@ -116,7 +116,7 @@ export interface ConsolidacaoPedido {
   pedidoId: string;
   pedido: Pedido;
   recibos: Recibo[];
-  statusConsolidacao: 'pendente' | 'parcial' | 'completo';
+  statusConsolidacao: "pendente" | "parcial" | "completo" | "ajustado";
   totalUnidades: number;
   unidadesConfirmadas: number;
   percentualConfirmacao: number;
@@ -131,14 +131,14 @@ export interface Estoque {
   quantidadeAtual: number;
   quantidadeMinima: number;
   ultimaAtualizacao: string;
-  tipoEstoque: 'creche' | 'escola';
+  tipoEstoque: "creche" | "escola";
 }
 
 export interface MovimentacaoEstoque {
   id: string;
   estoqueId: string;
   estoque: Estoque;
-  tipo: 'entrada' | 'saida' | 'ajuste';
+  tipo: "entrada" | "saida" | "ajuste";
   quantidade: number;
   quantidadeAnterior: number;
   quantidadeNova: number;
@@ -197,7 +197,7 @@ export interface TipoEstudante {
   id: string;
   nome: string;
   sigla: string;
-  categoria: 'creche' | 'escola';
+  categoria: "creche" | "escola";
   ordem: number;
 }
 

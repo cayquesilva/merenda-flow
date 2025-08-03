@@ -188,6 +188,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     setIsAjusteModalOpen(false);
     fetchReciboDetails();
   };
+  
   const getQuantidadeAjuste = (itemId: string): number => {
     const ultimoAjuste =
       reciboDetalhado?.historicoAjustes && reciboDetalhado.historicoAjustes[0];

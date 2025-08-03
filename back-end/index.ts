@@ -1503,7 +1503,7 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
         (r) => r.status === "confirmado" || r.status === "parcial" || r.status === "ajustado"
       ).length;
 
-      let statusConsolidacao: "pendente" | "parcial" | "completo" = "pendente";
+      let statusConsolidacao: "pendente" | "parcial" | "completo" | "ajustado" = "pendente";
       if (totalRecibos > 0) {
         if (recibosConfirmados === totalRecibos) {
           statusConsolidacao = "completo";

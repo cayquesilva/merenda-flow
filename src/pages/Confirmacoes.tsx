@@ -63,6 +63,7 @@ export default function Confirmacoes() {
     pendentes: 0,
     confirmados: 0,
     parciais: 0,
+    ajustados: 0,
     mediaConformidade: 0,
   });
 
@@ -94,6 +95,9 @@ export default function Confirmacoes() {
         const parciais = data.consolidacoes.filter(
           (c) => c.statusConsolidacao === "parcial"
         ).length;
+        const ajustados = data.confirmacoesDetalhadas.filter(
+          (c) => c.status === "ajustado"
+        ).length;
 
         const mediaConformidade =
           totalConfirmacoes > 0
@@ -108,6 +112,7 @@ export default function Confirmacoes() {
           pendentes,
           confirmados,
           parciais,
+          ajustados,
           mediaConformidade,
         });
       } catch (error) {
@@ -274,6 +279,22 @@ export default function Confirmacoes() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
+              <div className="p-2 bg-success/10 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-success" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Ajustados
+                </p>
+                <p className="text-2xl font-bold">{stats.ajustados}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <BarChart3 className="h-6 w-6 text-primary" />
               </div>
@@ -333,6 +354,13 @@ export default function Confirmacoes() {
                 onClick={() => setStatusFilter("parcial")}
               >
                 Parciais
+              </Button>
+              <Button
+                variant={statusFilter === "ajustado" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("ajustado")}
+              >
+                Ajustados
               </Button>
             </div>
           </div>
