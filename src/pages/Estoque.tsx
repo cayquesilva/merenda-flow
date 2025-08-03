@@ -54,6 +54,7 @@ import {
   Truck,
   Trash2,
   Camera,
+  X,
 } from "lucide-react";
 import {
   Contrato,
@@ -540,6 +541,40 @@ function QRCodeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+function FotoDescarte({ mov }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  return (
+    <>
+      {mov.tipo === "descarte" && mov.fotoDescarte?.url && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="focus:outline-none"
+        >
+          <Camera className="h-4 w-4 text-primary hover:text-primary/80" />
+        </button>
+      )}
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-4 relative w-full max-w-md">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img
+              src={mov.fotoDescarte.url}
+              alt="Foto do Descarte"
+              className="max-h-[70vh] w-full object-contain rounded-md"
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1087,13 +1122,7 @@ export default function Estoque() {
                         </TableCell>
                         <TableCell>
                           {mov.tipo === "descarte" && mov.fotoDescarte?.url && (
-                            <a
-                              href={mov.fotoDescarte.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Camera className="h-4 w-4 text-primary hover:text-primary/80" />
-                            </a>
+                            <FotoDescarte mov={mov} />
                           )}
                         </TableCell>
                       </TableRow>
