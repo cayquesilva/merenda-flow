@@ -51,7 +51,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
   const [selectedPedidoId, setSelectedPedidoId] = useState<
     string | undefined
   >();
-  const [responsavelEntrega, setResponsavelEntrega] = useState("");
   const [dataEntrega, setDataEntrega] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -86,7 +85,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
       // Limpa o formulário ao fechar
       setPedidoSelecionado(null);
       setSelectedPedidoId(undefined);
-      setResponsavelEntrega("");
       setDataEntrega("");
     }
   }, [open, toast]);
@@ -130,15 +128,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
       return false;
     }
 
-    if (!responsavelEntrega.trim()) {
-      toast({
-        title: "Erro",
-        description: "Informe o responsável pela entrega",
-        variant: "destructive",
-      });
-      return false;
-    }
-
     if (!dataEntrega) {
       toast({
         title: "Erro",
@@ -172,7 +161,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             pedidoId: selectedPedidoId,
-            responsavelEntrega,
             dataEntrega,
           }),
         }
@@ -252,15 +240,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
                   min={new Date().toISOString().split("T")[0]}
                 />
               </div>
-            </div>
-            <div>
-              <Label htmlFor="responsavel">Responsável pela Entrega *</Label>
-              <Input
-                id="responsavel"
-                placeholder="Nome do responsável pela entrega"
-                value={responsavelEntrega}
-                onChange={(e) => setResponsavelEntrega(e.target.value)}
-              />
             </div>
             {pedidoSelecionado && (
               <Card>

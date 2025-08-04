@@ -258,12 +258,6 @@ export function ReciboConfirmacaoDialog({
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
-                    Responsável Entrega
-                  </p>
-                  <p>{recibo.responsavelEntrega}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
                     Responsável Recebimento
                   </p>
                   <p>{recibo.responsavelRecebimento || "Não confirmado"}</p>

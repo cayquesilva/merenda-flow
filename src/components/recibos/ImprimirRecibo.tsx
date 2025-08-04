@@ -311,10 +311,6 @@ export default function ImprimirRecibo() {
                   <strong>Data Entrega:</strong>{" "}
                   {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
                 </p>
-                <p className="text-sm print:text-xs">
-                  <strong>Responsável Entrega:</strong>{" "}
-                  {recibo.responsavelEntrega}
-                </p>
               </div>
             </div>
 

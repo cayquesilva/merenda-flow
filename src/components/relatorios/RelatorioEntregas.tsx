@@ -474,8 +474,7 @@ export function RelatorioEntregas() {
                       </TableCell>
                       <TableCell>{getStatusBadge(recibo.status)}</TableCell>
                       <TableCell>
-                        {recibo.responsavelRecebimento ||
-                          recibo.responsavelEntrega}
+                        {recibo.responsavelRecebimento}
                       </TableCell>
                     </TableRow>
                   ))}

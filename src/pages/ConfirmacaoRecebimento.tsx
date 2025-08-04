@@ -86,7 +86,6 @@ interface ReciboConfirmacaoBackend {
   pedidoId: string;
   unidadeEducacionalId: string;
   dataEntrega: string;
-  responsavelEntrega: string;
   responsavelRecebimento?: string;
   status: "pendente" | "confirmado" | "parcial" | "rejeitado";
   qrcode: string;
@@ -264,6 +263,20 @@ export default function ConfirmacaoRecebimento() {
       return;
     }
 
+    const itensInvalidos = itensConfirmacao.filter(
+      (item) => item.conforme === false && !item.observacoes?.trim() // Se não conforme, mas observação está vazia
+    );
+
+    if (itensInvalidos.length > 0) {
+      toast({
+        title: "Erro",
+        description:
+          "Por favor, preencha as observações para itens não conformes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -362,10 +375,6 @@ export default function ConfirmacaoRecebimento() {
               </div>
             </div>
             <div>
-              <Label className="text-sm font-medium">Responsável Entrega</Label>
-              <p>{recibo.responsavelEntrega}</p>
-            </div>
-            <div>
               <Label className="text-sm font-medium">Unidade</Label>
               <p>{recibo.unidadeEducacional.nome}</p>
             </div>
@@ -438,7 +447,10 @@ export default function ConfirmacaoRecebimento() {
                           }
                         />
                         <Label htmlFor={`conforme-${item.id}`}>
-                          Item conforme
+                          Item conforme{" "}
+                          <span className="text-[10px] text-muted-foreground">
+                            (Qualidade, Quantidade e Validade)
+                          </span>
                         </Label>
                       </div>
                       <div>
@@ -477,11 +489,21 @@ export default function ConfirmacaoRecebimento() {
                               e.target.value
                             )
                           }
+                          required={
+                            !confirmacao?.conforme &&
+                            recibo.status === "pendente"
+                          }
                           disabled={
                             recibo.status !== "pendente" ||
                             confirmacao?.conforme
                           } // Desabilita se não for pendente ou se já estiver conforme
                         />
+                        {!confirmacao?.observacoes &&
+                          !confirmacao?.conforme && (
+                            <p className="text-sm text-red-500 mt-2">
+                              Observação é obrigatória.
+                            </p>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -544,7 +566,7 @@ export default function ConfirmacaoRecebimento() {
                 ref={sigCanvas}
                 penColor="black"
                 canvasProps={{
-                  width: 500,
+                  width: 600,
                   height: 200,
                   className: "sigCanvas border-none",
                 }}

@@ -172,7 +172,6 @@ model Recibo {
   id                     String   @id @default(uuid())
   numero                 String   @unique
   dataEntrega            DateTime @map("data_entrega")
-  responsavelEntrega     String   @map("responsavel_entrega")
   responsavelRecebimento String   @map("responsavel_recebimento")
   status                 String // Ex: 'confirmado', 'pendente', 'rejeitado'
   qrcode                 String?

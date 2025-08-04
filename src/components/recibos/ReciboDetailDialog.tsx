@@ -70,7 +70,6 @@ interface ReciboDetalhado {
   numero: string;
   status: string;
   dataEntrega: string;
-  responsavelEntrega: string;
   responsavelRecebimento?: string;
   qrcode?: string;
   pedido: Pedido & {
@@ -268,12 +267,6 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                           "pt-BR"
                         )}
                       </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Resp. Entrega:
-                      </span>
-                      <span>{recibo.responsavelEntrega}</span>
                     </div>
                     {recibo.responsavelRecebimento && (
                       <div className="flex justify-between">

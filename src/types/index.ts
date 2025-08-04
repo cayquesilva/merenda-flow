@@ -103,7 +103,6 @@ export interface Recibo {
   unidadeEducacionalId: string;
   unidadeEducacional: UnidadeEducacional;
   dataEntrega: string;
-  responsavelEntrega: string;
   responsavelRecebimento?: string;
   status: "pendente" | "confirmado" | "parcial" | "rejeitado" | "ajustado";
   qrcode: string;

@@ -434,7 +434,6 @@ Gera um novo recibo para um pedido.
 ```json
 {
   "pedidoId": "uuid",
-  "responsavelEntrega": "João Silva - Transportadora",
   "dataEntrega": "2024-07-25T00:00:00.000Z"
 }
 ```

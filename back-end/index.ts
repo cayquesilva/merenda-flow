@@ -1056,7 +1056,7 @@ app.get("/api/recibos/:id", async (req: Request, res: Response) => {
 // COMENTÁRIO: Cria um ou mais recibos a partir de um pedido.
 // UTILIZAÇÃO: Chamada pelo `GerarReciboDialog.tsx`.
 app.post("/api/recibos", async (req: Request, res: Response) => {
-  const { pedidoId, responsavelEntrega, dataEntrega } = req.body;
+  const { pedidoId, dataEntrega } = req.body;
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -1097,7 +1097,6 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
             pedidoId: pedido.id,
             unidadeEducacionalId: unidadeId,
             dataEntrega: new Date(dataEntrega),
-            responsavelEntrega,
             responsavelRecebimento: "",
             status: "pendente",
             qrcode: "", // será atualizado depois
@@ -3642,7 +3641,6 @@ app.post(
         numero: string;
         dataEntrega: string;
         status: string;
-        responsavelEntrega: string;
         responsavelRecebimento: string;
         unidadeEducacional: {
           nome: string;
@@ -3702,7 +3700,7 @@ app.post(
               )}</td>
               <td>${recibo.status}</td>
               <td>${
-                recibo.responsavelRecebimento || recibo.responsavelEntrega
+                recibo.responsavelRecebimento
               }</td>
             </tr>
           `

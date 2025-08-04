@@ -474,7 +474,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"pedidoId\": \"uuid-do-pedido\",\n  \"responsavelEntrega\": \"João Silva - Transportadora\",\n  \"dataEntrega\": \"2024-07-25T00:00:00.000Z\"\n}"
+              "raw": "{\n  \"pedidoId\": \"uuid-do-pedido\",\n  \"dataEntrega\": \"2024-07-25T00:00:00.000Z\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/recibos",

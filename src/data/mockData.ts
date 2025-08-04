@@ -184,7 +184,6 @@ export const recibos: Recibo[] = [
     unidadeEducacionalId: '1',
     unidadeEducacional: unidadesEducacionais[0],
     dataEntrega: '2024-07-25',
-    responsavelEntrega: 'João Silva - Transportadora',
     responsavelRecebimento: 'Maria Santos - EMEI Jardim das Flores',
     status: 'confirmado',
     qrcode: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(window.location.origin + '/confirmacao-recebimento/1'),

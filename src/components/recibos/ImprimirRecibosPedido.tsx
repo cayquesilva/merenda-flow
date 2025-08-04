@@ -334,10 +334,6 @@ export default function ImprimirRecibosPedido() {
                           "pt-BR"
                         )}
                       </p>
-                      <p className="text-sm print:text-xs">
-                        <strong>Responsável Entrega:</strong>{" "}
-                        {reciboItem.responsavelEntrega}
-                      </p>
                     </div>
                   </div>
                   <h3 className="font-semibold text-lg mb-3 print:text-base print:mb-2">

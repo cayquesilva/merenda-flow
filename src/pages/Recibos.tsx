@@ -38,7 +38,6 @@ interface ReciboDaLista {
   id: string;
   numero: string;
   dataEntrega: string;
-  responsavelEntrega: string;
   status: string;
   pedido: {
     numero: string;
@@ -324,7 +323,6 @@ export default function Recibos() {
                     <TableCell>
                       {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
                     </TableCell>
-                    <TableCell>{recibo.responsavelEntrega}</TableCell>
                     <TableCell>{getStatusBadge(recibo.status)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-center px-2">
