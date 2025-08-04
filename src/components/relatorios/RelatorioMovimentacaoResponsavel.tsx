@@ -36,6 +36,7 @@ import {
   Building2,
   Trash2,
   Truck,
+  Download,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -48,7 +49,7 @@ import {
   Fornecedor,
   UnidadeEducacional,
   Recibo,
-} from "@/types"; // Importar tipos necessários
+} from "@/types";
 import { Progress } from "../ui/progress";
 
 // Interfaces detalhadas para corresponder ao retorno da API
@@ -66,7 +67,9 @@ interface EstoqueRelatorio extends Estoque {
 
 interface MovimentacaoEstoqueRelatorio extends MovimentacaoEstoque {
   estoque: EstoqueRelatorio;
-  recibo: Recibo | null; // Recibo pode ser nulo
+  recibo: Recibo | null;
+  unidadeDestino?: UnidadeEducacional | null;
+  fotoDescarte?: { url: string } | null;
 }
 
 interface RelatorioMovimentacaoData {
@@ -86,40 +89,58 @@ interface RelatorioMovimentacaoData {
   };
 }
 
+// NOVO: Interface para as unidades com tipo de estoque
+interface UnidadeComTipoEstoque extends UnidadeEducacional {
+  tipoEstoque: "creche" | "escola";
+}
+
 export default function RelatorioMovimentacaoResponsavel() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [responsavelSelecionado, setResponsavelSelecionado] = useState("all");
-  const [responsaveis, setResponsaveis] = useState<string[]>([]); // Lista de responsáveis
+  const [unidadeSelecionada, setUnidadeSelecionada] = useState("all");
+  const [tipoMovimentacaoSelecionada, setTipoMovimentacaoSelecionada] =
+    useState("all");
+  const [responsaveis, setResponsaveis] = useState<string[]>([]);
+  const [unidades, setUnidades] = useState<UnidadeComTipoEstoque[]>([]);
   const [dados, setDados] = useState<RelatorioMovimentacaoData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const { toast } = useToast();
 
-  // Busca a lista de responsáveis por movimentações
+  // Busca a lista de responsáveis e unidades
   useEffect(() => {
-    const fetchResponsaveis = async () => {
+    const fetchDadosIniciais = async () => {
       try {
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/movimentacoes/responsaveis`
-        );
-        if (response.ok) {
-          setResponsaveis(await response.json());
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Falha ao buscar responsáveis.");
+        const [responsaveisRes, unidadesRes] = await Promise.all([
+          fetch(
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/movimentacoes/responsaveis`
+          ),
+          fetch(
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:3001"
+            }/api/unidades-com-tipo-estoque`
+          ),
+        ]);
+
+        if (responsaveisRes.ok) {
+          setResponsaveis(await responsaveisRes.json());
+        }
+        if (unidadesRes.ok) {
+          setUnidades(await unidadesRes.json());
         }
       } catch (error) {
-        console.error("Erro ao buscar responsáveis:", error);
+        console.error("Erro ao buscar dados iniciais:", error);
         toast({
           title: "Erro",
-          description: "Não foi possível carregar a lista de responsáveis.",
+          description: "Não foi possível carregar os dados para os filtros.",
           variant: "destructive",
         });
       }
     };
-    fetchResponsaveis();
+    fetchDadosIniciais();
   }, [toast]);
 
   const gerarRelatorio = async () => {
@@ -139,6 +160,12 @@ export default function RelatorioMovimentacaoResponsavel() {
         dataFim,
         ...(responsavelSelecionado !== "all" && {
           responsavel: responsavelSelecionado,
+        }),
+        ...(unidadeSelecionada !== "all" && {
+          unidadeId: unidadeSelecionada,
+        }),
+        ...(tipoMovimentacaoSelecionada !== "all" && {
+          tipoMovimentacao: tipoMovimentacaoSelecionada,
         }),
       });
 
@@ -176,6 +203,63 @@ export default function RelatorioMovimentacaoResponsavel() {
     }
   };
 
+  const exportarPDF = async () => {
+    if (!dados || isGeneratingPdf) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/movimentacao-responsavel-pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            dataInicio,
+            dataFim,
+            responsavel: responsavelSelecionado,
+            unidadeId: unidadeSelecionada,
+            tipoMovimentacao: tipoMovimentacaoSelecionada,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao gerar o PDF.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-movimentacao-${dataInicio}_${dataFim}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "PDF gerado!",
+        description: "O relatório de movimentação foi exportado com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na exportação",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível exportar o PDF. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const getTipoMovimentacaoBadge = (
     tipo: string,
     anterior: number,
@@ -199,7 +283,7 @@ export default function RelatorioMovimentacaoResponsavel() {
 
     return (
       <Badge variant={variants[tipo as keyof typeof variants] || "outline"}>
-        {icons[tipo as keyof typeof icons]}
+        {icons[tipo as keyof typeof variants]}
         {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
       </Badge>
     );
@@ -219,7 +303,7 @@ export default function RelatorioMovimentacaoResponsavel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
               <Input
@@ -239,7 +323,7 @@ export default function RelatorioMovimentacaoResponsavel() {
               />
             </div>
             <div>
-              <Label htmlFor="responsavel">Responsável (Opcional)</Label>
+              <Label htmlFor="responsavel">Responsável</Label>
               <Select
                 value={responsavelSelecionado}
                 onValueChange={setResponsavelSelecionado}
@@ -258,15 +342,63 @@ export default function RelatorioMovimentacaoResponsavel() {
                 </SelectContent>
               </Select>
             </div>
+            {/* NOVO: Filtro por unidade */}
+            <div>
+              <Label htmlFor="unidade">Unidade</Label>
+              <Select
+                value={unidadeSelecionada}
+                onValueChange={setUnidadeSelecionada}
+                disabled={isLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as unidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as unidades</SelectItem>
+                  {unidades.map((unidade) => (
+                    <SelectItem key={unidade.id} value={unidade.id}>
+                      {unidade.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* NOVO: Filtro por tipo de movimentação */}
+            <div>
+              <Label htmlFor="tipoMovimentacao">Tipo de Movimentação</Label>
+              <Select
+                value={tipoMovimentacaoSelecionada}
+                onValueChange={setTipoMovimentacaoSelecionada}
+                disabled={isLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  <SelectItem value="entrada">Entrada</SelectItem>
+                  <SelectItem value="saida">Saída</SelectItem>
+                  <SelectItem value="ajuste">Ajuste</SelectItem>
+                  <SelectItem value="remanejamento">Remanejamento</SelectItem>
+                  <SelectItem value="descarte">Descarte</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end gap-2">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Filter className="mr-2 h-4 w-4" />
-                )}
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
+              {dados && (
+                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
+                  {isGeneratingPdf && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {!isGeneratingPdf && <Download className="h-4 w-4" />}
+                  Exportar PDF
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -399,7 +531,6 @@ export default function RelatorioMovimentacaoResponsavel() {
             </CardContent>
           </Card>
 
-          {/* Tabela de Movimentações */}
           <Card>
             <CardHeader>
               <CardTitle>Detalhes das Movimentações</CardTitle>
@@ -458,12 +589,7 @@ export default function RelatorioMovimentacaoResponsavel() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
-                            <span className="text-sm">
-                              {mov.estoque.unidadeEducacional.nome}
-                            </span>
-                          </div>
+                          {mov.estoque.unidadeEducacional.nome}
                         </TableCell>
                         <TableCell>
                           <span
@@ -490,7 +616,7 @@ export default function RelatorioMovimentacaoResponsavel() {
                           {mov.quantidadeAnterior}{" "}
                           {mov.estoque.itemContrato.unidadeMedida.sigla}
                         </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell>
                           {mov.quantidadeNova}{" "}
                           {mov.estoque.itemContrato.unidadeMedida.sigla}
                         </TableCell>
