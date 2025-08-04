@@ -7,6 +7,7 @@ async function main() {
 
   // Limpar dados na ordem correta (dependências)
   await prisma.itemRecibo.deleteMany();
+  await prisma.historicoAjusteRecibo.deleteMany();
   await prisma.recibo.deleteMany();
   await prisma.itemPedido.deleteMany();
   await prisma.pedido.deleteMany();
@@ -17,8 +18,8 @@ async function main() {
   await prisma.contrato.deleteMany();
   await prisma.fornecedor.deleteMany();
   await prisma.unidadeEducacional.deleteMany();
-  await prisma.unidadeMedida.deleteMany();
   await prisma.tipoEstudante?.deleteMany();
+  await prisma.unidadeMedida.deleteMany();
 
   console.log("Tabelas limpas.");
 

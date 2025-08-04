@@ -2297,66 +2297,84 @@ app.get(
 /// --- ROTAS DE RELATÓRIOS --- ///
 
 // COMENTÁRIO: Relatório de movimentação por responsável
-app.get("/api/relatorios/movimentacao-responsavel", async (req: Request, res: Response) => {
-  const { responsavel, dataInicio, dataFim, tipoMovimentacao, unidadeId } = req.query;
+app.get(
+  "/api/relatorios/movimentacao-responsavel",
+  async (req: Request, res: Response) => {
+    const { responsavel, dataInicio, dataFim, tipoMovimentacao, unidadeId } =
+      req.query;
 
-  try {
-    const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
-    const estoqueWhereClause: Prisma.EstoqueWhereInput = {};
+    try {
+      const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
+      const estoqueWhereClause: Prisma.EstoqueWhereInput = {};
 
-    if (responsavel && responsavel !== "all") {
-      whereClause.responsavel = responsavel as string;
-    }
+      if (responsavel && responsavel !== "all") {
+        whereClause.responsavel = responsavel as string;
+      }
 
-    if (unidadeId && unidadeId !== "all") {
-      estoqueWhereClause.unidadeEducacionalId = unidadeId as string;
-    }
+      if (unidadeId && unidadeId !== "all") {
+        estoqueWhereClause.unidadeEducacionalId = unidadeId as string;
+      }
 
-    if (tipoMovimentacao && tipoMovimentacao !== "all") {
-      whereClause.tipo = tipoMovimentacao as string;
-    }
+      if (tipoMovimentacao && tipoMovimentacao !== "all") {
+        whereClause.tipo = tipoMovimentacao as string;
+      }
 
-    if (Object.keys(estoqueWhereClause).length > 0) {
-      whereClause.estoque = estoqueWhereClause;
-    }
+      if (Object.keys(estoqueWhereClause).length > 0) {
+        whereClause.estoque = estoqueWhereClause;
+      }
 
-    if (dataInicio && dataFim) {
-      whereClause.dataMovimentacao = {
-        gte: new Date(dataInicio as string),
-        lte: new Date(dataFim as string),
-      };
-    }
-    
-    const movimentacoes = await prisma.movimentacaoEstoque.findMany({
-      where: whereClause,
-      include: {
-        estoque: {
-          include: {
-            itemContrato: {
-              select: {
-                nome: true,
-                unidadeMedida: { select: { sigla: true } },
-                contrato: { select: { numero: true, fornecedor: { select: { nome: true } } } }
+      if (dataInicio && dataFim) {
+        whereClause.dataMovimentacao = {
+          gte: new Date(dataInicio as string),
+          lte: new Date(dataFim as string),
+        };
+      }
+
+      const movimentacoes = await prisma.movimentacaoEstoque.findMany({
+        where: whereClause,
+        include: {
+          estoque: {
+            include: {
+              itemContrato: {
+                select: {
+                  nome: true,
+                  unidadeMedida: { select: { sigla: true } },
+                  contrato: {
+                    select: {
+                      numero: true,
+                      fornecedor: { select: { nome: true } },
+                    },
+                  },
+                },
               },
+              unidadeEducacional: { select: { nome: true } },
             },
-            unidadeEducacional: { select: { nome: true } },
           },
+          recibo: { select: { numero: true } },
+          unidadeDestino: { select: { nome: true } },
+          fotoDescarte: { select: { url: true } },
         },
-        recibo: { select: { numero: true } },
-        unidadeDestino: { select: { nome: true } },
-        fotoDescarte: { select: { url: true } }
-      },
-      orderBy: { dataMovimentacao: 'desc' },
-    });
+        orderBy: { dataMovimentacao: "desc" },
+      });
 
-    const totalMovimentacoes = movimentacoes.length;
-    const totalEntradas = movimentacoes.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + m.quantidade, 0);
-    const totalSaidas = movimentacoes.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + m.quantidade, 0);
-    const totalRemanejamentos = movimentacoes.filter(m => m.tipo === 'remanejamento').reduce((sum, m) => sum + m.quantidade, 0);
-    const totalDescartes = movimentacoes.filter(m => m.tipo === 'descarte').reduce((sum, m) => sum + m.quantidade, 0);
-    const totalAjustes = movimentacoes.filter(m => m.tipo === 'ajuste').reduce((sum, m) => sum + m.quantidade, 0);
+      const totalMovimentacoes = movimentacoes.length;
+      const totalEntradas = movimentacoes
+        .filter((m) => m.tipo === "entrada")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalSaidas = movimentacoes
+        .filter((m) => m.tipo === "saida")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalRemanejamentos = movimentacoes
+        .filter((m) => m.tipo === "remanejamento")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalDescartes = movimentacoes
+        .filter((m) => m.tipo === "descarte")
+        .reduce((sum, m) => sum + m.quantidade, 0);
+      const totalAjustes = movimentacoes
+        .filter((m) => m.tipo === "ajuste")
+        .reduce((sum, m) => sum + m.quantidade, 0);
 
-    const contaEntradas = movimentacoes.filter(
+      const contaEntradas = movimentacoes.filter(
         (m) => m.tipo === "entrada"
       ).length;
       const contaSaidas = movimentacoes.filter(
@@ -2372,28 +2390,34 @@ app.get("/api/relatorios/movimentacao-responsavel", async (req: Request, res: Re
         (m) => m.tipo === "ajuste"
       ).length;
 
-    res.json({
-      movimentacoes,
-      estatisticas: {
-        totalMovimentacoes,
-        totalEntradas,
-        totalSaidas,
-        totalRemanejamentos,
-        totalDescartes,
-        totalAjustes,
-        contaAjustes,
-        contaDescartes,
-        contaRemanejamentos,
-        contaSaidas,
-        contaEntradas,
-      },
-    });
-
-  } catch (error) {
-    console.error("Erro ao gerar relatório de movimentação por responsável:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório de movimentação por responsável." });
+      res.json({
+        movimentacoes,
+        estatisticas: {
+          totalMovimentacoes,
+          totalEntradas,
+          totalSaidas,
+          totalRemanejamentos,
+          totalDescartes,
+          totalAjustes,
+          contaAjustes,
+          contaDescartes,
+          contaRemanejamentos,
+          contaSaidas,
+          contaEntradas,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao gerar relatório de movimentação por responsável:",
+        error
+      );
+      res.status(500).json({
+        error:
+          "Não foi possível gerar o relatório de movimentação por responsável.",
+      });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Retorna uma lista de todos os responsáveis por movimentações de estoque
 app.get(
@@ -3425,10 +3449,12 @@ app.post(
     const { contratoId } = req.params;
 
     try {
-      const browser = await puppeteer.launch();
-      const page = await browser.newPage()
+      const browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_BIN || "/usr/bin/chromium-browser",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+      const page = await browser.newPage();
       const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
-
 
       // Busca os dados do relatório a partir da rota de dados existente
       const reportDataResponse = await fetch(
@@ -3604,7 +3630,10 @@ app.post(
     const { dataInicio, dataFim, unidadeId } = req.body;
 
     try {
-      const browser = await puppeteer.launch();
+      const browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_BIN || "/usr/bin/chromium-browser",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
       const page = await browser.newPage();
 
       // CORREÇÃO: Definição das interfaces para o relatório
@@ -3645,7 +3674,12 @@ app.post(
         ...(unidadeId && unidadeId !== "all" && { unidadeId }),
       });
 
-          const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+      const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+
+      console.log(
+        "➡️ URL chamada para relatório:",
+        `${backendUrl}/api/relatorios/entregas?${params}`
+      );
 
       const reportDataResponse = await fetch(
         `${backendUrl}/api/relatorios/entregas?${params}`
@@ -3754,7 +3788,10 @@ app.post(
     const { dataInicio, dataFim, unidadeId } = req.body;
 
     try {
-      const browser = await puppeteer.launch();
+      const browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_BIN || "/usr/bin/chromium-browser",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
       const page = await browser.newPage();
 
       // Busca os dados do relatório a partir da rota de dados existente
@@ -3764,8 +3801,10 @@ app.post(
         ...(unidadeId && unidadeId !== "all" && { unidadeId }),
       });
 
-          const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
-
+      const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+      if (!backendUrl) {
+        throw new Error("Variável BACKEND_URL não definida no ambiente.");
+      }
       const reportDataResponse = await fetch(
         `${backendUrl}/api/relatorios/conformidade?${params}`
       );
@@ -3900,7 +3939,10 @@ app.post(
     const { dataInicio, dataFim, fornecedorId } = req.body;
 
     try {
-      const browser = await puppeteer.launch();
+      const browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_BIN || "/usr/bin/chromium-browser",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
       const page = await browser.newPage();
 
       // Busca os dados do relatório a partir da rota de dados existente
@@ -3910,7 +3952,7 @@ app.post(
         ...(fornecedorId && fornecedorId !== "all" && { fornecedorId }),
       });
 
-          const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+      const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
 
       const reportDataResponse = await fetch(
         `${backendUrl}/api/relatorios/gastos-fornecedor?${params}`
@@ -4087,7 +4129,10 @@ app.post(
     }
 
     try {
-      const browser = await puppeteer.launch();
+      const browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_BIN || "/usr/bin/chromium-browser",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
       const page = await browser.newPage();
 
       const params = new URLSearchParams({
@@ -4095,7 +4140,7 @@ app.post(
         dataFim,
         ...(unidadeId && unidadeId !== "all" && { unidadeId }),
       });
-    const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+      const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
 
       const reportDataResponse = await fetch(
         `${backendUrl}/api/relatorios/estoque-unidade?${params}`
@@ -4246,14 +4291,20 @@ app.post(
   }
 );
 
-app.post("/api/relatorios/movimentacao-responsavel-pdf", async (req: Request, res: Response) => {
-  const { dataInicio, dataFim, responsavel, unidadeId, tipoMovimentacao } = req.body;
+app.post(
+  "/api/relatorios/movimentacao-responsavel-pdf",
+  async (req: Request, res: Response) => {
+    const { dataInicio, dataFim, responsavel, unidadeId, tipoMovimentacao } =
+      req.body;
 
-  try {
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    
-    interface MovimentacaoEstoqueRelatorioPDF {
+    try {
+      const browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_BIN || "/usr/bin/chromium-browser",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+      const page = await browser.newPage();
+
+      interface MovimentacaoEstoqueRelatorioPDF {
         id: string;
         dataMovimentacao: string;
         tipo: string;
@@ -4263,75 +4314,95 @@ app.post("/api/relatorios/movimentacao-responsavel-pdf", async (req: Request, re
         motivo: string;
         responsavel: string;
         estoque: {
-            itemContrato: {
-                nome: string;
-                unidadeMedida: { sigla: string };
-            };
-            unidadeEducacional: { nome: string };
+          itemContrato: {
+            nome: string;
+            unidadeMedida: { sigla: string };
+          };
+          unidadeEducacional: { nome: string };
         };
         unidadeDestino?: { nome: string } | null;
         fotoDescarte?: { url: string } | null;
-    }
+      }
 
-    interface RelatorioMovimentacaoDataPDF {
+      interface RelatorioMovimentacaoDataPDF {
         movimentacoes: MovimentacaoEstoqueRelatorioPDF[];
         estatisticas: {
-            totalMovimentacoes: number;
-            totalEntradas: number;
-            totalSaidas: number;
-            totalAjustes: number;
-            totalDescartes: number;
-            totalRemanejamentos: number;
-            contaEntradas: number;
-            contaSaidas: number;
-            contaDescartes: number;
-            contaRemanejamentos: number;
-            contaAjustes: number;
+          totalMovimentacoes: number;
+          totalEntradas: number;
+          totalSaidas: number;
+          totalAjustes: number;
+          totalDescartes: number;
+          totalRemanejamentos: number;
+          contaEntradas: number;
+          contaSaidas: number;
+          contaDescartes: number;
+          contaRemanejamentos: number;
+          contaAjustes: number;
         };
-    }
-    
-    const params = new URLSearchParams({
+      }
+
+      const params = new URLSearchParams({
         dataInicio,
         dataFim,
-        ...(responsavel && responsavel !== 'all' && { responsavel }),
-        ...(unidadeId && unidadeId !== 'all' && { unidadeId }),
-        ...(tipoMovimentacao && tipoMovimentacao !== 'all' && { tipoMovimentacao })
-    });
-    
-    const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
-    const reportDataResponse = await fetch(
+        ...(responsavel && responsavel !== "all" && { responsavel }),
+        ...(unidadeId && unidadeId !== "all" && { unidadeId }),
+        ...(tipoMovimentacao &&
+          tipoMovimentacao !== "all" && { tipoMovimentacao }),
+      });
+
+      const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+      const reportDataResponse = await fetch(
         `${backendUrl}/api/relatorios/movimentacao-responsavel?${params}`
-    );
-    if (!reportDataResponse.ok) {
+      );
+      if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
-    }
-    const reportData: RelatorioMovimentacaoDataPDF = await reportDataResponse.json();
+      }
+      const reportData: RelatorioMovimentacaoDataPDF =
+        await reportDataResponse.json();
 
-    const movimentacoesHtml = reportData.movimentacoes.map(mov => {
-        const unidadeInfo = mov.tipo === 'remanejamento' && mov.unidadeDestino
-            ? `Remanejado para: ${mov.unidadeDestino.nome}`
-            : `Origem: ${mov.estoque.unidadeEducacional.nome}`;
+      const movimentacoesHtml = reportData.movimentacoes
+        .map((mov) => {
+          const unidadeInfo =
+            mov.tipo === "remanejamento" && mov.unidadeDestino
+              ? `Remanejado para: ${mov.unidadeDestino.nome}`
+              : `Origem: ${mov.estoque.unidadeEducacional.nome}`;
 
-        const quantidadeSinal = (mov.tipo === 'saida' || mov.tipo === 'remanejamento' || mov.tipo === 'descarte') ? '-' : '+';
-        const fotoHtml = mov.fotoDescarte?.url ? `<a href="${mov.fotoDescarte.url}" target="_blank">Ver Foto</a>` : '-';
-        
-        return `
+          const quantidadeSinal =
+            mov.tipo === "saida" ||
+            mov.tipo === "remanejamento" ||
+            mov.tipo === "descarte"
+              ? "-"
+              : "+";
+          const fotoHtml = mov.fotoDescarte?.url
+            ? `<a href="${mov.fotoDescarte.url}" target="_blank">Ver Foto</a>`
+            : "-";
+
+          return `
             <tr>
-                <td>${new Date(mov.dataMovimentacao).toLocaleDateString('pt-BR')}</td>
+                <td>${new Date(mov.dataMovimentacao).toLocaleDateString(
+                  "pt-BR"
+                )}</td>
                 <td>${mov.tipo}</td>
                 <td>${mov.estoque.itemContrato.nome}</td>
                 <td>${unidadeInfo}</td>
-                <td>${quantidadeSinal}${mov.quantidade} ${mov.estoque.itemContrato.unidadeMedida.sigla}</td>
-                <td>${mov.quantidadeAnterior} ${mov.estoque.itemContrato.unidadeMedida.sigla}</td>
-                <td>${mov.quantidadeNova} ${mov.estoque.itemContrato.unidadeMedida.sigla}</td>
+                <td>${quantidadeSinal}${mov.quantidade} ${
+            mov.estoque.itemContrato.unidadeMedida.sigla
+          }</td>
+                <td>${mov.quantidadeAnterior} ${
+            mov.estoque.itemContrato.unidadeMedida.sigla
+          }</td>
+                <td>${mov.quantidadeNova} ${
+            mov.estoque.itemContrato.unidadeMedida.sigla
+          }</td>
                 <td>${mov.responsavel}</td>
                 <td>${mov.motivo}</td>
                 <td>${fotoHtml}</td>
             </tr>
         `;
-    }).join('');
+        })
+        .join("");
 
-    const htmlContent = `
+      const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -4382,23 +4453,25 @@ app.post("/api/relatorios/movimentacao-responsavel-pdf", async (req: Request, re
         </html>
     `;
 
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4' });
+      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+      const pdfBuffer = await page.pdf({ format: "A4" });
 
-    await browser.close();
+      await browser.close();
 
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="relatorio-movimentacao-${dataInicio}_${dataFim}.pdf"`,
-      'Content-Length': pdfBuffer.length,
-    });
-    res.send(pdfBuffer);
-  } catch (error) {
-    console.error("Erro ao gerar PDF do relatório de movimentação:", error);
-    res.status(500).json({ error: "Não foi possível gerar o relatório PDF." });
+      res.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="relatorio-movimentacao-${dataInicio}_${dataFim}.pdf"`,
+        "Content-Length": pdfBuffer.length,
+      });
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Erro ao gerar PDF do relatório de movimentação:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar o relatório PDF." });
+    }
   }
-});
-
+);
 
 /// --- FIM ROTA DE PDFs --- ///
 // Rota de teste
@@ -4431,7 +4504,9 @@ app.get("/api/test-db", async (req: Request, res: Response) => {
 });
 
 const server = app.listen(3001, () =>
-  console.log(`🚀 Servidor pronto em: api.seudominio:3001 e seudominio:8080`)
+  console.log(
+    `🚀 Servidor pronto em: ${process.env.FRONTEND_URL} e ${process.env.BACKEND_URL}`
+  )
 );
 
 // Garante que a conexão com o banco é fechada ao encerrar o processo

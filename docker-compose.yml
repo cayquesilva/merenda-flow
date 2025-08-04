@@ -20,9 +20,10 @@ services:
   backend:
     image: cayquesilva/merendaflow-backend:latest
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-CayqueSilva}:${POSTGRES_PASSWORD:-Kiq3506!}@db:5432/merenda
-      FRONTEND_URL: ${FRONTEND_URL:-https://merenda.simplisoft.com.br}
       NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-CayqueSilva}:${POSTGRES_PASSWORD:-Kiq3506!}@db:5432/merenda"
+      FRONTEND_URL: ${FRONTEND_URL:-https://merenda.simplisoft.com.br}
+      CHROME_BIN: /usr/bin/chromium-browser
     depends_on:
       - db
     networks:
