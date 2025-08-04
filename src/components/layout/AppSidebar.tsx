@@ -204,9 +204,9 @@ export function AppSidebar() {
                                 end
                                 className={getNavClassName(item.url)}
                               >
-                                <item.icon className="h-4 w-4 shrink-0 text-accent" />
+                                <item.icon className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
                                 {!collapsed && (
-                                  <span className="text-accent-foreground">
+                                  <span className="text-sidebar-foreground/70">
                                     {item.title}
                                   </span>
                                 )}
@@ -224,8 +224,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2">
-        
-        <ThemeToggle collapsed={collapsed}/>
+        <ThemeToggle collapsed={collapsed} />
         <Button
           variant="ghost"
           size="sm"
