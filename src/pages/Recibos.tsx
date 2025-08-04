@@ -64,7 +64,7 @@ function useDebounce(value: string, delay: number) {
 export default function Recibos() {
   const [busca, setBusca] = useState("");
   const navigate = useNavigate();
-  
+
   const debouncedBusca = useDebounce(busca, 300);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -304,7 +304,6 @@ export default function Recibos() {
                   <TableHead>Pedido</TableHead>
                   <TableHead>Fornecedor</TableHead>
                   <TableHead>Data de Entrega</TableHead>
-                  <TableHead>Responsável Entrega</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Itens</TableHead>
                   <TableHead className="text-center">Ações</TableHead>

@@ -24,6 +24,7 @@ import {
   Camera, // Adicionado para a câmera/foto
   RotateCcw,
   XCircle, // Adicionado para limpar a assinatura
+  Trash2,
 } from "lucide-react";
 // Removido Recibo de "@/types" para usar a interface local ReciboDetalhadoConfirmacao
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +45,11 @@ interface ItemPedidoComItemContrato {
   itemContrato: ItemContratoNomeUnidadeMedida;
 }
 
+interface FotoNaoConformeApi {
+  id: string;
+  url: string;
+}
+
 // Representa a estrutura de um item dentro do array 'itens' do recibo retornado pela API
 interface ItemReciboConfirmacaoBackend {
   id: string; // id do ItemRecibo
@@ -52,6 +58,7 @@ interface ItemReciboConfirmacaoBackend {
   conforme: boolean;
   observacoes?: string | null;
   itemPedido: ItemPedidoComItemContrato;
+  fotosNaoConforme?: FotoNaoConformeApi[]; // NOVO: Fotos de não conformidade
 }
 
 // Representa a estrutura da UnidadeEducacional retornada pela API
@@ -63,7 +70,6 @@ interface UnidadeEducacionalConfirmacaoBackend {
   telefone: string;
   email: string;
   ativo: boolean;
-  // NOVO: Adiciona a contagem de estudantes
   estudantesBercario: number;
   estudantesMaternal: number;
   estudantesPreEscola: number;
@@ -95,8 +101,8 @@ interface ReciboConfirmacaoBackend {
   unidadeEducacional: UnidadeEducacionalConfirmacaoBackend;
   pedido: PedidoConfirmacaoBackend;
   itens: ItemReciboConfirmacaoBackend[];
-  assinaturaDigital?: string | null; // Adicionado
-  fotoReciboAssinado?: string | null; // Adicionado
+  assinaturaDigital?: string | null;
+  fotoReciboAssinado?: string | null;
 }
 
 // Nova interface para o objeto de erro retornado pela API
@@ -109,6 +115,7 @@ interface ItemConfirmacaoForm {
   conforme: boolean;
   quantidadeRecebida: number;
   observacoes: string;
+  fotosNaoConforme: string[]; // NOVO: Adicionado array de fotos
 }
 
 export default function ConfirmacaoRecebimento() {
@@ -133,8 +140,8 @@ export default function ConfirmacaoRecebimento() {
     null
   );
 
-  const sigCanvas = useRef<SignatureCanvas>(null); // Referência para o componente SignatureCanvas
-  const fileInputRef = useRef<HTMLInputElement>(null); // Referência para o input de arquivo
+  const sigCanvas = useRef<SignatureCanvas>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     if (id) {
@@ -150,7 +157,6 @@ export default function ConfirmacaoRecebimento() {
           const data = await response.json();
 
           if (!response.ok) {
-            // data aqui é do tipo { error: string }
             throw new Error(data.error || "Falha ao carregar recibo.");
           }
 
@@ -160,11 +166,15 @@ export default function ConfirmacaoRecebimento() {
           setItensConfirmacao(
             recibo.itens.map((item) => ({
               itemId: item.id,
-              conforme: false,
-              quantidadeRecebida: item.quantidadeSolicitada,
+              conforme: item.conforme,
+              quantidadeRecebida:
+                item.quantidadeRecebida || item.quantidadeSolicitada,
               observacoes: item.observacoes || "",
+              fotosNaoConforme: item.fotosNaoConforme?.map((f) => f.url) || [], // NOVO
             }))
           );
+          setResponsavel(recibo.responsavelRecebimento || "");
+          setObservacoes(recibo.observacoes || "");
           setAssinaturaDigital(recibo.assinaturaDigital || null);
           setFotoReciboAssinado(recibo.fotoReciboAssinado || null);
         } catch (err) {
@@ -202,7 +212,6 @@ export default function ConfirmacaoRecebimento() {
       prev.map((item) => {
         if (item.itemId === itemId) {
           const updatedItem = { ...item, [field]: value };
-
           if (
             field === "conforme" &&
             typeof value === "boolean" &&
@@ -212,6 +221,7 @@ export default function ConfirmacaoRecebimento() {
             updatedItem.quantidadeRecebida =
               originalItem?.quantidadeSolicitada || 0;
             updatedItem.observacoes = "";
+            updatedItem.fotosNaoConforme = []; // Limpa as fotos se o item for marcado como conforme
           }
           return updatedItem;
         }
@@ -219,6 +229,58 @@ export default function ConfirmacaoRecebimento() {
       })
     );
   }
+
+  // NOVO: Manipulador para fotos de item não conforme
+  const handleItemPhotoUpload = (
+    itemId: string,
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const newPhotos: string[] = [];
+      let filesProcessed = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          newPhotos.push(reader.result as string);
+          filesProcessed++;
+          if (filesProcessed === files.length) {
+            setItensConfirmacao((prev) =>
+              prev.map((item) =>
+                item.itemId === itemId
+                  ? {
+                      ...item,
+                      fotosNaoConforme: [
+                        ...item.fotosNaoConforme,
+                        ...newPhotos,
+                      ],
+                    }
+                  : item
+              )
+            );
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  const handleRemoveItemPhoto = (itemId: string, photoUrl: string) => {
+    setItensConfirmacao((prev) =>
+      prev.map((item) =>
+        item.itemId === itemId
+          ? {
+              ...item,
+              fotosNaoConforme: item.fotosNaoConforme.filter(
+                (p) => p !== photoUrl
+              ),
+            }
+          : item
+      )
+    );
+  };
 
   const clearSignature = () => {
     if (sigCanvas.current) {
@@ -253,7 +315,6 @@ export default function ConfirmacaoRecebimento() {
       });
       return;
     }
-    // Validação da assinatura
     if (!assinaturaDigital) {
       toast({
         title: "Erro",
@@ -264,14 +325,16 @@ export default function ConfirmacaoRecebimento() {
     }
 
     const itensInvalidos = itensConfirmacao.filter(
-      (item) => item.conforme === false && !item.observacoes?.trim() // Se não conforme, mas observação está vazia
+      (item) =>
+        item.conforme === false &&
+        (!item.observacoes?.trim() || item.fotosNaoConforme.length === 0)
     );
 
     if (itensInvalidos.length > 0) {
       toast({
         title: "Erro",
         description:
-          "Por favor, preencha as observações para itens não conformes.",
+          "Para itens não conformes, a observação e pelo menos uma foto são obrigatórias.",
         variant: "destructive",
       });
       return;
@@ -287,11 +350,12 @@ export default function ConfirmacaoRecebimento() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            id,
             responsavel,
             observacoes,
             itensConfirmacao,
-            assinaturaDigital, // Envia a assinatura
-            fotoReciboAssinado, // Envia a foto
+            assinaturaDigital,
+            fotoReciboAssinado,
           }),
         }
       );
@@ -299,7 +363,7 @@ export default function ConfirmacaoRecebimento() {
       if (!response.ok) throw new Error(data.error || "Falha ao confirmar.");
 
       toast({ title: "Recebimento confirmado!", description: data.message });
-      navigate(`/recibos`); // Redireciona para a página de recibos
+      navigate(`/recibos`);
     } catch (err) {
       toast({
         title: "Erro",
@@ -416,6 +480,7 @@ export default function ConfirmacaoRecebimento() {
               const confirmacao = itensConfirmacao.find(
                 (ic) => ic.itemId === item.id
               );
+              const fotosCount = confirmacao?.fotosNaoConforme.length || 0;
               return (
                 <Card key={item.id} className="p-4">
                   <div className="space-y-4">
@@ -445,9 +510,10 @@ export default function ConfirmacaoRecebimento() {
                           onCheckedChange={(checked) =>
                             handleItemChange(item.id, "conforme", !!checked)
                           }
+                          disabled={recibo.status !== "pendente"}
                         />
                         <Label htmlFor={`conforme-${item.id}`}>
-                          Item conforme{" "}
+                          Item conforme
                           <span className="text-[10px] text-muted-foreground">
                             (Qualidade, Quantidade e Validade)
                           </span>
@@ -473,7 +539,7 @@ export default function ConfirmacaoRecebimento() {
                           disabled={
                             recibo.status !== "pendente" ||
                             confirmacao?.conforme
-                          } // Desabilita se não for pendente ou se já estiver conforme
+                          }
                         />
                       </div>
                       <div>
@@ -496,7 +562,7 @@ export default function ConfirmacaoRecebimento() {
                           disabled={
                             recibo.status !== "pendente" ||
                             confirmacao?.conforme
-                          } // Desabilita se não for pendente ou se já estiver conforme
+                          }
                         />
                         {!confirmacao?.observacoes &&
                           !confirmacao?.conforme && (
@@ -506,6 +572,52 @@ export default function ConfirmacaoRecebimento() {
                           )}
                       </div>
                     </div>
+
+                    {/* NOVO: Campo de fotos para itens não conformes */}
+                    {!confirmacao?.conforme && recibo.status === "pendente" && (
+                      <div className="space-y-2 mt-4">
+                        <Label htmlFor={`fotos-${item.id}`}>
+                          Fotos da Inconformidade ({fotosCount} anexada
+                          {fotosCount !== 1 ? "s" : ""})
+                        </Label>
+                        <Input
+                          id={`fotos-${item.id}`}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => handleItemPhotoUpload(item.id, e)}
+                          ref={(el) => (fileInputRefs.current[item.id] = el)}
+                        />
+                        {fotosCount > 0 && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                            {confirmacao?.fotosNaoConforme.map(
+                              (photoUrl, photoIndex) => (
+                                <div
+                                  key={photoIndex}
+                                  className="relative group"
+                                >
+                                  <img
+                                    src={photoUrl}
+                                    alt={`Foto ${photoIndex + 1}`}
+                                    className="w-full h-auto rounded-lg border"
+                                  />
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleRemoveItemPhoto(item.id, photoUrl)
+                                    }
+                                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -530,7 +642,7 @@ export default function ConfirmacaoRecebimento() {
                 value={responsavel}
                 onChange={(e) => setResponsavel(e.target.value)}
                 required
-                disabled={recibo.status !== "pendente"} // Desabilita se não for pendente
+                disabled={recibo.status !== "pendente"}
               />
             </div>
             <div>
@@ -541,7 +653,7 @@ export default function ConfirmacaoRecebimento() {
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 rows={1}
-                disabled={recibo.status !== "pendente"} // Desabilita se não for pendente
+                disabled={recibo.status !== "pendente"}
               />
             </div>
           </div>
@@ -549,12 +661,12 @@ export default function ConfirmacaoRecebimento() {
       </Card>
 
       {/* Campo de Assinatura Digital */}
-      {recibo.status === "pendente" && ( // Apenas mostra se o recibo estiver pendente
+      {recibo.status === "pendente" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Assinatura do Responsável pelo Recebimento *
+              Assinatura do  Responsável pelo Recebimento *
             </CardTitle>
             <CardDescription>
               Assine digitalmente para confirmar o recebimento.
@@ -571,7 +683,7 @@ export default function ConfirmacaoRecebimento() {
                   className: "sigCanvas border-none",
                 }}
                 onEnd={handleSignatureEnd}
-                backgroundColor="rgb(248, 250, 252)" // Cor de fundo para o pad
+                backgroundColor="rgb(248, 250, 252)"
               />
               <Button
                 variant="outline"
@@ -594,7 +706,7 @@ export default function ConfirmacaoRecebimento() {
       )}
 
       {/* Campo para Anexar Foto do Recibo Assinado */}
-      {recibo.status === "pendente" && ( // Apenas mostra se o recibo estiver pendente
+      {recibo.status === "pendente" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -611,7 +723,7 @@ export default function ConfirmacaoRecebimento() {
               type="file"
               accept="image/*"
               onChange={handlePhotoUpload}
-              ref={fileInputRef}
+              ref={(el) => (fileInputRefs.current.fotoRecibo = el)}
             />
             {fotoReciboAssinado && (
               <div className="mt-4 relative group">
@@ -625,7 +737,8 @@ export default function ConfirmacaoRecebimento() {
                   size="sm"
                   onClick={() => {
                     setFotoReciboAssinado(null);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    if (fileInputRefs.current.fotoRecibo)
+                      fileInputRefs.current.fotoRecibo.value = "";
                   }}
                   className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
@@ -686,19 +799,19 @@ export default function ConfirmacaoRecebimento() {
       <div className="flex gap-4 justify-end">
         <Button
           variant="outline"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/recibos")}
           disabled={isLoading}
         >
           Cancelar
         </Button>
-        {recibo.status === "pendente" && ( // Botão de confirmar apenas se o recibo estiver pendente
+        {recibo.status === "pendente" && (
           <Button onClick={handleConfirmar} disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             <CheckCircle className="mr-2 h-4 w-4" />
             Confirmar Recebimento
           </Button>
         )}
-        {recibo.status !== "pendente" && ( // Botão de imprimir/ver se o recibo já foi confirmado
+        {recibo.status !== "pendente" && (
           <Button onClick={() => navigate(`/recibos/imprimir/${recibo.id}`)}>
             <FileText className="mr-2 h-4 w-4" />
             Ver Comprovante

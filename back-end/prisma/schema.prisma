@@ -275,6 +275,9 @@ model ItemRecibo {
   // Relação com Item do Pedido (para saber o que foi recebido)
   itemPedido   ItemPedido @relation(fields: [itemPedidoId], references: [id])
   itemPedidoId String     @unique @map("item_pedido_id")
+
+  //Relação com fotosnaoconforme
+  fotosNaoConforme FotoNaoConforme[]
 }
 
 // ===================================
@@ -337,4 +340,14 @@ model FotoDescarte {
   criadoEm    DateTime @default(now())
 
   movimentacao MovimentacaoEstoque?
+}
+
+model FotoNaoConforme {
+  id           String     @id @default(uuid())
+  url          String     @db.Text
+  itemReciboId String     @map("item_recibo_id")
+  itemRecibo   ItemRecibo @relation(fields: [itemReciboId], references: [id])
+  criadoEm     DateTime   @default(now())
+
+  @@map("fotos_nao_conforme")
 }

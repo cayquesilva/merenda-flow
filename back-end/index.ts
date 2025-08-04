@@ -1204,8 +1204,8 @@ app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
 app.post(
   "/api/recibos/confirmacao/:id",
   async (req: Request, res: Response) => {
-    const { id } = req.params;
     const {
+      id,
       responsavel,
       observacoes,
       itensConfirmacao,
@@ -1218,23 +1218,29 @@ app.post(
         let todosConformes = true;
         let algumRecebido = false;
 
+        // CORREÇÃO: Busca o recibo com as relações necessárias para evitar erros de tipagem
         const recibo = await tx.recibo.findUnique({
           where: { id },
-          select: { unidadeEducacionalId: true },
+          include: {
+            unidadeEducacional: true,
+            itens: {
+              include: {
+                itemPedido: {
+                  include: {
+                    itemContrato: true,
+                  },
+                },
+                fotosNaoConforme: true,
+              },
+            },
+          },
         });
 
         if (!recibo) {
           throw new Error("Recibo não encontrado.");
         }
 
-        const unidade = await tx.unidadeEducacional.findUnique({
-          where: { id: recibo.unidadeEducacionalId },
-        });
-
-        if (!unidade) {
-          throw new Error("Unidade educacional não encontrada.");
-        }
-
+        const unidade = recibo.unidadeEducacional;
         const isCreche =
           (unidade.estudantesBercario || 0) > 0 ||
           (unidade.estudantesMaternal || 0) > 0 ||
@@ -1242,6 +1248,45 @@ app.post(
         const tipoEstoque = isCreche ? "creche" : "escola";
 
         for (const item of itensConfirmacao) {
+          const itemReciboOriginal = recibo.itens.find(
+            (i) => i.id === item.itemId
+          );
+          if (!itemReciboOriginal) continue;
+
+          // Lógica para lidar com as fotos de itens não conformes
+          const fotosUrls = item.fotosNaoConforme || [];
+          let fotosIds: { id: string }[] = [];
+
+          // Se o item for marcado como conforme, deletamos as fotos antigas
+          if (item.conforme) {
+            await tx.fotoNaoConforme.deleteMany({
+              where: {
+                itemReciboId: item.itemId,
+              },
+            });
+          } else if (fotosUrls.length > 0) {
+            // Se não for conforme e tiver fotos, criamos novos registros
+            // Deletamos fotos antigas para evitar duplicatas em caso de reenvio
+            await tx.fotoNaoConforme.deleteMany({
+              where: { itemReciboId: item.itemId },
+            });
+
+            // Criamos as novas fotos
+            const novasFotos = await tx.fotoNaoConforme.createMany({
+              data: fotosUrls.map((url: string) => ({
+                itemReciboId: item.itemId,
+                url,
+              })),
+            });
+
+            // Buscamos os IDs das fotos recém-criadas para a operação `connect`
+            const fotosCriadas = await tx.fotoNaoConforme.findMany({
+              where: { itemReciboId: item.itemId },
+              select: { id: true },
+            });
+            fotosIds = fotosCriadas.map((f) => ({ id: f.id }));
+          }
+
           const itemRecibo = await tx.itemRecibo.update({
             where: { id: item.itemId },
             data: {
@@ -1286,7 +1331,7 @@ app.post(
             const estoqueExistente = await tx.estoque.findUnique({
               where: {
                 unidadeEducacionalId_itemContratoId_tipoEstoque: {
-                  unidadeEducacionalId: recibo.unidadeEducacionalId,
+                  unidadeEducacionalId: recibo.unidadeEducacional.id,
                   itemContratoId: itemRecibo.itemPedido.itemContratoId,
                   tipoEstoque: tipoEstoque,
                 },
@@ -1309,7 +1354,7 @@ app.post(
             } else {
               estoqueAtualizado = await tx.estoque.create({
                 data: {
-                  unidadeEducacionalId: recibo.unidadeEducacionalId,
+                  unidadeEducacionalId: recibo.unidadeEducacional.id,
                   itemContratoId: itemRecibo.itemPedido.itemContratoId,
                   quantidadeAtual: quantidadeRecebida,
                   quantidadeMinima: 0,
@@ -1326,7 +1371,7 @@ app.post(
                 quantidade: quantidadeRecebida,
                 quantidadeAnterior: estoqueExistente?.quantidadeAtual || 0,
                 quantidadeNova: estoqueAtualizado.quantidadeAtual,
-                motivo: `Recebimento confirmado - Recibo ${itemRecibo.id}`,
+                motivo: `Recebimento confirmado - Recibo ${id}`,
                 reciboId: id,
                 responsavel: responsavel,
                 dataMovimentacao: new Date(),
@@ -1340,7 +1385,6 @@ app.post(
           statusFinal = todosConformes ? "confirmado" : "parcial";
         }
 
-        // CORREÇÃO: Tipando o objeto 'dataParaUpdate' explicitamente
         const dataParaUpdate: Prisma.ReciboUpdateInput = {
           responsavelRecebimento: responsavel,
           observacoes,
@@ -1353,7 +1397,6 @@ app.post(
               imagemBase64: assinaturaDigital,
             },
           });
-          // Usando 'connect' para criar a relação com o novo registro
           dataParaUpdate.assinaturaDigital = {
             connect: { id: novaAssinatura.id },
           };
@@ -1365,7 +1408,6 @@ app.post(
               url: fotoReciboAssinado,
             },
           });
-          // Usando 'connect' para criar a relação com o novo registro
           dataParaUpdate.fotoReciboAssinado = { connect: { id: novaFoto.id } };
         }
 
@@ -3699,9 +3741,7 @@ app.post(
                 "pt-BR"
               )}</td>
               <td>${recibo.status}</td>
-              <td>${
-                recibo.responsavelRecebimento
-              }</td>
+              <td>${recibo.responsavelRecebimento}</td>
             </tr>
           `
         )
