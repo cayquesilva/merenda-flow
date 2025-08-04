@@ -3430,7 +3430,7 @@ app.post(
 
       // Busca os dados do relatório a partir da rota de dados existente
       const reportDataResponse = await fetch(
-        `http://localhost:3001/api/relatorios/consolidado-pedidos-data/${contratoId}`
+        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/consolidado-pedidos-data/${contratoId}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -3644,7 +3644,7 @@ app.post(
       });
 
       const reportDataResponse = await fetch(
-        `http://localhost:3001/api/relatorios/entregas?${params}`
+        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/entregas?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -3761,7 +3761,7 @@ app.post(
       });
 
       const reportDataResponse = await fetch(
-        `http://localhost:3001/api/relatorios/conformidade?${params}`
+        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/conformidade?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -3905,7 +3905,7 @@ app.post(
       });
 
       const reportDataResponse = await fetch(
-        `http://localhost:3001/api/relatorios/gastos-fornecedor?${params}`
+        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/gastos-fornecedor?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -4089,7 +4089,7 @@ app.post(
       });
 
       const reportDataResponse = await fetch(
-        `http://localhost:3001/api/relatorios/estoque-unidade?${params}`
+        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/estoque-unidade?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -4290,7 +4290,7 @@ app.post("/api/relatorios/movimentacao-responsavel-pdf", async (req: Request, re
     });
     
     const reportDataResponse = await fetch(
-        `http://localhost:3001/api/relatorios/movimentacao-responsavel?${params}`
+        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/movimentacao-responsavel?${params}`
     );
     if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
