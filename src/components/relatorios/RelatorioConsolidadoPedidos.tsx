@@ -180,24 +180,30 @@ export function RelatorioConsolidadoPedidos() {
 
     setIsGeneratingPdf(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/relatorios/consolidado-pedidos-pdf/${contratoSelecionado}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ // Envia o reportData para o backend
-            reportData: consolidacao
-        })
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/relatorios/consolidado-pedidos-pdf/${contratoSelecionado}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            // Envia o reportData para o backend
+            reportData: consolidacao,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao gerar relatório');
+        throw new Error(errorData.error || "Falha ao gerar relatório");
       }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `relatorio-consolidado-${consolidacao.contrato.numero}.pdf`;
       document.body.appendChild(a);
@@ -212,7 +218,10 @@ export function RelatorioConsolidadoPedidos() {
     } catch (error) {
       toast({
         title: "Erro ao gerar relatório",
-        description: error instanceof Error ? error.message : "Não foi possível gerar o relatório. Tente novamente.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível gerar o relatório. Tente novamente.",
         variant: "destructive",
       });
     } finally {
