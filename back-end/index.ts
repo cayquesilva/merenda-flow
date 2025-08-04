@@ -3426,11 +3426,13 @@ app.post(
 
     try {
       const browser = await puppeteer.launch();
-      const page = await browser.newPage();
+      const page = await browser.newPage()
+      const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+
 
       // Busca os dados do relatório a partir da rota de dados existente
       const reportDataResponse = await fetch(
-        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/consolidado-pedidos-data/${contratoId}`
+        `${backendUrl}/api/relatorios/consolidado-pedidos-data/${contratoId}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -3643,8 +3645,10 @@ app.post(
         ...(unidadeId && unidadeId !== "all" && { unidadeId }),
       });
 
+          const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+
       const reportDataResponse = await fetch(
-        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/entregas?${params}`
+        `${backendUrl}/api/relatorios/entregas?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -3760,8 +3764,10 @@ app.post(
         ...(unidadeId && unidadeId !== "all" && { unidadeId }),
       });
 
+          const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+
       const reportDataResponse = await fetch(
-        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/conformidade?${params}`
+        `${backendUrl}/api/relatorios/conformidade?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -3904,8 +3910,10 @@ app.post(
         ...(fornecedorId && fornecedorId !== "all" && { fornecedorId }),
       });
 
+          const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+
       const reportDataResponse = await fetch(
-        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/gastos-fornecedor?${params}`
+        `${backendUrl}/api/relatorios/gastos-fornecedor?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -4087,9 +4095,10 @@ app.post(
         dataFim,
         ...(unidadeId && unidadeId !== "all" && { unidadeId }),
       });
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
 
       const reportDataResponse = await fetch(
-        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/estoque-unidade?${params}`
+        `${backendUrl}/api/relatorios/estoque-unidade?${params}`
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -4289,8 +4298,9 @@ app.post("/api/relatorios/movimentacao-responsavel-pdf", async (req: Request, re
         ...(tipoMovimentacao && tipoMovimentacao !== 'all' && { tipoMovimentacao })
     });
     
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
     const reportDataResponse = await fetch(
-        `${process.env.BACKEND_URL || "http://localhost:3001"}/api/relatorios/movimentacao-responsavel?${params}`
+        `${backendUrl}/api/relatorios/movimentacao-responsavel?${params}`
     );
     if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
