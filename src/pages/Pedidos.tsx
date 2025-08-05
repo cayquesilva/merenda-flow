@@ -164,21 +164,6 @@ export default function Pedidos() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-yellow-500/10 rounded-lg">
-                <Calendar className="h-6 w-6 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Pendentes
-                </p>
-                <p className="text-2xl font-bold">{stats.pendentes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
               <div className="p-2 bg-green-500/10 rounded-lg">
                 <Package className="h-6 w-6 text-green-500" />
               </div>
@@ -187,6 +172,21 @@ export default function Pedidos() {
                   Entregues
                 </p>
                 <p className="text-2xl font-bold">{stats.entregues}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-yellow-500/10 rounded-lg">
+                <Calendar className="h-6 w-6 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Pendentes
+                </p>
+                <p className="text-2xl font-bold">{stats.pendentes}</p>
               </div>
             </div>
           </CardContent>

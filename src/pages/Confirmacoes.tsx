@@ -36,6 +36,7 @@ import {
   XCircle,
   Trophy,
   CheckCheck,
+  PackageCheck,
 } from "lucide-react";
 import { ConsolidacaoPedido, Recibo } from "@/types";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
@@ -64,6 +65,7 @@ export default function Confirmacoes() {
     confirmados: 0,
     parciais: 0,
     ajustados: 0,
+    complementares: 0,
     mediaConformidade: 0,
   });
 
@@ -98,6 +100,9 @@ export default function Confirmacoes() {
         const ajustados = data.confirmacoesDetalhadas.filter(
           (c) => c.status === "ajustado"
         ).length;
+        const complementares = data.confirmacoesDetalhadas.filter(
+          (c) => c.status === "complementar"
+        ).length;
 
         const mediaConformidade =
           totalConfirmacoes > 0
@@ -113,6 +118,7 @@ export default function Confirmacoes() {
           confirmados,
           parciais,
           ajustados,
+          complementares,
           mediaConformidade,
         });
       } catch (error) {
@@ -154,7 +160,8 @@ export default function Confirmacoes() {
       parcial: "outline",
       rejeitado: "destructive",
       completo: "default",
-      ajustado: "outline"
+      ajustado: "outline",
+      complementar: "secondary",
     } as const;
 
     const labels = {
@@ -163,7 +170,8 @@ export default function Confirmacoes() {
       parcial: "Parcial",
       rejeitado: "Rejeitado",
       completo: "Completo",
-      ajustado: "Ajustado"
+      ajustado: "Ajustado",
+      complementar: "Complementar",
     };
 
     const icons = {
@@ -172,7 +180,8 @@ export default function Confirmacoes() {
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
       rejeitado: <XCircle className="h-3 w-3 mr-1" />,
       completo: <Trophy className="h-3 w-3 mr-1" />,
-      ajustado: <CheckCheck className="h-3 w-3 mr-1" />
+      ajustado: <CheckCheck className="h-3 w-3 mr-1" />,
+      complementar: <PackageCheck className="h-3 w-3 mr-1" />,
     };
 
     return (
@@ -186,14 +195,25 @@ export default function Confirmacoes() {
   const getConformidadeBadge = (percentual: number) => {
     if (percentual === 100) {
       return (
-        <Badge variant="default" className="bg-success text-success-foreground px-2">
+        <Badge
+          variant="default"
+          className="bg-success text-success-foreground px-2"
+        >
           Conforme
         </Badge>
       );
-    } else if (percentual > 50 && percentual < 100) {
-      return <Badge variant="outline" className="px-2">Parc. Conforme</Badge>;
+    } else if (percentual > 40 && percentual < 100) {
+      return (
+        <Badge variant="outline" className="px-2">
+          Parc. Conforme
+        </Badge>
+      );
     } else {
-      return <Badge variant="destructive" className="px-2">Não Conforme</Badge>;
+      return (
+        <Badge variant="destructive" className="px-2">
+          Não Conforme
+        </Badge>
+      );
     }
   };
 
@@ -231,28 +251,12 @@ export default function Confirmacoes() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Clock className="h-6 w-6 text-warning" />
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-green-500" />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Pendentes
-                </p>
-                <p className="text-2xl font-bold">{stats.pendentes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Confirmadas
+                  Confirmados
                 </p>
                 <p className="text-2xl font-bold">{stats.confirmados}</p>
               </div>
@@ -263,8 +267,39 @@ export default function Confirmacoes() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-success" />
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <CheckCheck className="h-6 w-6 text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Ajustados
+                </p>
+                <p className="text-2xl font-bold">{stats.ajustados}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <PackageCheck className="h-6 w-6 text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Complementares
+                </p>
+                <p className="text-2xl font-bold">{stats.complementares}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-yellow-500/10 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-yellow-500" />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
@@ -275,18 +310,17 @@ export default function Confirmacoes() {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-success" />
+              <div className="p-2 bg-orange-500/10 rounded-lg">
+                <Clock className="h-6 w-6 text-orange-500" />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Ajustados
+                  Pendentes
                 </p>
-                <p className="text-2xl font-bold">{stats.ajustados}</p>
+                <p className="text-2xl font-bold">{stats.pendentes}</p>
               </div>
             </div>
           </CardContent>
@@ -335,19 +369,26 @@ export default function Confirmacoes() {
                 Todos
               </Button>
               <Button
-                variant={statusFilter === "pendente" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("pendente")}
-              >
-                Pendentes
-              </Button>
-              <Button
                 variant={statusFilter === "confirmado" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setStatusFilter("confirmado")}
               >
                 Confirmados
               </Button>
+              <Button
+                variant={statusFilter === "ajustado" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("ajustado")}
+              >
+                Ajustados
+              </Button>
+              <Button
+                variant={statusFilter === "complementar" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("complementar")}
+              >
+                Complementares
+              </Button>            
               <Button
                 variant={statusFilter === "parcial" ? "default" : "outline"}
                 size="sm"
@@ -356,11 +397,11 @@ export default function Confirmacoes() {
                 Parciais
               </Button>
               <Button
-                variant={statusFilter === "ajustado" ? "default" : "outline"}
+                variant={statusFilter === "pendente" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setStatusFilter("ajustado")}
+                onClick={() => setStatusFilter("pendente")}
               >
-                Ajustados
+                Pendentes
               </Button>
             </div>
           </div>
@@ -447,7 +488,7 @@ export default function Confirmacoes() {
                             <div className="flex items-center gap-2 text-sm">
                               <span>
                                 {consolidacao.unidadesConfirmadas}/
-                                {consolidacao.totalUnidades} unidades
+                                {consolidacao.totalUnidades} recibos
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -562,15 +603,15 @@ export default function Confirmacoes() {
                         <TableCell>
                           <div className="space-y-1">
                             {getConformidadeBadge(
-                              confirmacao.percentualConformidade
+                              confirmacao.eficienciaEntrega
                             )}
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <Progress
-                                value={confirmacao.percentualConformidade}
+                                value={confirmacao.eficienciaEntrega}
                                 className="w-16 h-1"
                               />
                               <span>
-                                {confirmacao.percentualConformidade.toFixed(0)}%
+                                {confirmacao.eficienciaEntrega.toFixed(0)}%
                               </span>
                             </div>
                           </div>

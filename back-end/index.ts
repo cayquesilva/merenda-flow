@@ -942,17 +942,26 @@ app.get("/api/recibos/stats", async (req: Request, res: Response) => {
       where: { status: "pendente" },
     });
     const confirmedCount = await prisma.recibo.count({
-      where: { status: { in: ["confirmado", "ajustado"] } }, // "ajustado" também conta como confirmado/finalizado
+      where: { status: "confirmado" }, 
     });
     const partialCount = await prisma.recibo.count({
       where: { status: "parcial" },
     });
+    const ajustedCount = await prisma.recibo.count({
+      where: { status: "ajustado" },
+    });
+    const complementarCount = await prisma.recibo.count({
+      where: { status: "complementar" },
+    });
+
 
     res.json({
       total: totalCount,
       pendentes: pendingCount,
       confirmados: confirmedCount,
       parciais: partialCount,
+      ajustados: ajustedCount,
+      complementares: complementarCount,
     });
   } catch (error) {
     console.error("Erro ao buscar estatísticas dos recibos:", error);

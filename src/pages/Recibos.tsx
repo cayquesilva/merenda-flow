@@ -78,6 +78,8 @@ export default function Recibos() {
     pendentes: 0,
     confirmados: 0,
     parciais: 0,
+    ajustados: 0,
+    complementares: 0,
   });
 
   useEffect(() => {
@@ -187,21 +189,6 @@ export default function Recibos() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-yellow-500/10 rounded-lg">
-                <Clock className="h-6 w-6 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Pendentes
-                </p>
-                <p className="text-2xl font-bold">{stats.pendentes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
               <div className="p-2 bg-green-500/10 rounded-lg">
                 <CheckCircle className="h-6 w-6 text-green-500" />
               </div>
@@ -217,14 +204,59 @@ export default function Recibos() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-orange-500/10 rounded-lg">
-                <AlertTriangle className="h-6 w-6 text-orange-500" />
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <CheckCheck className="h-6 w-6 text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Ajustados
+                </p>
+                <p className="text-2xl font-bold">{stats.ajustados}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <PackageCheck className="h-6 w-6 text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Complementares
+                </p>
+                <p className="text-2xl font-bold">{stats.complementares}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-yellow-500/10 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-yellow-500" />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
                   Parciais
                 </p>
                 <p className="text-2xl font-bold">{stats.parciais}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-orange-500/10 rounded-lg">
+                <Clock className="h-6 w-6 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Pendentes
+                </p>
+                <p className="text-2xl font-bold">{stats.pendentes}</p>
               </div>
             </div>
           </CardContent>
@@ -254,13 +286,6 @@ export default function Recibos() {
                 Todos
               </Button>
               <Button
-                variant={statusFilter === "pendente" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("pendente")}
-              >
-                Pendentes
-              </Button>
-              <Button
                 variant={statusFilter === "confirmado" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setStatusFilter("confirmado")}
@@ -268,11 +293,34 @@ export default function Recibos() {
                 Confirmados
               </Button>
               <Button
+                variant={statusFilter === "ajustado" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("ajustado")}
+              >
+                Ajustados
+              </Button>
+              <Button
+                variant={
+                  statusFilter === "complementar" ? "default" : "outline"
+                }
+                size="sm"
+                onClick={() => setStatusFilter("complementar")}
+              >
+                Complementares
+              </Button>
+              <Button
                 variant={statusFilter === "parcial" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setStatusFilter("parcial")}
               >
                 Parciais
+              </Button>
+              <Button
+                variant={statusFilter === "pendente" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("pendente")}
+              >
+                Pendentes
               </Button>
             </div>
           </div>
