@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient, Prisma, Recibo } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -1023,16 +1023,21 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
   }
 });
 
+// ATUALIZAÇÃO: Definir um tipo recursivo seguro para a estrutura aninhada
+type ReciboComFilhos = Recibo & {
+  recibosComplementares?: ReciboComFilhos[];
+};
+
 // COMENTÁRIO: Busca os detalhes completos de um único recibo.
 // UTILIZAÇÃO: Chamada pelo `ReciboDetailDialog.tsx` quando o utilizador clica para ver um recibo.
 app.get("/api/recibos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    // Passo 1: Busca o recibo principal que o usuário solicitou, com todos os detalhes.
-    // Mantivemos todos os seus `includes` para garantir que o objeto principal seja completo.
-    const recibo = await prisma.recibo.findUnique({
+    // 1. Busca o recibo que foi solicitado na URL com todos os seus detalhes.
+    const reciboSolicitado = await prisma.recibo.findUnique({
       where: { id },
       include: {
+        reciboOriginal: true,
         pedido: { include: { contrato: { include: { fornecedor: true } } } },
         unidadeEducacional: true,
         itens: {
@@ -1045,76 +1050,81 @@ app.get("/api/recibos/:id", async (req: Request, res: Response) => {
             },
           },
         },
-        assinaturaDigital: true,
-        fotoReciboAssinado: true,
-        // Incluímos as relações de família para determinar a raiz
-        reciboOriginal: true,
-        recibosComplementares: true,
       },
     });
 
-    if (!recibo) {
+    if (!reciboSolicitado) {
       return res.status(404).json({ error: "Recibo não encontrado." });
     }
 
-    // Passo 2: Determina o ID do recibo original (a "raiz" da família).
-    // Se o recibo atual tiver um 'reciboOriginalId', usa ele. Senão, ele mesmo é o original.
-    const originalId = recibo.reciboOriginalId || recibo.id;
+    // ==================================================================
+    // ATUALIZAÇÃO CRÍTICA: Loop corrigido para evitar erro de tipo
+    // ==================================================================
+    let idRaiz = reciboSolicitado.id;
+    let parentId = reciboSolicitado.reciboOriginalId;
 
-    // Passo 3: Busca a família completa de recibos a partir da raiz.
-    // Isso garante que tenhamos o recibo original + todos os seus complementos.
-    const reciboOriginalComFamilia = await prisma.recibo.findUnique({
-      where: { id: originalId },
+    // Continua subindo na hierarquia enquanto houver um ID de pai
+    while (parentId) {
+      idRaiz = parentId; // O ID do pai atual é o novo candidato a raiz
+      const proximoPai = await prisma.recibo.findUnique({
+        where: { id: parentId },
+        select: { reciboOriginalId: true }, // Pega apenas o ID do próximo pai
+      });
+      // Atualiza o parentId para a próxima iteração do loop, ou null para sair
+      parentId = proximoPai?.reciboOriginalId ?? null;
+    }
+    // ==================================================================
+
+    // A partir daqui, o resto do código funciona perfeitamente com o 'idRaiz' correto
+    const reciboRaizComTodaFamilia = await prisma.recibo.findUnique({
+      where: { id: idRaiz },
       include: {
-        // Incluímos os itens do recibo original
-        itens: {
-          include: {
-            itemPedido: {
-              include: { itemContrato: { include: { unidadeMedida: true } } },
-            },
-          },
-        },
-        // Incluímos todos os recibos complementares
         recibosComplementares: {
-          // E para cada complemento, também incluímos seus itens
+          orderBy: { createdAt: 'asc' },
           include: {
-            itens: {
+            recibosComplementares: {
+              orderBy: { createdAt: 'asc' },
               include: {
-                itemPedido: {
-                  include: {
-                    itemContrato: { include: { unidadeMedida: true } },
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { createdAt: "asc" }, // Opcional: ordena os complementares por data
-        },
-      },
+                recibosComplementares: {
+                  orderBy: { createdAt: 'asc' },
+                   include: {
+                    recibosComplementares: { orderBy: { createdAt: 'asc' }}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
 
-    // Passo 4: Monta o array da "família" para enviar ao frontend.
-    // O array conterá o recibo original primeiro, seguido por todos os complementares.
-    const familiaRecibos = [
-      // Adiciona o próprio objeto original (sem os complementares aninhados para não duplicar)
-      { ...reciboOriginalComFamilia, recibosComplementares: undefined },
-      ...(reciboOriginalComFamilia?.recibosComplementares || []),
-    ];
-
-    // Passo 5: Anexa a família de recibos ao objeto de resposta final.
+    // 4. "Achata" a árvore em uma lista plana para enviar ao frontend.
+    const familiaRecibos: Recibo[] = [];
+    if (reciboRaizComTodaFamilia) {
+      const extrairRecibosRecursivamente = (recibo: ReciboComFilhos) => {
+        const { recibosComplementares, ...restoDoRecibo } = recibo;
+        familiaRecibos.push(restoDoRecibo as Recibo);
+        if (recibosComplementares) {
+          recibosComplementares.forEach(extrairRecibosRecursivamente);
+        }
+      };
+      extrairRecibosRecursivamente(reciboRaizComTodaFamilia);
+    }
+    
+    // 5. Envia a resposta final.
     const responseData = {
-      ...recibo,
-      familiaRecibos, // O novo campo que o frontend irá usar
+      ...reciboSolicitado,
+      familiaRecibos,
     };
 
     res.json(responseData);
+    
   } catch (error) {
     console.error("Erro ao buscar detalhes do recibo:", error);
-    res
-      .status(500)
-      .json({ error: "Não foi possível buscar os detalhes do recibo." });
+    res.status(500).json({ error: "Não foi possível buscar os detalhes do recibo." });
   }
 });
+
 
 // COMENTÁRIO: Cria um ou mais recibos a partir de um pedido.
 // UTILIZAÇÃO: Chamada pelo `GerarReciboDialog.tsx`.
@@ -1633,7 +1643,13 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
       // Um recibo confirmado é aquele que está finalizado (confirmado, ajustado, rejeitado)
       // Recibos pendentes (pendente, pendente_ajuste) não contam como confirmados.
       const recibosConfirmados = pedido.recibos.filter((r) =>
-        ["confirmado", "ajustado", "rejeitado", "parcial", "complementar"].includes(r.status)
+        [
+          "confirmado",
+          "ajustado",
+          "rejeitado",
+          "parcial",
+          "complementar",
+        ].includes(r.status)
       ).length;
 
       let statusConsolidacao: "pendente" | "parcial" | "completo" = "pendente";

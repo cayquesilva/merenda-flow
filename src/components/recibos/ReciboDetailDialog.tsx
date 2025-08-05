@@ -23,6 +23,7 @@ import {
   Printer,
   Edit,
   Link2,
+  ChevronRight,
 } from "lucide-react";
 import {
   Recibo as BaseRecibo,
@@ -34,7 +35,7 @@ import {
   ItemContrato,
   ItemPedido,
 } from "@/types";
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { AjustarRecebimentoDialog } from "@/components/recibos/AjustarRecebimentoDialog";
 
 // ATUALIZAÇÃO: A interface agora espera o campo `familiaRecibos` da API.
@@ -60,30 +61,62 @@ interface ReciboDetailDialogProps {
   reciboId: string;
 }
 
-// ATUALIZAÇÃO: Criada uma interface para as props do componente de nó.
+// ATUALIZAÇÃO: Um novo componente de nó de árvore mais inteligente
 interface ReciboNodeProps {
   recibo: BaseRecibo;
   familiaCompleta: BaseRecibo[];
   onReciboClick: (reciboId: string) => void;
   getStatusBadge: (status: string) => React.ReactNode;
+  currentReciboId: string; // ID do recibo que está sendo visualizado
+  level: number; // Nível de profundidade para indentação
 }
 
-// NOVO: Componente recursivo interno para renderizar a árvore
-const ReciboComplementarNode = ({ recibo, familiaCompleta, onReciboClick, getStatusBadge }: ReciboNodeProps) => {
-  const children = familiaCompleta.filter((r: BaseRecibo) => r.reciboOriginalId === recibo.id);
+const ReciboTreeNode = ({
+  recibo,
+  familiaCompleta,
+  onReciboClick,
+  getStatusBadge,
+  currentReciboId,
+  level,
+}: ReciboNodeProps) => {
+  const children = familiaCompleta.filter(
+    (r) => r.reciboOriginalId === recibo.id
+  );
+  const isCurrent = recibo.id === currentReciboId;
+
   return (
-    <div className="ml-4 pl-4 border-l">
-      <div className="flex justify-between items-center text-sm py-2">
+    <div style={{ marginLeft: `${level * 20}px` }} className="mt-2">
+      <div
+        className={`flex justify-between items-center text-sm p-2 rounded-md transition-colors ${
+          isCurrent
+            ? "bg-primary/10 ring-1 ring-primary/50"
+            : "hover:bg-muted/50"
+        }`}
+      >
         <div className="flex items-center gap-2">
-          <span>↳ Recibo Complementar</span>
-          <Button variant="link" className="h-auto p-0 font-mono" onClick={() => onReciboClick(recibo.id)}>
+          <span className="text-muted-foreground">
+            {level === 0 ? "Recibo Original" : `↳ Complementar ${level}`}
+          </span>
+          <Button
+            variant="link"
+            className={`h-auto p-0 font-mono ${isCurrent ? "font-bold" : ""}`}
+            onClick={() => onReciboClick(recibo.id)}
+          >
             #{recibo.numero}
           </Button>
         </div>
         {getStatusBadge(recibo.status)}
       </div>
-      {children.map((child: BaseRecibo) => (
-        <ReciboComplementarNode key={child.id} recibo={child} familiaCompleta={familiaCompleta} onReciboClick={onReciboClick} getStatusBadge={getStatusBadge} />
+      {children.map((child) => (
+        <ReciboTreeNode
+          key={child.id}
+          recibo={child}
+          familiaCompleta={familiaCompleta}
+          onReciboClick={onReciboClick}
+          getStatusBadge={getStatusBadge}
+          currentReciboId={currentReciboId}
+          level={level + 1}
+        />
       ))}
     </div>
   );
@@ -100,7 +133,9 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/recibos/${idToFetch}`
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/recibos/${idToFetch}`
       );
       if (!response.ok) throw new Error("Falha ao buscar detalhes do recibo.");
       const data: ReciboDetalhado = await response.json();
@@ -128,7 +163,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   const getQuantidadeTotalSolicitada = (itemAtual: ItemRecibo) => {
     const itemPedidoId = itemAtual.itemPedidoId;
     const reciboOriginal = recibo?.familiaRecibos?.[0];
-    const itemOriginal = reciboOriginal?.itens.find(
+    const itemOriginal = reciboOriginal?.itens?.find(
       (i) => i.itemPedidoId === itemPedidoId
     );
     return itemOriginal?.quantidadeSolicitada ?? itemAtual.quantidadeSolicitada;
@@ -138,7 +173,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     const itemPedidoId = itemAtual.itemPedidoId;
     return (
       recibo?.familiaRecibos?.reduce((total, reciboIrmao) => {
-        const itemCorrelato = reciboIrmao.itens.find(
+        const itemCorrelato = reciboIrmao.itens?.find(
           (i) => i.itemPedidoId === itemPedidoId
         );
         return total + (itemCorrelato?.quantidadeRecebida ?? 0);
@@ -193,11 +228,32 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     if (recibo) fetchReciboDetails(recibo.id);
   };
 
-  // ATUALIZAÇÃO: Encontra o recibo raiz da família
-  const reciboRaiz = recibo?.familiaRecibos?.find(r => !r.reciboOriginalId);
-  // Encontra os filhos diretos da raiz para iniciar a renderização da árvore
-  const filhosDaRaiz = recibo?.familiaRecibos?.filter(r => r.reciboOriginalId === reciboRaiz?.id);
+  // Função para construir a cadeia de ancestrais ("pais dos pais")
+  const buildAncestorChain = (
+    currentRecibo: BaseRecibo,
+    familia: BaseRecibo[]
+  ): BaseRecibo[] => {
+    const chain: BaseRecibo[] = [];
+    let currentNode: BaseRecibo | undefined = currentRecibo;
+    while (currentNode && currentNode.reciboOriginalId) {
+      const parent = familia.find(
+        (r) => r.id === currentNode!.reciboOriginalId
+      );
+      if (parent) {
+        chain.unshift(parent);
+        currentNode = parent;
+      } else {
+        break;
+      }
+    }
+    return chain;
+  };
 
+  const reciboRaiz = recibo?.familiaRecibos?.find((r) => !r.reciboOriginalId);
+  const ancentrais =
+    recibo && recibo.familiaRecibos
+      ? buildAncestorChain(recibo, recibo.familiaRecibos)
+      : [];
 
   return (
     <>
@@ -225,22 +281,27 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
             </div>
           ) : recibo ? (
             <div className="space-y-6">
-              {recibo.reciboOriginal && (
-                <Card className="bg-blue-50 border-blue-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 text-sm text-blue-800">
-                      <Link2 className="h-4 w-4" />
-                      Este é um recibo complementar para o recibo original{" "}
-                      <Button
-                        variant="link"
-                        className="h-auto p-0 text-sm font-bold"
-                        onClick={() =>
-                          fetchReciboDetails(recibo.reciboOriginal!.id)
-                        }
-                      >
-                        #{recibo.reciboOriginal.numero}
-                      </Button>
-                      .
+              {/* ATUALIZAÇÃO: Trilha de Ancestrais (Breadcrumb) */}
+              {ancentrais.length > 0 && (
+                <Card className="bg-muted/50">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1 text-sm flex-wrap">
+                      <span className="text-muted-foreground">Caminho:</span>
+                      {ancentrais.map((ancestral) => (
+                        <React.Fragment key={ancestral.id}>
+                          <Button
+                            variant="link"
+                            className="h-auto p-0"
+                            onClick={() => fetchReciboDetails(ancestral.id)}
+                          >
+                            Recibo #{ancestral.numero}
+                          </Button>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </React.Fragment>
+                      ))}
+                      <span className="font-semibold text-primary">
+                        Recibo Atual (#{recibo.numero})
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
@@ -459,29 +520,33 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* ATUALIZAÇÃO: Lógica para renderizar a árvore de recibos */}
-              {reciboRaiz && filhosDaRaiz && filhosDaRaiz.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Link2 className="h-4 w-4" />
-                      Histórico de Entregas do Recibo #{reciboRaiz.numero}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {filhosDaRaiz.map((child) => (
-                      <ReciboComplementarNode
-                        key={child.id}
-                        recibo={child}
-                        familiaCompleta={recibo.familiaRecibos!}
+              {/* Condição de exibição da árvore:
+                  - Precisa existir uma raiz.
+                  - A família precisa ter mais de 1 membro (ou seja, ter pelo menos um complemento).
+                  Com o backend robusto, esta condição agora funcionará em todos os casos.
+              */}
+              {reciboRaiz &&
+                recibo.familiaRecibos &&
+                recibo.familiaRecibos.length > 1 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Link2 className="h-4 w-4" />
+                        Árvore de Recibos
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ReciboTreeNode
+                        recibo={reciboRaiz}
+                        familiaCompleta={recibo.familiaRecibos}
                         onReciboClick={fetchReciboDetails}
                         getStatusBadge={getStatusBadge}
+                        currentReciboId={recibo.id}
+                        level={0}
                       />
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
+                    </CardContent>
+                  </Card>
+                )}
             </div>
           ) : (
             <p className="text-center py-10">
