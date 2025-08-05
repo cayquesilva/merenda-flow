@@ -54,19 +54,29 @@ interface ConfirmacoesData {
 }
 
 export default function Confirmacoes() {
-  const [busca, setBusca] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [buscaConsolidacao, setBuscaConsolidacao] = useState("");
+  const [statusFilterConsolidacao, setStatusFilterConsolidacao] =
+    useState<string>("todos");
+  const [buscaRecibo, setBuscaRecibo] = useState("");
+  const [statusFilterRecibo, setStatusFilterRecibo] = useState<string>("todos");
+  const [activeTab, setActiveTab] = useState("consolidacoes");
+
   const [isLoading, setIsLoading] = useState(true);
   const [consolidacoes, setConsolidacoes] = useState<ConsolidacaoPedido[]>([]);
   const [confirmacoes, setConfirmacoes] = useState<ConfirmacaoDetalhada[]>([]);
   const [stats, setStats] = useState({
-    total: 0,
-    pendentes: 0,
-    confirmados: 0,
-    parciais: 0,
-    ajustados: 0,
-    complementares: 0,
+    totalRecibos: 0,
+    recibosPendentes: 0,
+    recibosConfirmados: 0,
+    recibosParciais: 0,
+    recibosAjustados: 0,
+    recibosComplementares: 0,
     mediaConformidade: 0,
+    pedidosCompletos: 0,
+    pedidosParciais: 0,
+    pedidosPendentes: 0,
+    totalPedidos: 0,
+    mediaConformidadePedidos: 0,
   });
 
   const navigate = useNavigate(); // Inicializa o hook de navegação
@@ -85,41 +95,61 @@ export default function Confirmacoes() {
         setConsolidacoes(data.consolidacoes);
         setConfirmacoes(data.confirmacoesDetalhadas);
 
-        // Calculate stats
-        const totalConfirmacoes = data.confirmacoesDetalhadas.length;
-        const pendentes = data.confirmacoesDetalhadas.filter(
+        // --- Cálculo das Estatísticas ---
+        const totalRecibos = data.confirmacoesDetalhadas.length;
+        const recibosPendentes = data.confirmacoesDetalhadas.filter(
           (c) => c.status === "pendente"
         ).length;
-        const confirmados = data.consolidacoes.filter(
-          // Use consolidacoes para status completo/parcial
-          (c) => c.statusConsolidacao === "completo"
+        const recibosConfirmados = data.confirmacoesDetalhadas.filter(
+          (c) => c.status === "confirmado"
         ).length;
-        const parciais = data.consolidacoes.filter(
-          (c) => c.statusConsolidacao === "parcial"
+        const recibosParciais = data.confirmacoesDetalhadas.filter(
+          (c) => c.status === "parcial"
         ).length;
-        const ajustados = data.confirmacoesDetalhadas.filter(
+        const recibosAjustados = data.confirmacoesDetalhadas.filter(
           (c) => c.status === "ajustado"
         ).length;
-        const complementares = data.confirmacoesDetalhadas.filter(
+        const recibosComplementares = data.confirmacoesDetalhadas.filter(
           (c) => c.status === "complementar"
         ).length;
-
         const mediaConformidade =
-          totalConfirmacoes > 0
+          totalRecibos > 0
             ? data.confirmacoesDetalhadas.reduce(
                 (sum, conf) => sum + conf.percentualConformidade,
                 0
-              ) / totalConfirmacoes
+              ) / totalRecibos
+            : 0;
+
+        // ATUALIZAÇÃO: Cálculo das novas estatísticas de pedidos
+        const totalPedidos = data.consolidacoes.length;
+        const pedidosCompletos = data.consolidacoes.filter(
+          (c) => c.statusConsolidacao === "completo"
+        ).length;
+        const pedidosParciais = data.consolidacoes.filter(
+          (c) => c.statusConsolidacao === "parcial"
+        ).length;
+        const pedidosPendentes = data.consolidacoes.filter(
+          (c) => c.statusConsolidacao === "pendente"
+        ).length;
+
+        const mediaConformidadePedidos =
+          totalPedidos > 0
+            ? ((pedidosCompletos + pedidosParciais / 2) / totalPedidos) * 100
             : 0;
 
         setStats({
-          total: totalConfirmacoes,
-          pendentes,
-          confirmados,
-          parciais,
-          ajustados,
-          complementares,
+          totalRecibos,
+          recibosPendentes,
+          recibosConfirmados,
+          recibosParciais,
+          recibosAjustados,
+          recibosComplementares,
           mediaConformidade,
+          pedidosCompletos,
+          pedidosParciais,
+          pedidosPendentes,
+          totalPedidos,
+          mediaConformidadePedidos,
         });
       } catch (error) {
         console.error("Erro:", error);
@@ -130,26 +160,29 @@ export default function Confirmacoes() {
     fetchData();
   }, []);
 
-  // Lógica de filtragem no frontend
+  // ATUALIZAÇÃO: Lógica de filtragem para RECIBOS usando seus próprios estados
   const confirmacoesFiltradas = confirmacoes.filter((c) => {
     const matchBusca =
-      c.numero.toLowerCase().includes(busca.toLowerCase()) ||
-      c.pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
+      c.numero.toLowerCase().includes(buscaRecibo.toLowerCase()) ||
+      c.pedido.numero.toLowerCase().includes(buscaRecibo.toLowerCase()) ||
       c.pedido.contrato.fornecedor.nome
         .toLowerCase()
-        .includes(busca.toLowerCase());
-    const matchStatus = statusFilter === "todos" || c.status === statusFilter;
+        .includes(buscaRecibo.toLowerCase());
+    const matchStatus =
+      statusFilterRecibo === "todos" || c.status === statusFilterRecibo;
     return matchBusca && matchStatus;
   });
 
+  // ATUALIZAÇÃO: Lógica de filtragem para CONSOLIDAÇÕES usando seus próprios estados
   const consolidacoesFiltradas = consolidacoes.filter((c) => {
     const matchBusca =
-      c.pedido.numero.toLowerCase().includes(busca.toLowerCase()) ||
+      c.pedido.numero.toLowerCase().includes(buscaConsolidacao.toLowerCase()) ||
       c.pedido.contrato.fornecedor.nome
         .toLowerCase()
-        .includes(busca.toLowerCase());
+        .includes(buscaConsolidacao.toLowerCase());
     const matchStatus =
-      statusFilter === "todos" || c.statusConsolidacao === statusFilter;
+      statusFilterConsolidacao === "todos" ||
+      c.statusConsolidacao === statusFilterConsolidacao;
     return matchBusca && matchStatus;
   });
 
@@ -230,185 +263,214 @@ export default function Confirmacoes() {
         </div>
       </div>
 
-      {/* Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <FileText className="h-6 w-6 text-primary" />
+      {/*Estatísticas para Pedidos */}
+      {activeTab === "consolidacoes" && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <FileText className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Total de Pedidos
+                  </p>
+                  <p className="text-2xl font-bold">{stats.totalPedidos}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Total Recibos
-                </p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-green-500" />
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-green-500/10 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Completos
+                  </p>
+                  <p className="text-2xl font-bold">{stats.pedidosCompletos}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Confirmados
-                </p>
-                <p className="text-2xl font-bold">{stats.confirmados}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <CheckCheck className="h-6 w-6 text-green-500" />
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-yellow-500/10 rounded-lg">
+                  <CheckCheck className="h-6 w-6 text-yellow-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Parciais
+                  </p>
+                  <p className="text-2xl font-bold">{stats.pedidosParciais}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Ajustados
-                </p>
-                <p className="text-2xl font-bold">{stats.ajustados}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <PackageCheck className="h-6 w-6 text-green-500" />
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-orange-500/10 rounded-lg">
+                  <PackageCheck className="h-6 w-6 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Pendentes
+                  </p>
+                  <p className="text-2xl font-bold">{stats.pedidosPendentes}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Complementares
-                </p>
-                <p className="text-2xl font-bold">{stats.complementares}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <BarChart3 className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Conformidade Média
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {stats.mediaConformidadePedidos.toFixed(1)}%
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-yellow-500/10 rounded-lg">
-                <AlertTriangle className="h-6 w-6 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Parciais
-                </p>
-                <p className="text-2xl font-bold">{stats.parciais}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-orange-500/10 rounded-lg">
-                <Clock className="h-6 w-6 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Pendentes
-                </p>
-                <p className="text-2xl font-bold">{stats.pendentes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <BarChart3 className="h-6 w-6 text-primary" />
+      {/* Estatísticas para recibos*/}
+      {activeTab === "recibos" && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <FileText className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Total Recibos
+                  </p>
+                  <p className="text-2xl font-bold">{stats.totalRecibos}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Conformidade Média
-                </p>
-                <p className="text-2xl font-bold">
-                  {stats.mediaConformidade.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
 
-      {/* Filtros */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por número do recibo, pedido ou fornecedor..."
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  className="pl-10"
-                />
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-green-500/10 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Confirmados
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {stats.recibosConfirmados}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant={statusFilter === "todos" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("todos")}
-              >
-                Todos
-              </Button>
-              <Button
-                variant={statusFilter === "confirmado" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("confirmado")}
-              >
-                Confirmados
-              </Button>
-              <Button
-                variant={statusFilter === "ajustado" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("ajustado")}
-              >
-                Ajustados
-              </Button>
-              <Button
-                variant={statusFilter === "complementar" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("complementar")}
-              >
-                Complementares
-              </Button>            
-              <Button
-                variant={statusFilter === "parcial" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("parcial")}
-              >
-                Parciais
-              </Button>
-              <Button
-                variant={statusFilter === "pendente" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("pendente")}
-              >
-                Pendentes
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      <Tabs defaultValue="consolidacoes" className="space-y-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-green-500/10 rounded-lg">
+                  <CheckCheck className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Ajustados
+                  </p>
+                  <p className="text-2xl font-bold">{stats.recibosAjustados}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-green-500/10 rounded-lg">
+                  <PackageCheck className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Complementares
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {stats.recibosComplementares}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-yellow-500/10 rounded-lg">
+                  <AlertTriangle className="h-6 w-6 text-yellow-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Parciais
+                  </p>
+                  <p className="text-2xl font-bold">{stats.recibosParciais}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-orange-500/10 rounded-lg">
+                  <Clock className="h-6 w-6 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Pendentes
+                  </p>
+                  <p className="text-2xl font-bold">{stats.recibosPendentes}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <BarChart3 className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Conformidade Média
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {stats.mediaConformidade.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Tabs defaultValue="consolidacoes" onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="consolidacoes">
             <Layers className="mr-2 h-4 w-4" />
@@ -420,7 +482,73 @@ export default function Confirmacoes() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="consolidacoes">
+        <TabsContent value="consolidacoes" className="gap-4 flex flex-col">
+          {/* Card de Consolidações de Pedidos */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Consulta de Pedidos</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filtros para Consolidações */}
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por número do pedido ou fornecedor..."
+                    value={buscaConsolidacao}
+                    onChange={(e) => setBuscaConsolidacao(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant={
+                      statusFilterConsolidacao === "todos"
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterConsolidacao("todos")}
+                  >
+                    Todos
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterConsolidacao === "completo"
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterConsolidacao("completo")}
+                  >
+                    Completos
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterConsolidacao === "parcial"
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterConsolidacao("parcial")}
+                  >
+                    Parciais
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterConsolidacao === "pendente"
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterConsolidacao("pendente")}
+                  >
+                    Pendentes
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Consolidações de Pedidos</CardTitle>
@@ -437,7 +565,7 @@ export default function Confirmacoes() {
                     Nenhum pedido encontrado
                   </h3>
                   <p className="text-muted-foreground">
-                    {busca
+                    {buscaConsolidacao
                       ? "Tente ajustar os filtros de busca"
                       : "As confirmações aparecerão aqui quando os pedidos forem processados"}
                   </p>
@@ -529,7 +657,87 @@ export default function Confirmacoes() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="recibos">
+        <TabsContent value="recibos" className="gap-4 flex flex-col">
+          {/* Card de Recibos Individuais */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Consulta de Recibos Individuais</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filtros para Recibos */}
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por número do recibo, pedido ou fornecedor..."
+                    value={buscaRecibo}
+                    onChange={(e) => setBuscaRecibo(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant={
+                      statusFilterRecibo === "todos" ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterRecibo("todos")}
+                  >
+                    Todos
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterRecibo === "confirmado"
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterRecibo("confirmado")}
+                  >
+                    Confirmados
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterRecibo === "ajustado" ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterRecibo("ajustado")}
+                  >
+                    Ajustados
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterRecibo === "complementar"
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterRecibo("complementar")}
+                  >
+                    Complementares
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterRecibo === "parcial" ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterRecibo("parcial")}
+                  >
+                    Parciais
+                  </Button>
+                  <Button
+                    variant={
+                      statusFilterRecibo === "pendente" ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setStatusFilterRecibo("pendente")}
+                  >
+                    Pendentes
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Recibos Individuais</CardTitle>
@@ -545,7 +753,7 @@ export default function Confirmacoes() {
                     Nenhuma confirmação encontrada
                   </h3>
                   <p className="text-muted-foreground">
-                    {busca
+                    {buscaRecibo
                       ? "Tente ajustar os filtros de busca"
                       : "As confirmações aparecerão aqui quando os recibos forem processados"}
                   </p>
