@@ -63,7 +63,13 @@ interface ReciboDetailDialogProps {
 
 // ATUALIZAÇÃO: Um novo componente de nó de árvore mais inteligente
 interface ReciboNodeProps {
-  recibo: BaseRecibo;
+  recibo: BaseRecibo & {
+    itens: (ItemRecibo & {
+      itemPedido: {
+        itemContrato: { nome: string; unidadeMedida: { sigla: string } };
+      };
+    })[];
+  };
   familiaCompleta: BaseRecibo[];
   onReciboClick: (reciboId: string) => void;
   getStatusBadge: (status: string) => React.ReactNode;
@@ -488,7 +494,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                             </div>
 
                             <div className="md:col-span-3 border-t pt-2 mt-2">
-                              <p className="text-xs text-center text-muted-foreground flex justify-between">
+                              <div className="text-xs text-center text-muted-foreground flex justify-between">
                                 <div>
                                   Resumo deste recibo (#{recibo.numero}):
                                   <span className="font-bold">
@@ -511,7 +517,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                                     </Badge>
                                   )}
                                 </div>
-                              </p>
+                              </div>
                             </div>
                           </div>
                         </Card>
@@ -520,11 +526,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                   </div>
                 </CardContent>
               </Card>
-              {/* Condição de exibição da árvore:
-                  - Precisa existir uma raiz.
-                  - A família precisa ter mais de 1 membro (ou seja, ter pelo menos um complemento).
-                  Com o backend robusto, esta condição agora funcionará em todos os casos.
-              */}
+
               {reciboRaiz &&
                 recibo.familiaRecibos &&
                 recibo.familiaRecibos.length > 1 && (
