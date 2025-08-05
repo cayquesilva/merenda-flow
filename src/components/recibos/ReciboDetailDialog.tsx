@@ -36,7 +36,6 @@ import {
 } from "@/types";
 import { useEffect, useState, useCallback } from "react";
 import { AjustarRecebimentoDialog } from "@/components/recibos/AjustarRecebimentoDialog";
-import ReciboComplementarNode from "./ReciboComplementarNode";
 
 // ATUALIZAÇÃO: A interface agora espera o campo `familiaRecibos` da API.
 interface ReciboDetalhado extends BaseRecibo {
@@ -60,6 +59,35 @@ interface ReciboDetalhado extends BaseRecibo {
 interface ReciboDetailDialogProps {
   reciboId: string;
 }
+
+// ATUALIZAÇÃO: Criada uma interface para as props do componente de nó.
+interface ReciboNodeProps {
+  recibo: BaseRecibo;
+  familiaCompleta: BaseRecibo[];
+  onReciboClick: (reciboId: string) => void;
+  getStatusBadge: (status: string) => React.ReactNode;
+}
+
+// NOVO: Componente recursivo interno para renderizar a árvore
+const ReciboComplementarNode = ({ recibo, familiaCompleta, onReciboClick, getStatusBadge }: ReciboNodeProps) => {
+  const children = familiaCompleta.filter((r: BaseRecibo) => r.reciboOriginalId === recibo.id);
+  return (
+    <div className="ml-4 pl-4 border-l">
+      <div className="flex justify-between items-center text-sm py-2">
+        <div className="flex items-center gap-2">
+          <span>↳ Recibo Complementar</span>
+          <Button variant="link" className="h-auto p-0 font-mono" onClick={() => onReciboClick(recibo.id)}>
+            #{recibo.numero}
+          </Button>
+        </div>
+        {getStatusBadge(recibo.status)}
+      </div>
+      {children.map((child: BaseRecibo) => (
+        <ReciboComplementarNode key={child.id} recibo={child} familiaCompleta={familiaCompleta} onReciboClick={onReciboClick} getStatusBadge={getStatusBadge} />
+      ))}
+    </div>
+  );
+};
 
 export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   const [open, setOpen] = useState(false);
@@ -164,6 +192,12 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     setIsAjusteModalOpen(false);
     if (recibo) fetchReciboDetails(recibo.id);
   };
+
+  // ATUALIZAÇÃO: Encontra o recibo raiz da família
+  const reciboRaiz = recibo?.familiaRecibos?.find(r => !r.reciboOriginalId);
+  // Encontra os filhos diretos da raiz para iniciar a renderização da árvore
+  const filhosDaRaiz = recibo?.familiaRecibos?.filter(r => r.reciboOriginalId === reciboRaiz?.id);
+
 
   return (
     <>
@@ -427,27 +461,24 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
               </Card>
 
               {/* ATUALIZAÇÃO: Lógica para renderizar a árvore de recibos */}
-              {(recibo.familiaRecibos && recibo.familiaRecibos.length > 1) && (
+              {reciboRaiz && filhosDaRaiz && filhosDaRaiz.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <Link2 className="h-4 w-4" />
-                      Histórico de Entregas Complementares
+                      Histórico de Entregas do Recibo #{reciboRaiz.numero}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {/* Encontra os filhos diretos do recibo ATUAL e inicia a recursão */}
-                    {(recibo.familiaRecibos ?? [])
-                      .filter((r) => r.reciboOriginalId === recibo.id)
-                      .map((child) => (
-                        <ReciboComplementarNode
-                          key={child.id}
-                          recibo={child}
-                          familiaCompleta={recibo.familiaRecibos!}
-                          onReciboClick={fetchReciboDetails}
-                          getStatusBadge={getStatusBadge}
-                        />
-                      ))}
+                    {filhosDaRaiz.map((child) => (
+                      <ReciboComplementarNode
+                        key={child.id}
+                        recibo={child}
+                        familiaCompleta={recibo.familiaRecibos!}
+                        onReciboClick={fetchReciboDetails}
+                        getStatusBadge={getStatusBadge}
+                      />
+                    ))}
                   </CardContent>
                 </Card>
               )}
