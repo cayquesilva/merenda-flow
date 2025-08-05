@@ -942,7 +942,7 @@ app.get("/api/recibos/stats", async (req: Request, res: Response) => {
       where: { status: "pendente" },
     });
     const confirmedCount = await prisma.recibo.count({
-      where: { status: "confirmado" },
+      where: { status: { in: ["confirmado", "ajustado"] } }, // "ajustado" também conta como confirmado/finalizado
     });
     const partialCount = await prisma.recibo.count({
       where: { status: "parcial" },
@@ -1005,6 +1005,14 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
           orderBy: { dataAjuste: "desc" },
           take: 1, // Pega o último ajuste
         },
+        recibosComplementares: {
+          // Inclui os recibos gerados a partir deste
+          select: { id: true, numero: true, status: true },
+        },
+        reciboOriginal: {
+          // Mostra se este recibo é um complemento de outro
+          select: { id: true, numero: true },
+        },
       },
       orderBy: { dataEntrega: "desc" },
     });
@@ -1020,6 +1028,8 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
 app.get("/api/recibos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
+    // Passo 1: Busca o recibo principal que o usuário solicitou, com todos os detalhes.
+    // Mantivemos todos os seus `includes` para garantir que o objeto principal seja completo.
     const recibo = await prisma.recibo.findUnique({
       where: { id },
       include: {
@@ -1037,14 +1047,67 @@ app.get("/api/recibos/:id", async (req: Request, res: Response) => {
         },
         assinaturaDigital: true,
         fotoReciboAssinado: true,
-        historicoAjustes: {
-          orderBy: { dataAjuste: "desc" },
+        // Incluímos as relações de família para determinar a raiz
+        reciboOriginal: true,
+        recibosComplementares: true,
+      },
+    });
+
+    if (!recibo) {
+      return res.status(404).json({ error: "Recibo não encontrado." });
+    }
+
+    // Passo 2: Determina o ID do recibo original (a "raiz" da família).
+    // Se o recibo atual tiver um 'reciboOriginalId', usa ele. Senão, ele mesmo é o original.
+    const originalId = recibo.reciboOriginalId || recibo.id;
+
+    // Passo 3: Busca a família completa de recibos a partir da raiz.
+    // Isso garante que tenhamos o recibo original + todos os seus complementos.
+    const reciboOriginalComFamilia = await prisma.recibo.findUnique({
+      where: { id: originalId },
+      include: {
+        // Incluímos os itens do recibo original
+        itens: {
+          include: {
+            itemPedido: {
+              include: { itemContrato: { include: { unidadeMedida: true } } },
+            },
+          },
+        },
+        // Incluímos todos os recibos complementares
+        recibosComplementares: {
+          // E para cada complemento, também incluímos seus itens
+          include: {
+            itens: {
+              include: {
+                itemPedido: {
+                  include: {
+                    itemContrato: { include: { unidadeMedida: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" }, // Opcional: ordena os complementares por data
         },
       },
     });
-    if (!recibo)
-      return res.status(404).json({ error: "Recibo não encontrado." });
-    res.json(recibo);
+
+    // Passo 4: Monta o array da "família" para enviar ao frontend.
+    // O array conterá o recibo original primeiro, seguido por todos os complementares.
+    const familiaRecibos = [
+      // Adiciona o próprio objeto original (sem os complementares aninhados para não duplicar)
+      { ...reciboOriginalComFamilia, recibosComplementares: undefined },
+      ...(reciboOriginalComFamilia?.recibosComplementares || []),
+    ];
+
+    // Passo 5: Anexa a família de recibos ao objeto de resposta final.
+    const responseData = {
+      ...recibo,
+      familiaRecibos, // O novo campo que o frontend irá usar
+    };
+
+    res.json(responseData);
   } catch (error) {
     console.error("Erro ao buscar detalhes do recibo:", error);
     res
@@ -1187,7 +1250,7 @@ app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
     if (!recibo) {
       return res.status(404).json({ error: "Recibo não encontrado." });
     }
-    if (recibo.status !== "pendente") {
+    if (!["pendente"].includes(recibo.status)) {
       return res.status(409).json({ error: "Este recibo já foi processado." });
     }
     res.json(recibo);
@@ -1239,6 +1302,12 @@ app.post(
         if (!recibo) {
           throw new Error("Recibo não encontrado.");
         }
+
+        // ATUALIZAÇÃO: Lógica para definir o motivo da movimentação de estoque.
+        // Verificamos se o recibo tem um `reciboOriginalId` para saber se é complementar.
+        const motivoBaseDaMovimentacao = recibo.reciboOriginalId
+          ? `Recebimento complementar - Recibo #${recibo.numero}`
+          : `Recebimento confirmado - Recibo #${recibo.numero}`;
 
         const unidade = recibo.unidadeEducacional;
         const isCreche =
@@ -1371,7 +1440,7 @@ app.post(
                 quantidade: quantidadeRecebida,
                 quantidadeAnterior: estoqueExistente?.quantidadeAtual || 0,
                 quantidadeNova: estoqueAtualizado.quantidadeAtual,
-                motivo: `Recebimento confirmado - Recibo ${id}`,
+                motivo: motivoBaseDaMovimentacao,
                 reciboId: id,
                 responsavel: responsavel,
                 dataMovimentacao: new Date(),
@@ -1380,9 +1449,18 @@ app.post(
           }
         }
 
-        let statusFinal = "rejeitado";
+        let statusBase = "rejeitado";
         if (algumRecebido) {
-          statusFinal = todosConformes ? "confirmado" : "parcial";
+          statusBase = todosConformes ? "confirmado" : "parcial";
+        }
+
+        let statusFinal = statusBase; // Por padrão, o status final é o status base.
+
+        // 2. Aplica a única exceção: um recibo complementar 100% confirmado.
+        // Se o recibo for um complemento E o resultado da entrega for "confirmado",
+        // então o status final se torna "complementar".
+        if (recibo.reciboOriginalId && statusBase === "confirmado") {
+          statusFinal = "complementar";
         }
 
         const dataParaUpdate: Prisma.ReciboUpdateInput = {
@@ -1444,6 +1522,11 @@ app.get("/api/recibos/imprimir/:id", async (req: Request, res: Response) => {
             contrato: { include: { fornecedor: true } },
           },
         },
+        reciboOriginal: {
+          select: {
+            numero: true,
+          },
+        },
         unidadeEducacional: true,
         itens: {
           include: {
@@ -1486,6 +1569,11 @@ app.get(
           pedido: {
             include: {
               contrato: { include: { fornecedor: true } },
+            },
+          },
+          reciboOriginal: {
+            select: {
+              numero: true,
             },
           },
           unidadeEducacional: true,
@@ -1533,7 +1621,8 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
         contrato: { select: { fornecedor: { select: { nome: true } } } },
         _count: { select: { itens: true } },
         recibos: {
-          select: { status: true },
+          // Precisamos de todos os recibos para a lógica
+          select: { status: true, id: true },
         },
       },
       orderBy: { dataPedido: "desc" },
@@ -1541,15 +1630,13 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
 
     const consolidacoes = pedidos.map((pedido) => {
       const totalRecibos = pedido.recibos.length;
-      const recibosConfirmados = pedido.recibos.filter(
-        (r) =>
-          r.status === "confirmado" ||
-          r.status === "parcial" ||
-          r.status === "ajustado"
+      // Um recibo confirmado é aquele que está finalizado (confirmado, ajustado, rejeitado)
+      // Recibos pendentes (pendente, pendente_ajuste) não contam como confirmados.
+      const recibosConfirmados = pedido.recibos.filter((r) =>
+        ["confirmado", "ajustado", "rejeitado", "parcial", "complementar"].includes(r.status)
       ).length;
 
-      let statusConsolidacao: "pendente" | "parcial" | "completo" | "ajustado" =
-        "pendente";
+      let statusConsolidacao: "pendente" | "parcial" | "completo" = "pendente";
       if (totalRecibos > 0) {
         if (recibosConfirmados === totalRecibos) {
           statusConsolidacao = "completo";
@@ -1557,7 +1644,6 @@ app.get("/api/confirmacoes", async (req: Request, res: Response) => {
           statusConsolidacao = "parcial";
         }
       }
-
       return {
         pedidoId: pedido.id,
         pedido,
@@ -1665,159 +1751,148 @@ app.get("/api/recibos/ajuste/:id", async (req: Request, res: Response) => {
   }
 });
 
-// COMENTÁRIO: NOVA ROTA: Processa o ajuste de recebimento de um recibo
+interface AjusteReciboBody {
+  responsavel: string;
+  observacoes: string;
+  itensAjuste: {
+    itemId: string;
+    quantidadeRecebida: number;
+  }[];
+}
+
+//ROTA cria recibos ou ajusta caso necessario
 app.post("/api/recibos/ajuste/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { responsavel, observacoes, itensAjuste } = req.body;
+  const { responsavel, observacoes, itensAjuste }: AjusteReciboBody = req.body;
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const reciboComplementar = await prisma.$transaction(async (tx) => {
+      // 1. Buscar o recibo original que está sendo ajustado
       const reciboOriginal = await tx.recibo.findUnique({
         where: { id },
         include: {
-          unidadeEducacional: true,
           itens: {
             include: {
-              itemPedido: {
-                include: {
-                  itemContrato: true,
-                },
-              },
+              itemPedido: true,
             },
           },
         },
       });
 
       if (!reciboOriginal) {
-        throw new Error("Recibo não encontrado.");
+        throw new Error("Recibo original não encontrado.");
+      }
+      if (reciboOriginal.status === "ajustado") {
+        throw new Error("Este recibo já foi ajustado e possui um complemento.");
       }
 
-      const mudancas = [];
-      let todosConformes = true;
+      // 2. Determinar os itens e quantidades para o novo recibo complementar
+      // ATUALIZAÇÃO: Declarar com o tipo correto do Prisma
+      const itensParaComplemento: Prisma.ItemReciboCreateWithoutReciboInput[] =
+        [];
 
       for (const itemAjuste of itensAjuste) {
-        const itemReciboOriginal = reciboOriginal.itens.find(
+        const itemOriginal = reciboOriginal.itens.find(
           (i) => i.id === itemAjuste.itemId
         );
-        if (!itemReciboOriginal) continue;
+        if (!itemOriginal) continue;
 
-        const quantidadeRecebidaAntiga = itemReciboOriginal.quantidadeRecebida;
-        const quantidadeRecebidaNova = itemAjuste.quantidadeRecebida;
-        const diferenca = quantidadeRecebidaNova;
+        const quantidadeRecebida = Number(itemAjuste.quantidadeRecebida);
+        const quantidadeSolicitada = itemOriginal.quantidadeSolicitada;
+        const diferenca = quantidadeSolicitada - quantidadeRecebida;
 
-        // 1. Atualizar o item do recibo
-        await tx.itemRecibo.update({
-          where: { id: itemAjuste.itemId },
-          data: {
-            quantidadeRecebida: quantidadeRecebidaNova,
-            conforme: itemAjuste.conforme,
-            observacoes: itemAjuste.observacoes,
-          },
-        });
-
-        if (!itemAjuste.conforme) {
-          todosConformes = false;
-        }
-
-        // 2. Ajustar o saldo do estoque da unidade e do contrato
-        if (diferenca !== 0) {
-          const unidade = reciboOriginal.unidadeEducacional;
-          const isCreche =
-            (unidade.estudantesBercario || 0) > 0 ||
-            (unidade.estudantesMaternal || 0) > 0 ||
-            (unidade.estudantesPreEscola || 0) > 0;
-          const tipoEstoque = isCreche ? "creche" : "escola";
-
-          const itemContratoId = itemReciboOriginal.itemPedido.itemContrato.id;
-
-          // a) Atualiza o saldo do contrato
-          const campoSaldoAjustar =
-            tipoEstoque === "creche" ? "saldoCreche" : "saldoEscola";
-          await tx.itemContrato.update({
-            where: { id: itemContratoId },
-            data: {
-              [campoSaldoAjustar]: { decrement: diferenca },
-              saldoAtual: { decrement: diferenca },
-            },
-          });
-
-          // b) Atualiza a quantidade do estoque da unidade
-          const estoqueExistente = await tx.estoque.findUnique({
-            where: {
-              unidadeEducacionalId_itemContratoId_tipoEstoque: {
-                unidadeEducacionalId: reciboOriginal.unidadeEducacionalId,
-                itemContratoId: itemContratoId,
-                tipoEstoque: tipoEstoque,
+        if (diferenca > 0) {
+          itensParaComplemento.push({
+            // O objeto aqui agora corresponde perfeitamente ao tipo esperado
+            quantidadeSolicitada: diferenca,
+            quantidadeRecebida: 0,
+            conforme: false,
+            itemPedido: {
+              // Conectamos ao item de pedido existente
+              connect: {
+                id: itemOriginal.itemPedidoId,
               },
             },
           });
-
-          if (estoqueExistente) {
-            await tx.estoque.update({
-              where: { id: estoqueExistente.id },
-              data: {
-                quantidadeAtual: { increment: diferenca },
-                ultimaAtualizacao: new Date(),
-              },
-            });
-
-            // c) Registra a movimentação de ajuste
-            await tx.movimentacaoEstoque.create({
-              data: {
-                estoqueId: estoqueExistente.id,
-                tipo: "ajuste",
-                quantidade: Math.abs(diferenca),
-                quantidadeAnterior: estoqueExistente.quantidadeAtual,
-                quantidadeNova: estoqueExistente.quantidadeAtual + diferenca,
-                motivo: `Ajuste de recebimento - Recibo ${reciboOriginal.numero}`,
-                responsavel,
-                dataMovimentacao: new Date(),
-                reciboId: id,
-              },
-            });
-          }
         }
-
-        // Salvar as mudanças para o histórico
-        mudancas.push({
-          itemId: itemAjuste.itemId,
-          quantidadeAntiga: quantidadeRecebidaAntiga,
-          quantidadeNova: quantidadeRecebidaNova,
-          conforme: itemAjuste.conforme,
-        });
       }
 
-      // 3. Atualizar o status do recibo
-      const novoStatus = todosConformes ? "ajustado" : "parcial";
-      const reciboAtualizado = await tx.recibo.update({
-        where: { id },
+      if (itensParaComplemento.length === 0) {
+        throw new Error(
+          "Nenhuma divergência encontrada para gerar um recibo complementar."
+        );
+      }
+
+      // ATUALIZAÇÃO: Corrigido o objeto de criação para usar 'connect'
+      await tx.recibo.update({
+        where: { id: reciboOriginal.id },
         data: {
-          status: novoStatus,
+          status: "ajustado",
           responsavelRecebimento: responsavel,
           observacoes,
+          // Atualiza os itens do recibo original com os valores recebidos
+          itens: {
+            update: itensAjuste.map((item) => ({
+              where: { id: item.itemId },
+              data: {
+                quantidadeRecebida: item.quantidadeRecebida,
+                conforme:
+                  (reciboOriginal.itens.find((i) => i.id === item.itemId)
+                    ?.quantidadeSolicitada ?? 0) -
+                    item.quantidadeRecebida <=
+                  0,
+              },
+            })),
+          },
         },
       });
 
-      // 4. Registrar o histórico do ajuste
-      await tx.historicoAjusteRecibo.create({
+      // 4. Criar o novo recibo complementar
+      const numeroReciboComplementar = `RB-COMP-${new Date().getFullYear()}-${String(
+        Date.now()
+      ).slice(-6)}`;
+
+      const novoRecibo = await tx.recibo.create({
         data: {
-          reciboId: id,
-          responsavel,
-          observacoes,
-          mudancas: mudancas,
+          numero: numeroReciboComplementar,
+          pedidoId: reciboOriginal.pedidoId,
+          unidadeEducacionalId: reciboOriginal.unidadeEducacionalId,
+          dataEntrega: new Date(),
+          responsavelRecebimento: "",
+          status: "pendente",
+          qrcode: "",
+          reciboOriginalId: reciboOriginal.id,
+          itens: {
+            create: itensParaComplemento,
+          },
         },
       });
 
-      return reciboAtualizado;
+      // 5. Gerar o QR Code para o novo recibo e atualizá-lo
+      const urlConfirmacao = `${
+        process.env.FRONTEND_URL || "http://localhost:8080"
+      }/confirmacao-recebimento/${novoRecibo.id}`;
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+        urlConfirmacao
+      )}`;
+
+      const reciboFinal = await tx.recibo.update({
+        where: { id: novoRecibo.id },
+        data: { qrcode: qrCodeUrl },
+      });
+
+      return reciboFinal;
     });
 
-    res.status(200).json({
-      message: "Ajuste de recebimento realizado com sucesso!",
-      recibo: result,
+    res.status(201).json({
+      message: "Recibo de ajuste complementar gerado com sucesso!",
+      recibo: reciboComplementar,
     });
   } catch (error) {
-    console.error("Erro ao ajustar recebimento:", error);
-    res.status(500).json({ error: "Não foi possível processar o ajuste." });
+    console.error("Erro ao gerar recibo de ajuste complementar:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    res.status(500).json({ error: errorMessage });
   }
 });
 
@@ -2756,6 +2831,7 @@ app.get(
                   },
                 },
               },
+              reciboOriginal: { select: { numero: true } }, // Inclui o link para o original
             },
           },
         },
@@ -4543,7 +4619,9 @@ app.get("/api/test-db", async (req: Request, res: Response) => {
 
 const server = app.listen(3001, () =>
   console.log(
-    `🚀 Servidor pronto em: ${process.env.FRONTEND_URL} e ${process.env.BACKEND_URL}`
+    `🚀 Servidor pronto em: ${
+      process.env.FRONTEND_URL || "http://localhost:8080"
+    } e ${process.env.BACKEND_URL || "http://localhost:3001"}`
   )
 );
 

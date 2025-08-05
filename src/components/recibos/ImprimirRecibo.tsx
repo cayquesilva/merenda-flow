@@ -8,16 +8,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  Printer,
-  FileText,
-  Calendar,
-  User,
-  Package,
-  Building2,
-  AlertTriangle,
-} from "lucide-react";
+import { Loader2, Printer, FileText, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 // Importar todas as interfaces base do seu arquivo de tipos
 import {
@@ -61,12 +52,16 @@ interface PedidoImpressaoDetalhado extends Contrato {
 }
 
 interface ReciboParaImpressao
-  extends Omit<BaseRecibo, "pedido" | "unidadeEducacional" | "itens"> {
+  extends Omit<
+    BaseRecibo,
+    "pedido" | "unidadeEducacional" | "itens" | "reciboOriginal"
+  > {
   pedido: PedidoImpressaoDetalhado; // Pedido com detalhes do contrato e fornecedor
   unidadeEducacional: UnidadeEducacional; // Unidade Educacional completa
   itens: ItemReciboImpressaoDetalhado[]; // Itens do recibo detalhados
   assinaturaDigital?: string | null;
   fotoReciboAssinado?: string | null;
+  reciboOriginal?: { id: string; numero: string } | null; // CORREÇÃO AQUI
 }
 
 export default function ImprimirRecibo() {
@@ -85,7 +80,6 @@ export default function ImprimirRecibo() {
       setIsLoading(false);
       return;
     }
-
     const fetchRecibo = async () => {
       setIsLoading(true);
       setError(null);
@@ -113,7 +107,6 @@ export default function ImprimirRecibo() {
         setIsLoading(false);
       }
     };
-
     fetchRecibo();
   }, [id]);
 
@@ -254,6 +247,13 @@ export default function ImprimirRecibo() {
             ref={printRef}
             className="print:w-full print:h-auto print:p-4 print:text-black"
           >
+            {/* ATUALIZAÇÃO: Adiciona um subtítulo se for um recibo complementar */}
+            {recibo.reciboOriginal && (
+              <h2 className="text-lg font-semibold text-muted-foreground print:text-base">
+                (Recibo Complementar referente ao Recibo #
+                {recibo.reciboOriginal.numero})
+              </h2>
+            )}
             <div className="flex justify-between items-center mb-6 print:mb-4">
               <h1 className="text-3xl font-bold print:text-2xl">
                 Recibo de Entrega
@@ -320,8 +320,10 @@ export default function ImprimirRecibo() {
             <Table className="mb-6 print:mb-4 print:text-xs">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="print:py-1">Item</TableHead>
-                  <TableHead className="print:py-1">Qtd. Pedido</TableHead>
+                  <TableHead className="print:py-1 font-medium">Item</TableHead>
+                  <TableHead className="print:py-1 font-medium">
+                    Qtd. Solicitada (Nesta Entrega)
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -330,8 +332,9 @@ export default function ImprimirRecibo() {
                     <TableCell className="font-medium print:py-1">
                       {item.itemPedido?.itemContrato?.nome || "-"}
                     </TableCell>
-                    <TableCell className="print:py-1">
-                      {item.itemPedido?.quantidade ?? 0}{" "}
+                    {/* ATUALIZAÇÃO: Usando as quantidades do ItemRecibo, não do ItemPedido */}
+                    <TableCell className="print:py-1 font-medium">
+                      {item.quantidadeSolicitada}{" "}
                       {item.itemPedido?.itemContrato?.unidadeMedida?.sigla ||
                         "-"}
                     </TableCell>

@@ -25,9 +25,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Clock,
-  Package,
   Building2,
-  Eye,
   FileText,
   TrendingUp,
   TrendingDown,
@@ -35,7 +33,9 @@ import {
   Layers,
   Loader2,
   Printer,
-  Replace,
+  XCircle,
+  Trophy,
+  CheckCheck,
 } from "lucide-react";
 import { ConsolidacaoPedido, Recibo } from "@/types";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
@@ -170,9 +170,9 @@ export default function Confirmacoes() {
       pendente: <Clock className="h-3 w-3 mr-1" />,
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
-      rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
-      completo: <CheckCircle className="h-3 w-3 mr-1" />,
-      ajustado: <Replace className="h-3 w-3 mr-1" />
+      rejeitado: <XCircle className="h-3 w-3 mr-1" />,
+      completo: <Trophy className="h-3 w-3 mr-1" />,
+      ajustado: <CheckCheck className="h-3 w-3 mr-1" />
     };
 
     return (

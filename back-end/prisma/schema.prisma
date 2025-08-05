@@ -165,7 +165,7 @@ model ItemPedido {
   unidadeEducacionalId String             @map("unidade_educacional_id")
 
   // Relação com Itens de Recibo
-  itemRecibo ItemRecibo?
+  itensRecibo ItemRecibo[]
 }
 
 model Recibo {
@@ -186,6 +186,11 @@ model Recibo {
   unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
   unidadeEducacionalId String             @map("unidade_educacional_id")
 
+  // NOVO: Relação para rastrear recibos de ajuste (complementares)
+  reciboOriginal   Recibo? @relation("ReciboComplementar", fields: [reciboOriginalId], references: [id])
+  reciboOriginalId String? @map("recibo_original_id")
+  recibosComplementares Recibo[] @relation("ReciboComplementar")
+
   // Relação com Itens do Recibo
   itens ItemRecibo[]
 
@@ -200,7 +205,8 @@ model Recibo {
   fotoReciboAssinadoId String?                 @unique
   historicoAjustes     HistoricoAjusteRecibo[]
 
-  @@unique([pedidoId, unidadeEducacionalId])
+  //Comentando pois nao precisa ser unique agora que temos recibos complementares para o pedido e para a unidade.
+  //@@unique([pedidoId, unidadeEducacionalId])
 }
 
 model HistoricoAjusteRecibo {
@@ -274,7 +280,7 @@ model ItemRecibo {
 
   // Relação com Item do Pedido (para saber o que foi recebido)
   itemPedido   ItemPedido @relation(fields: [itemPedidoId], references: [id])
-  itemPedidoId String     @unique @map("item_pedido_id")
+  itemPedidoId String     @map("item_pedido_id")
 
   //Relação com fotosnaoconforme
   fotosNaoConforme FotoNaoConforme[]

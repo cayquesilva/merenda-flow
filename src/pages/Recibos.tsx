@@ -26,7 +26,9 @@ import {
   ExternalLink,
   Loader2,
   Receipt,
-  Replace,
+  XCircle,
+  CheckCheck,
+  PackageCheck,
 } from "lucide-react";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
@@ -115,6 +117,7 @@ export default function Recibos() {
       parcial: "outline",
       rejeitado: "destructive",
       ajustado: "outline",
+      complementar: "secondary",
     } as const;
 
     const labels = {
@@ -123,14 +126,16 @@ export default function Recibos() {
       parcial: "Parcial",
       rejeitado: "Rejeitado",
       ajustado: "Ajustado",
+      complementar: "Complementar",
     };
 
     const icons = {
       pendente: <Clock className="h-3 w-3 mr-1" />,
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
-      rejeitado: <AlertTriangle className="h-3 w-3 mr-1" />,
-      ajustado: <Replace className="h-3 w-3 mr-1" />,
+      rejeitado: <XCircle className="h-3 w-3 mr-1" />,
+      ajustado: <CheckCheck className="h-3 w-3 mr-1" />,
+      complementar: <PackageCheck className="h-3 w-3 mr-1" />,
     };
 
     return (

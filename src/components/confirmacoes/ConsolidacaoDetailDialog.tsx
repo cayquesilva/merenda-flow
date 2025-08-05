@@ -25,6 +25,12 @@ import {
   Package,
   TrendingUp,
   TrendingDown,
+  Link2,
+  History,
+  PackageCheck,
+  CheckCheck,
+  Trophy,
+  XCircle,
 } from "lucide-react";
 import { ConsolidacaoPedido } from "@/types";
 
@@ -46,21 +52,30 @@ export function ConsolidacaoDetailDialog({
       pendente: "secondary",
       confirmado: "default",
       parcial: "outline",
+      rejeitado: "destructive",
+      ajustado: "outline",
       completo: "default",
+      complementar: "default",
     } as const;
 
     const labels = {
       pendente: "Pendente",
       confirmado: "Confirmado",
       parcial: "Parcial",
+      rejeitado: "Rejeitado",
+      ajustado: "Ajustado",
       completo: "Completo",
+      complementar: "Complementar"
     };
 
     const icons = {
       pendente: <Clock className="h-3 w-3 mr-1" />,
       confirmado: <CheckCircle className="h-3 w-3 mr-1" />,
       parcial: <AlertTriangle className="h-3 w-3 mr-1" />,
-      completo: <CheckCircle className="h-3 w-3 mr-1" />,
+      rejeitado: <XCircle className="h-3 w-3 mr-1" />,
+      ajustado: <CheckCheck className="h-3 w-3 mr-1" />,
+      completo: <Trophy className="h-3 w-3 mr-1" />,
+      complementar: <PackageCheck className="h-3 w-3 mr-1" />,
     };
 
     return (
@@ -218,40 +233,42 @@ export function ConsolidacaoDetailDialog({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Unidade</TableHead>
+                    <TableHead>Recibo</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Itens</TableHead>
                     <TableHead>Data Entrega</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.from({ length: consolidacao.totalUnidades }).map(
-                    (_, index) => (
-                      <TableRow key={index}>
+                  {/* ATUALIZAÇÃO: Itera sobre os recibos reais do pedido */}
+                  {consolidacao.recibos.length > 0 ? (
+                    consolidacao.recibos.map((recibo) => (
+                      <TableRow key={recibo.id}>
+                        <TableCell>{recibo.unidadeEducacional.nome}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4" />
-                            <span>Unidade Educacional {index + 1}</span>
+                          <div className="flex items-center gap-1 font-mono">
+                            {recibo.reciboOriginalId && (
+                              <>
+                                <Link2 className="h-3 w-3 text-muted-foreground" />
+                                Recibo Complementar
+                              </>
+                            )}
+                            <span>{recibo.numero}</span>
                           </div>
                         </TableCell>
+                        <TableCell>{getStatusBadge(recibo.status)}</TableCell>
                         <TableCell>
-                          {getStatusBadge(
-                            index < consolidacao.unidadesConfirmadas
-                              ? "confirmado"
-                              : "pendente"
+                          {new Date(recibo.dataEntrega).toLocaleDateString(
+                            "pt-BR"
                           )}
                         </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-muted-foreground">
-                            Itens do pedido
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(
-                            consolidacao.pedido.dataEntregaPrevista
-                          ).toLocaleDateString("pt-BR")}
-                        </TableCell>
                       </TableRow>
-                    )
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center">
+                        Nenhum recibo gerado para este pedido ainda.
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>

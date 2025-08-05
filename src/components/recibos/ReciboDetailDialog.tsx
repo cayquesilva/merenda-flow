@@ -18,70 +18,43 @@ import {
   User,
   FileText,
   QrCode,
-  MapPin,
   Phone,
   Loader2,
   Printer,
   Edit,
+  Link2,
 } from "lucide-react";
 import {
   Recibo as BaseRecibo,
   ItemRecibo,
-  ItemContrato,
-  Pedido,
-  Fornecedor,
   UnidadeEducacional,
+  Fornecedor,
   Contrato,
+  Pedido,
+  ItemContrato,
+  ItemPedido,
 } from "@/types";
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { AjustarRecebimentoDialog } from "@/components/recibos/AjustarRecebimentoDialog"; // NOVO: Importar o novo componente de ajuste
+import { AjustarRecebimentoDialog } from "@/components/recibos/AjustarRecebimentoDialog";
+import ReciboComplementarNode from "./ReciboComplementarNode";
 
-// Interfaces para os dados aninhados
-interface ItemReciboDetalhado extends ItemRecibo {
-  itemPedido: {
-    id: string;
-    pedidoId: string;
-    itemContratoId: string;
-    unidadeEducacionalId: string;
-    quantidade: number;
-    itemContrato: ItemContrato & {
-      unidadeMedida: {
-        sigla: string;
-      };
-    };
-    unidadeEducacional: UnidadeEducacional;
-  };
-}
-
-interface HistoricoAjuste {
-  dataAjuste: string;
-  responsavel: string;
-  mudancas: {
-    itemId: string;
-    quantidadeAntiga: number;
-    quantidadeNova: number;
-    conforme: boolean;
-  }[];
-}
-
-interface ReciboDetalhado {
-  id: string;
-  numero: string;
-  status: string;
-  dataEntrega: string;
-  responsavelRecebimento?: string;
-  qrcode?: string;
+// ATUALIZAÇÃO: A interface agora espera o campo `familiaRecibos` da API.
+interface ReciboDetalhado extends BaseRecibo {
+  unidadeEducacional: UnidadeEducacional;
   pedido: Pedido & {
     contrato: Contrato & {
       fornecedor: Fornecedor;
     };
   };
-  itens: ItemReciboDetalhado[];
-  unidadeEducacional: UnidadeEducacional;
-  assinaturaDigital?: { imagemBase64: string } | null;
-  fotoReciboAssinado?: { url: string } | null;
-  historicoAjustes?: HistoricoAjuste[];
+  itens: (ItemRecibo & {
+    itemPedido: ItemPedido & {
+      itemContrato: ItemContrato & {
+        unidadeMedida: { sigla: string };
+      };
+      unidadeEducacional: UnidadeEducacional;
+    };
+  })[];
+  familiaRecibos?: BaseRecibo[]; // Novo campo vindo do backend
 }
 
 interface ReciboDetailDialogProps {
@@ -90,71 +63,79 @@ interface ReciboDetailDialogProps {
 
 export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   const [open, setOpen] = useState(false);
-  const [reciboDetalhado, setReciboDetalhado] =
-    useState<ReciboDetalhado | null>(null);
-  const [recibo, setRecibo] = useState<BaseRecibo | null>(null);
+  const [recibo, setRecibo] = useState<ReciboDetalhado | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAjusteModalOpen, setIsAjusteModalOpen] = useState(false); // NOVO: Estado para controlar o modal de ajuste
-  const navigate = useNavigate();
+  const [isAjusteModalOpen, setIsAjusteModalOpen] = useState(false);
 
-  const fetchReciboDetails = useCallback(async () => {
+  const fetchReciboDetails = useCallback(async (idToFetch: string) => {
+    if (!idToFetch) return;
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/recibos/${reciboId}`
+        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/recibos/${idToFetch}`
       );
       if (!response.ok) throw new Error("Falha ao buscar detalhes do recibo.");
-      setReciboDetalhado(await response.json());
+      const data: ReciboDetalhado = await response.json();
+      setRecibo(data);
     } catch (error) {
       console.error("Erro ao buscar detalhes:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [reciboId]);
-
-  const fetchRecibo = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/recibos/${reciboId}`
-      );
-      if (!response.ok) throw new Error("Falha ao buscar detalhes do recibo.");
-      setRecibo(await response.json());
-    } catch (error) {
-      console.error("Erro ao buscar detalhes:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [reciboId]);
+  }, []);
 
   useEffect(() => {
-    if (open && reciboId) {
-      fetchReciboDetails();
-      fetchRecibo();
+    if (open) {
+      fetchReciboDetails(reciboId); // Carrega o recibo inicial quando o dialog abre
     }
-  }, [open, reciboId, fetchReciboDetails, fetchRecibo]);
+  }, [open, reciboId, fetchReciboDetails]);
 
+  useEffect(() => {
+    if (open) {
+      fetchReciboDetails(reciboId);
+    }
+  }, [open, reciboId, fetchReciboDetails]);
+
+  // ATUALIZAÇÃO: Funções para calcular quantidades totais usando a `familiaRecibos`.
+  const getQuantidadeTotalSolicitada = (itemAtual: ItemRecibo) => {
+    const itemPedidoId = itemAtual.itemPedidoId;
+    const reciboOriginal = recibo?.familiaRecibos?.[0];
+    const itemOriginal = reciboOriginal?.itens.find(
+      (i) => i.itemPedidoId === itemPedidoId
+    );
+    return itemOriginal?.quantidadeSolicitada ?? itemAtual.quantidadeSolicitada;
+  };
+
+  const getQuantidadeTotalRecebida = (itemAtual: ItemRecibo) => {
+    const itemPedidoId = itemAtual.itemPedidoId;
+    return (
+      recibo?.familiaRecibos?.reduce((total, reciboIrmao) => {
+        const itemCorrelato = reciboIrmao.itens.find(
+          (i) => i.itemPedidoId === itemPedidoId
+        );
+        return total + (itemCorrelato?.quantidadeRecebida ?? 0);
+      }, 0) ??
+      itemAtual.quantidadeRecebida ??
+      0
+    );
+  };
+
+  // ATUALIZAÇÃO: Cores e labels dos status melhoradas.
   const getStatusBadge = (status: string) => {
     const variants = {
       pendente: "secondary",
       confirmado: "default",
-      parcial: "destructive", // Status parcial pode ser tratado como inconforme
+      parcial: "outline",
       rejeitado: "destructive",
-      ajustado: "outline", // NOVO: Status ajustado (alterado de "success" para "default")
+      ajustado: "default",
     } as const;
-
     const labels = {
       pendente: "Pendente",
       confirmado: "Confirmado",
       parcial: "Parcial",
       rejeitado: "Rejeitado",
-      ajustado: "Ajustado", // NOVO: Label ajustada
+      ajustado: "Ajustado",
     };
-
     return (
       <Badge variant={variants[status as keyof typeof variants] || "secondary"}>
         {labels[status as keyof typeof labels] || status}
@@ -162,54 +143,26 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     );
   };
 
+  // Funções de ação mantidas.
   const abrirQRCode = () => {
-    if (recibo?.qrcode) window.open(recibo.qrcode, "_blank");
+    if (recibo?.qrcode) {
+      const qrWindow = window.open();
+      qrWindow?.document.write(
+        `<body style="margin:0; display:flex; justify-content:center; align-items:center; background-color:#f0f0f0;"><img src="${recibo.qrcode}" alt="QR Code do Recibo ${recibo.numero}"></body>`
+      );
+    }
   };
-
   const abrirConfirmacao = () => {
     if (recibo?.id)
-      window.open(`/confirmacao-recebimento/${recibo.id}`, "_blank");
+      window.open(`/confirmacao-recebimento/${recibo.id}`, "_self");
   };
-
   const handlePrintRecibo = () => {
-    if (recibo?.id) {
-      window.open(`/recibos/imprimir/${recibo.id}`, "_self");
-    }
+    if (recibo?.id) window.open(`/recibos/imprimir/${recibo.id}`, "_self");
   };
-
-  // NOVO: Função para abrir o modal de ajuste
-  const handleOpenAjusteModal = () => {
-    setIsAjusteModalOpen(true);
-  };
-
-  // NOVO: Função de sucesso que fecha o modal de ajuste e recarrega os dados
+  const handleOpenAjusteModal = () => setIsAjusteModalOpen(true);
   const handleAjusteSuccess = () => {
     setIsAjusteModalOpen(false);
-    fetchReciboDetails();
-  };
-  
-  const getQuantidadeAjuste = (itemId: string): number => {
-    const ultimoAjuste =
-      reciboDetalhado?.historicoAjustes && reciboDetalhado.historicoAjustes[0];
-    if (!ultimoAjuste) {
-      return 0;
-    }
-
-    const itemMudanca = ultimoAjuste.mudancas.find((m) => m.itemId === itemId);
-
-    return itemMudanca ? itemMudanca.quantidadeNova : 0;
-  };
-
-  const getQuantidadeAntiga = (itemId: string): number => {
-    const ultimoAjuste =
-      reciboDetalhado?.historicoAjustes && reciboDetalhado.historicoAjustes[0];
-    if (!ultimoAjuste) {
-      return 0;
-    }
-
-    const itemMudanca = ultimoAjuste.mudancas.find((m) => m.itemId === itemId);
-
-    return itemMudanca ? itemMudanca.quantidadeAntiga : 0;
+    if (recibo) fetchReciboDetails(recibo.id);
   };
 
   return (
@@ -225,10 +178,11 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Recibo de Entrega {recibo?.numero}
+              Detalhes do Recibo #{recibo?.numero}
             </DialogTitle>
             <DialogDescription>
-              Visualize todas as informações do recibo e acesse o QR Code
+              Visualize todas as informações do recibo e seu contexto de
+              entrega.
             </DialogDescription>
           </DialogHeader>
           {isLoading ? (
@@ -237,6 +191,27 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
             </div>
           ) : recibo ? (
             <div className="space-y-6">
+              {recibo.reciboOriginal && (
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 text-sm text-blue-800">
+                      <Link2 className="h-4 w-4" />
+                      Este é um recibo complementar para o recibo original{" "}
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-sm font-bold"
+                        onClick={() =>
+                          fetchReciboDetails(recibo.reciboOriginal!.id)
+                        }
+                      >
+                        #{recibo.reciboOriginal.numero}
+                      </Button>
+                      .
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
@@ -254,13 +229,13 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                       <span className="text-muted-foreground">Pedido:</span>
                       <span className="font-mono">{recibo.pedido.numero}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Status:</span>
                       {getStatusBadge(recibo.status)}
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
-                        Data de Entrega:
+                        Data da Entrega:
                       </span>
                       <span>
                         {new Date(recibo.dataEntrega).toLocaleDateString(
@@ -288,7 +263,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                   <CardContent className="space-y-3">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Nome:</span>
-                      <span className="font-medium">
+                      <span className="font-medium text-right">
                         {recibo.pedido.contrato.fornecedor.nome}
                       </span>
                     </div>
@@ -307,19 +282,10 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                         </span>
                       </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Email:</span>
-                      <span className="text-sm">
-                        {recibo.pedido.contrato.fornecedor.email}
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      <MapPin className="h-3 w-3 inline mr-1" />
-                      {recibo.pedido.contrato.fornecedor.endereco}
-                    </div>
                   </CardContent>
                 </Card>
               </div>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -328,9 +294,9 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                     <div className="text-center">
-                      <div className="inline-block p-4 bg-white rounded-lg border-2 border-dashed border-muted-foreground">
+                      <div className="inline-block p-2 bg-white rounded-lg border">
                         <img
                           src={recibo.qrcode}
                           alt="QR Code"
@@ -341,7 +307,6 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                         Escaneie para confirmar recebimento
                       </p>
                     </div>
-
                     <div className="space-y-4">
                       <div>
                         <h4 className="font-medium mb-2">Como usar:</h4>
@@ -352,7 +317,6 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                           <li>4. Indique não conformidades se houver</li>
                         </ol>
                       </div>
-
                       <div className="flex gap-2">
                         <Button
                           onClick={abrirQRCode}
@@ -371,6 +335,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                   </div>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -380,149 +345,147 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {recibo.itens.map((item) => (
-                      <Card key={item.id} className="p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          <div className="md:col-span-2">
-                            <h4 className="font-medium text-lg">
-                              {item.itemPedido.itemContrato.nome}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Building2 className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">
-                                {item.itemPedido.unidadeEducacional.nome}
-                              </span>
+                    {recibo.itens.map((item) => {
+                      const totalSolicitado =
+                        getQuantidadeTotalSolicitada(item);
+                      const totalRecebido = getQuantidadeTotalRecebida(item);
+                      const sigla =
+                        item.itemPedido.itemContrato.unidadeMedida.sigla;
+                      return (
+                        <Card key={item.id} className="p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="md:col-span-2">
+                              <h4 className="font-medium">
+                                {item.itemPedido.itemContrato.nome}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Building2 className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">
+                                  {item.itemPedido.unidadeEducacional.nome}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Código:{" "}
+                                {item.itemPedido.unidadeEducacional.codigo}
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              Código:{" "}
-                              {item.itemPedido.unidadeEducacional.codigo}
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div>
-                              <span className="text-sm text-muted-foreground">
-                                Solicitado:
-                              </span>
-                              <p className="font-medium">
+                            <div className="space-y-1 text-sm md:text-right">
+                              <p>
+                                <span className="text-muted-foreground">
+                                  Solicitado:{" "}
+                                </span>
                                 {item.quantidadeSolicitada}{" "}
                                 {
                                   item.itemPedido.itemContrato.unidadeMedida
                                     .sigla
                                 }
                               </p>
-                            </div>
-                            {item.quantidadeRecebida > 0 && (
-                              <div>
-                                <span className="text-sm text-muted-foreground">
-                                  Entregue:
+                              <p>
+                                <span className="text-muted-foreground">
+                                  Recebido:{" "}
                                 </span>
-                                <div className="flex gap-2">
-                                  <p className="font-medium text-success">
-                                    {getQuantidadeAntiga(item.id) !== 0 ? (
-                                      <>
-                                        {getQuantidadeAntiga(item.id)}{" "}
-                                        {
-                                          item.itemPedido.itemContrato
-                                            .unidadeMedida.sigla
-                                        }
-                                      </>
-                                    ) : (
-                                      <>
-                                        {item.quantidadeRecebida}{" "}
-                                        {
-                                          item.itemPedido.itemContrato
-                                            .unidadeMedida.sigla
-                                        }
-                                      </>
-                                    )}
-                                  </p>
-                                  {getQuantidadeAjuste(item.id) !== 0 && (
-                                    <>
-                                      <p className="font-medium text-muted-foreground">
-                                        {" + "}
-                                        {getQuantidadeAjuste(item.id)}{" "}
-                                        {
-                                          item.itemPedido.itemContrato
-                                            .unidadeMedida.sigla
-                                        }
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {" "}
-                                        Ajuste
-                                      </p>
-                                    </>
+                                {item.quantidadeRecebida ?? 0}{" "}
+                                {
+                                  item.itemPedido.itemContrato.unidadeMedida
+                                    .sigla
+                                }
+                              </p>
+                            </div>
+
+                            <div className="md:col-span-3 border-t pt-2 mt-2">
+                              <p className="text-xs text-center text-muted-foreground flex justify-between">
+                                <div>
+                                  Resumo deste recibo (#{recibo.numero}):
+                                  <span className="font-bold">
+                                    {" "}
+                                    {item.quantidadeSolicitada} solicitados
+                                  </span>
+                                  ,
+                                  <span className="font-bold">
+                                    {" "}
+                                    {item.quantidadeRecebida ?? 0} recebidos.
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {"Status: "}
+                                  {item.conforme ? (
+                                    <Badge variant="default">Conforme</Badge>
+                                  ) : (
+                                    <Badge variant="destructive">
+                                      Não Conforme
+                                    </Badge>
                                   )}
                                 </div>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="text-right">
-                            <div className="text-sm text-muted-foreground">
-                              Status
-                            </div>
-                            {item.conforme === null ? (
-                              <Badge variant="secondary">Pendente</Badge>
-                            ) : item.conforme ? (
-                              <Badge variant="default">Conforme</Badge>
-                            ) : (
-                              <Badge variant="destructive">Não Conforme</Badge>
-                            )}
-                            {item.observacoes && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {item.observacoes}
                               </p>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      </Card>
-                    ))}
+                        </Card>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
+
+              {/* ATUALIZAÇÃO: Lógica para renderizar a árvore de recibos */}
+              {(recibo.familiaRecibos && recibo.familiaRecibos.length > 1) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Link2 className="h-4 w-4" />
+                      Histórico de Entregas Complementares
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Encontra os filhos diretos do recibo ATUAL e inicia a recursão */}
+                    {(recibo.familiaRecibos ?? [])
+                      .filter((r) => r.reciboOriginalId === recibo.id)
+                      .map((child) => (
+                        <ReciboComplementarNode
+                          key={child.id}
+                          recibo={child}
+                          familiaCompleta={recibo.familiaRecibos!}
+                          onReciboClick={fetchReciboDetails}
+                          getStatusBadge={getStatusBadge}
+                        />
+                      ))}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           ) : (
-            <p>Não foi possível carregar os dados do recibo.</p>
+            <p className="text-center py-10">
+              Não foi possível carregar os dados do recibo.
+            </p>
           )}
           <DialogFooter>
-            {/* Botão de Imprimir Recibo */}
             <Button
               onClick={handlePrintRecibo}
               variant="outline"
-              disabled={isLoading}
+              disabled={isLoading || !recibo}
             >
               <Printer className="h-4 w-4 mr-2" />
-              Imprimir Recibo
+              Imprimir
             </Button>
-            {/* NOVO: Botão de Ajustar Recebimento, visível apenas para recibos parciais ou rejeitados */}
-            {(recibo?.status === "parcial" ||
-              recibo?.status === "rejeitado") && (
-              <Button
-                onClick={handleOpenAjusteModal}
-                variant="default"
-                disabled={isLoading}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Ajustar Recebimento
-              </Button>
-            )}
+            {["parcial"].includes(recibo?.status || "") &&
+              recibo.itens.some((item) => !item.conforme) && (
+                <Button
+                  onClick={handleOpenAjusteModal}
+                  variant="default"
+                  disabled={isLoading}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Gerar Recibo Complementar
+                </Button>
+              )}
             <Button onClick={() => setOpen(false)} variant="secondary">
               Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* NOVO: Componente do Modal de Ajuste de Recebimento */}
       {recibo && (
         <AjustarRecebimentoDialog
-          recibo={{
-            ...recibo,
-            itens: recibo.itens.map((item) => ({
-              ...item,
-              quantidadeRecebida: item.quantidadeRecebida ?? 0, // Garante que seja obrigatório
-            })),
-          }}
+          recibo={recibo}
           open={isAjusteModalOpen}
           onOpenChange={setIsAjusteModalOpen}
           onSuccess={handleAjusteSuccess}

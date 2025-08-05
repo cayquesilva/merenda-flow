@@ -52,12 +52,16 @@ interface PedidoImpressaoDetalhado extends Contrato {
 }
 
 interface ReciboParaImpressao
-  extends Omit<BaseRecibo, "pedido" | "unidadeEducacional" | "itens"> {
+  extends Omit<
+    BaseRecibo,
+    "pedido" | "unidadeEducacional" | "itens" | "reciboOriginal"
+  > {
   pedido: PedidoImpressaoDetalhado; // Pedido com detalhes do contrato e fornecedor
   unidadeEducacional: UnidadeEducacional; // Unidade Educacional completa
   itens: ItemReciboImpressaoDetalhado[]; // Itens do recibo detalhados
   assinaturaDigital?: string | null;
   fotoReciboAssinado?: string | null;
+  reciboOriginal?: { id: string; numero: string } | null; // CORREÇÃO AQUI
 }
 
 export default function ImprimirRecibosPedido() {
@@ -271,6 +275,13 @@ export default function ImprimirRecibosPedido() {
                   key={reciboItem.id}
                   className="recibo-page mb-8 print:mb-0 print:border-0 print:p-0"
                 >
+                  {/* ATUALIZAÇÃO: Adiciona um subtítulo se for um recibo complementar */}
+                  {reciboItem.reciboOriginal && (
+                    <h2 className="text-lg font-semibold text-muted-foreground print:text-base">
+                      (Recibo Complementar referente ao Recibo #
+                      {reciboItem.reciboOriginal.numero})
+                    </h2>
+                  )}
                   <div className="flex justify-between items-center mb-6 print:mb-4">
                     <h1 className="text-3xl font-bold print:text-2xl">
                       Recibo de Entrega
@@ -339,13 +350,12 @@ export default function ImprimirRecibosPedido() {
                   <h3 className="font-semibold text-lg mb-3 print:text-base print:mb-2">
                     Itens do Pedido
                   </h3>{" "}
-                  {/* Título alterado para "Itens do Pedido" */}
                   <Table className="mb-6 print:mb-4 print:text-xs">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="print:py-1">Item</TableHead>
-                        <TableHead className="print:py-1">
-                          Qtd. Pedido
+                        <TableHead className="print:py-1 font-medium">Item</TableHead>
+                        <TableHead className="print:py-1 font-medium">
+                          Qtd. Solicitada (Nesta Entrega)
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -355,8 +365,8 @@ export default function ImprimirRecibosPedido() {
                           <TableCell className="font-medium print:py-1">
                             {item.itemPedido?.itemContrato?.nome || "-"}
                           </TableCell>
-                          <TableCell className="print:py-1">
-                            {item.itemPedido?.quantidade ?? 0}{" "}
+                          <TableCell className="print:py-1 font-medium">
+                            {item.quantidadeSolicitada}{" "}
                             {item.itemPedido?.itemContrato?.unidadeMedida
                               ?.sigla || "-"}
                           </TableCell>
@@ -396,7 +406,6 @@ export default function ImprimirRecibosPedido() {
                         Assinatura do Recebedor
                       </h3>
                     </div>
-
                   </div>
                   {/* Área do QR Code */}
                   {reciboItem.qrcode && (

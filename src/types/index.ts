@@ -103,12 +103,29 @@ export interface Recibo {
   unidadeEducacionalId: string;
   unidadeEducacional: UnidadeEducacional;
   dataEntrega: string;
+  responsavelEntrega: string;
   responsavelRecebimento?: string;
-  status: "pendente" | "confirmado" | "parcial" | "rejeitado" | "ajustado";
+  status:
+    | "pendente"
+    | "confirmado"
+    | "parcial"
+    | "rejeitado"
+    | "ajustado"
+    | "complementar";
   qrcode: string;
   itens: ItemRecibo[];
   observacoes?: string;
   createdAt: string;
+  reciboOriginalId?: string | null;
+  reciboOriginal?: {
+    id: string;
+    numero: string;
+  } | null;
+  recibosComplementares?: {
+    id: string;
+    numero: string;
+    status: string;
+  }[];
 }
 
 export interface ConsolidacaoPedido {
