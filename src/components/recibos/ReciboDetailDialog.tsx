@@ -509,13 +509,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                                 </div>
                                 <div className="flex items-center gap-1">
                                   {"Status: "}
-                                  {item.conforme ? (
-                                    <Badge variant="default">Conforme</Badge>
-                                  ) : (
-                                    <Badge variant="destructive">
-                                      Não Conforme
-                                    </Badge>
-                                  )}
+                                  {getStatusBadge(recibo.status)}
                                 </div>
                               </div>
                             </div>
