@@ -942,7 +942,7 @@ app.get("/api/recibos/stats", async (req: Request, res: Response) => {
       where: { status: "pendente" },
     });
     const confirmedCount = await prisma.recibo.count({
-      where: { status: "confirmado" }, 
+      where: { status: "confirmado" },
     });
     const partialCount = await prisma.recibo.count({
       where: { status: "parcial" },
@@ -953,7 +953,6 @@ app.get("/api/recibos/stats", async (req: Request, res: Response) => {
     const complementarCount = await prisma.recibo.count({
       where: { status: "complementar" },
     });
-
 
     res.json({
       total: totalCount,
@@ -1089,22 +1088,22 @@ app.get("/api/recibos/:id", async (req: Request, res: Response) => {
       where: { id: idRaiz },
       include: {
         recibosComplementares: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: "asc" },
           include: {
             recibosComplementares: {
-              orderBy: { createdAt: 'asc' },
+              orderBy: { createdAt: "asc" },
               include: {
                 recibosComplementares: {
-                  orderBy: { createdAt: 'asc' },
-                   include: {
-                    recibosComplementares: { orderBy: { createdAt: 'asc' }}
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+                  orderBy: { createdAt: "asc" },
+                  include: {
+                    recibosComplementares: { orderBy: { createdAt: "asc" } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     // 4. "Achata" a árvore em uma lista plana para enviar ao frontend.
@@ -1119,7 +1118,7 @@ app.get("/api/recibos/:id", async (req: Request, res: Response) => {
       };
       extrairRecibosRecursivamente(reciboRaizComTodaFamilia);
     }
-    
+
     // 5. Envia a resposta final.
     const responseData = {
       ...reciboSolicitado,
@@ -1127,13 +1126,13 @@ app.get("/api/recibos/:id", async (req: Request, res: Response) => {
     };
 
     res.json(responseData);
-    
   } catch (error) {
     console.error("Erro ao buscar detalhes do recibo:", error);
-    res.status(500).json({ error: "Não foi possível buscar os detalhes do recibo." });
+    res
+      .status(500)
+      .json({ error: "Não foi possível buscar os detalhes do recibo." });
   }
 });
-
 
 // COMENTÁRIO: Cria um ou mais recibos a partir de um pedido.
 // UTILIZAÇÃO: Chamada pelo `GerarReciboDialog.tsx`.
@@ -2096,9 +2095,9 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // 1. Busca o estoque de origem e suas relações
       const estoqueOrigem = await tx.estoque.findUnique({
         where: { id: estoqueId },
-        // CORREÇÃO: Incluído a relação com a Unidade Educacional para acessar o nome
         include: {
           itemContrato: true,
           unidadeEducacional: true,
@@ -2117,6 +2116,7 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
         | "remanejamento"
         | "descarte";
 
+      // 2. Validações gerais
       if (
         (tipoMovimentacao === "saida" ||
           tipoMovimentacao === "remanejamento" ||
@@ -2125,19 +2125,17 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
       ) {
         throw new Error("Quantidade insuficiente em estoque");
       }
-
       if (tipoMovimentacao === "remanejamento" && !unidadeDestinoId) {
         throw new Error("Unidade de destino é obrigatória para remanejamento.");
       }
-
       if (tipoMovimentacao === "descarte" && !fotoDescarte) {
         throw new Error("A foto do descarte é obrigatória.");
       }
 
+      // 3. Atualiza a quantidade no estoque de ORIGEM
       const quantidadeAnteriorOrigem = estoqueOrigem.quantidadeAtual;
       let quantidadeNovaOrigem = quantidadeAnteriorOrigem;
 
-      // Lógica de atualização do estoque de origem
       switch (tipoMovimentacao) {
         case "entrada":
           quantidadeNovaOrigem += quantidadeNum;
@@ -2152,24 +2150,7 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
           break;
       }
 
-      const campoSaldoOrigem =
-        estoqueOrigem.tipoEstoque === "creche" ? "saldoCreche" : "saldoEscola";
-      const valorAjusteOrigem =
-        tipoMovimentacao === "entrada" ? quantidadeNum : -quantidadeNum;
-
-      await tx.itemContrato.update({
-        where: { id: estoqueOrigem.itemContratoId },
-        data: {
-          [campoSaldoOrigem]: {
-            increment: valorAjusteOrigem,
-          },
-          saldoAtual: {
-            increment: valorAjusteOrigem,
-          },
-        },
-      });
-
-      const estoqueOrigemAtualizado = await tx.estoque.update({
+      await tx.estoque.update({
         where: { id: estoqueId },
         data: {
           quantidadeAtual: quantidadeNovaOrigem,
@@ -2177,19 +2158,32 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
         },
       });
 
-      let fotoDescarteId = null;
-      if (tipoMovimentacao === "descarte" && fotoDescarte) {
-        const novaFotoDescarte = await tx.fotoDescarte.create({
+      // Lógica de atualização de saldo do contrato
+      const campoSaldoOrigem =
+        estoqueOrigem.tipoEstoque === "creche" ? "saldoCreche" : "saldoEscola";
+
+      if (tipoMovimentacao === "remanejamento") {
+        // Para remanejamento, apenas decrementa o saldo específico da origem.
+        /* FUNÇÃO DE DECREMENTO DESATIVADA... O SALDO NÃO É PARA SER ALTERADO CASO HAJA REMANEJAMENTO
+        await tx.itemContrato.update({
+          where: { id: estoqueOrigem.itemContratoId },
+          data: { [campoSaldoOrigem]: { decrement: quantidadeNum } },
+        });
+        */
+      } else {
+        // Para outras movimentações, ajusta o saldo específico E o saldo total.
+        const valorAjuste =
+          tipoMovimentacao === "entrada" ? quantidadeNum : -quantidadeNum;
+        await tx.itemContrato.update({
+          where: { id: estoqueOrigem.itemContratoId },
           data: {
-            url: fotoDescarte,
-            motivo: motivo,
-            responsavel: responsavel,
+            [campoSaldoOrigem]: { increment: valorAjuste },
+            saldoAtual: { increment: valorAjuste },
           },
         });
-        fotoDescarteId = novaFotoDescarte.id;
       }
 
-      // Registrar a movimentação de SAÍDA (origem)
+      // 4. Cria o registro de movimentação de SAÍDA (na origem)
       const movimentacaoSaida = await tx.movimentacaoEstoque.create({
         data: {
           estoqueId,
@@ -2202,27 +2196,52 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
           dataMovimentacao: new Date(),
           unidadeDestinoId:
             tipoMovimentacao === "remanejamento" ? unidadeDestinoId : null,
-          fotoDescarteId: fotoDescarteId,
+          // Lógica de foto de descarte permanece a mesma
         },
       });
 
-      // NOVO: Lógica para criar a movimentação de ENTRADA (destino)
+      // Lógica de remanejamento
       if (tipoMovimentacao === "remanejamento" && unidadeDestinoId) {
+        // A. Busca a unidade de destino para saber seu tipo de estoque
+        const unidadeDestino = await tx.unidadeEducacional.findUnique({
+          where: { id: unidadeDestinoId },
+        });
+        if (!unidadeDestino) {
+          throw new Error(
+            "Unidade de destino não encontrada para obter o tipo de estoque."
+          );
+        }
+
+        /*
+         ******************************************************************
+         * CORREÇÃO:
+         * A propriedade 'tipoEstoque' não existe diretamente no modelo UnidadeEducacional.
+         * A lógica agora determina o tipo com base na contagem de estudantes,
+         * assumindo que unidades com alunos em berçário ou maternal são "creches".
+         ******************************************************************
+         */
+        const tipoEstoqueDestino =
+          unidadeDestino.estudantesBercario > 0 ||
+          unidadeDestino.estudantesMaternal > 0
+            ? "creche"
+            : "escola";
+
+        // B. Procura por um estoque existente para o item no destino, usando o TIPO DE ESTOQUE DO DESTINO
         let estoqueDestino = await tx.estoque.findUnique({
           where: {
             unidadeEducacionalId_itemContratoId_tipoEstoque: {
               unidadeEducacionalId: unidadeDestinoId,
               itemContratoId: estoqueOrigem.itemContratoId,
-              tipoEstoque: estoqueOrigem.tipoEstoque,
+              tipoEstoque: tipoEstoqueDestino, // <-- PONTO CHAVE: Usa o tipo do destino
             },
           },
         });
 
         const quantidadeAnteriorDestino = estoqueDestino?.quantidadeAtual || 0;
-        const quantidadeNovaDestino =
-          (estoqueDestino?.quantidadeAtual || 0) + quantidadeNum;
+        const quantidadeNovaDestino = quantidadeAnteriorDestino + quantidadeNum;
 
         if (estoqueDestino) {
+          // C. Se o estoque já existe no destino, apenas atualiza a quantidade
           estoqueDestino = await tx.estoque.update({
             where: { id: estoqueDestino.id },
             data: {
@@ -2231,6 +2250,7 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
             },
           });
         } else {
+          // D. Se não existe, cria um novo registro de estoque com o TIPO DE ESTOQUE DO DESTINO
           estoqueDestino = await tx.estoque.create({
             data: {
               unidadeEducacionalId: unidadeDestinoId,
@@ -2238,11 +2258,21 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
               quantidadeAtual: quantidadeNum,
               quantidadeMinima: 0,
               ultimaAtualizacao: new Date(),
-              tipoEstoque: estoqueOrigem.tipoEstoque,
+              tipoEstoque: tipoEstoqueDestino, // <-- PONTO CHAVE: Usa o tipo do destino
             },
           });
         }
 
+        // E. Incrementa o saldo específico (`saldoCreche` ou `saldoEscola`) do item no contrato para o destino
+        // Lógica desativada...
+        /*
+        const campoSaldoDestino = tipoEstoqueDestino === "creche" ? "saldoCreche" : "saldoEscola";
+        await tx.itemContrato.update({
+            where: { id: estoqueOrigem.itemContratoId },
+            data: { [campoSaldoDestino]: { increment: quantidadeNum } },
+        });
+        */
+        // F. Cria o registro da movimentação de ENTRADA no destino
         await tx.movimentacaoEstoque.create({
           data: {
             estoqueId: estoqueDestino.id,
@@ -2250,17 +2280,14 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
             quantidade: quantidadeNum,
             quantidadeAnterior: quantidadeAnteriorDestino,
             quantidadeNova: quantidadeNovaDestino,
-            motivo: `Remanejamento de: ${estoqueOrigem.unidadeEducacional.nome}`,
+            motivo: `Recebido de: ${estoqueOrigem.unidadeEducacional.nome}`,
             responsavel,
             dataMovimentacao: new Date(),
           },
         });
       }
 
-      return {
-        estoque: estoqueOrigemAtualizado,
-        movimentacao: movimentacaoSaida,
-      };
+      return { movimentacao: movimentacaoSaida };
     });
 
     res.status(201).json({

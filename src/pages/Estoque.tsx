@@ -375,8 +375,7 @@ function MovimentacaoDialog({
                   {unidades
                     .filter(
                       (u) =>
-                        u.id !== estoque?.unidadeEducacionalId &&
-                        u.tipoEstoque === estoque?.tipoEstoque
+                        u.id !== estoque?.unidadeEducacionalId
                     )
                     .map((unidade) => (
                       <SelectItem key={unidade.id} value={unidade.id}>
