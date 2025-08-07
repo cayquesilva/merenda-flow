@@ -336,11 +336,7 @@ export default function ImprimirRecibosPedido() {
                         {reciboItem.unidadeEducacional.telefone}
                       </p>
                       <p className="text-sm print:text-xs">
-                        <strong>Email:</strong>{" "}
-                        {reciboItem.unidadeEducacional.email}
-                      </p>
-                      <p className="text-sm print:text-xs">
-                        <strong>Data Entrega:</strong>{" "}
+                        <strong>Prazo final de entrega:</strong>{" "}
                         {new Date(reciboItem.dataEntrega).toLocaleDateString(
                           "pt-BR"
                         )}

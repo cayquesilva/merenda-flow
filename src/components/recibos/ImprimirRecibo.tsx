@@ -305,10 +305,7 @@ export default function ImprimirRecibo() {
                   {recibo.unidadeEducacional.telefone}
                 </p>
                 <p className="text-sm print:text-xs">
-                  <strong>Email:</strong> {recibo.unidadeEducacional.email}
-                </p>
-                <p className="text-sm print:text-xs">
-                  <strong>Data Entrega:</strong>{" "}
+                  <strong>Prazo limite de entrega:</strong>{" "}
                   {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
                 </p>
               </div>
