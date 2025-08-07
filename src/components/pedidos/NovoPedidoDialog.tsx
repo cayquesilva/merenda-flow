@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +95,10 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   const [itensPedido, setItensPedido] = useState<ItemPedidoForm[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [tiposEstudante, setTiposEstudante] = useState<TipoEstudante[]>([]);
+  const [tipoDePedidoAtivo, setTipoDePedidoAtivo] = useState<
+    "creche" | "escola" | null
+  >(null); // NOVO ESTADO
+
   const { toast } = useToast();
 
   // COMENTÁRIO: Estado para armazenar os itens do contrato com suas percápitas
@@ -151,6 +156,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       setDataEntrega("");
       setSelectedContratoId(undefined);
       setItensContratoComPercapita([]);
+      setTipoDePedidoAtivo(null); // RESETAR AQUI
     }
   }, [open, toast]);
 
@@ -160,6 +166,8 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       setContratoSelecionado(null);
       setItensPedido([]);
       setItensContratoComPercapita([]);
+      setTipoDePedidoAtivo(null); // E RESETAR AQUI TAMBÉM
+
       return;
     }
     setIsLoading(true);
@@ -260,7 +268,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
 
       return {
         unidadeId: u.id,
-        quantidade: sugestao,
+        quantidade: 0,
         unidadeNome: u.nome,
         tipoEstoque,
         sugestao,
@@ -274,6 +282,32 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
         unidades: unidadesComSugestao,
       },
     ]);
+  };
+
+  const handleTabChange = (novoTipoAtivo: "creche" | "escola") => {
+    // Define o tipo de pedido para a sessão atual do diálogo
+    setTipoDePedidoAtivo(novoTipoAtivo);
+
+    // Itera sobre todos os itens já adicionados ao pedido
+    setItensPedido((prevItens) =>
+      prevItens.map((item) => {
+        // Recalcula as quantidades para todas as unidades baseado na aba selecionada
+        const novasUnidades = item.unidades.map((unidade) => {
+          let novaQuantidade = 0;
+          // Se a unidade pertence à aba ativa, calcula a sugestão
+          if (unidade.tipoEstoque === novoTipoAtivo) {
+            novaQuantidade = calcularSugestaoQuantidade(
+              item.itemContrato,
+              unidades.find((u) => u.id === unidade.unidadeId)! // Encontra a unidade completa para o cálculo
+            );
+          }
+          // Se não pertence, a quantidade é 0.
+          return { ...unidade, quantidade: novaQuantidade };
+        });
+
+        return { ...item, unidades: novasUnidades };
+      })
+    );
   };
 
   const handleRemoverItem = (itemId: string) =>
@@ -581,59 +615,112 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                                 </Button>
                               </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {item.unidades.map((unidade) => {
-                                return (
-                                  <div
-                                    key={unidade.unidadeId}
-                                    className="space-y-2"
-                                  >
-                                    <Label className="text-sm font-medium">
-                                      <div className="flex items-center gap-1">
-                                        <Building2 className="h-3 w-3" />
-                                        {unidade.unidadeNome}
-                                        {unidade.tipoEstoque && (
-                                          <Badge
-                                            variant="secondary"
-                                            className="ml-2"
-                                          >
-                                            {unidade.tipoEstoque}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max={
+                            {/* NOVO: Estrutura de Abas para separar Creches e Escolas */}
+                            <Tabs
+                              defaultValue="creches"
+                              className="w-full"
+                              value={tipoDePedidoAtivo ?? ""}
+                              onValueChange={(value) =>
+                                handleTabChange(value as "creche" | "escola")
+                              }
+                            >
+                              <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="creche">
+                                  Pedido para Creches
+                                </TabsTrigger>
+                                <TabsTrigger value="escola">
+                                  Pedido para Escolas
+                                </TabsTrigger>
+                              </TabsList>
+
+                              {/* Conteúdo da Aba de Creches */}
+                              <TabsContent value="creche">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                                  {item.unidades
+                                    .filter(
+                                      (unidade) =>
                                         unidade.tipoEstoque === "creche"
-                                          ? item.itemContrato.saldoCreche
-                                          : item.itemContrato.saldoEscola
-                                      }
-                                      value={unidade.quantidade || 0}
-                                      onChange={(e) =>
-                                        handleQuantidadeChange(
-                                          item.itemContrato.id,
-                                          unidade.unidadeId,
-                                          parseInt(e.target.value) || 0
-                                        )
-                                      }
-                                      placeholder={
-                                        unidade.sugestao > 0
-                                          ? `Sugestão: ${unidade.sugestao}`
-                                          : "0"
-                                      }
-                                      disabled={unidade.sugestao === 0} // Desabilita o input se não houver sugestão
-                                    />
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      {unidade.sugestao > 0
-                                        ? `Sugerido: ${unidade.sugestao}${" "}${item.itemContrato.unidadeMedida.sigla}`
-                                        : "Cadastre a per cápita"}
-                                    </p>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                    )
+                                    .map((unidade) => (
+                                      <div
+                                        key={unidade.unidadeId}
+                                        className="space-y-2"
+                                      >
+                                        <Label className="text-sm font-medium">
+                                          <div className="flex items-center gap-1">
+                                            <Building2 className="h-3 w-3" />
+                                            {unidade.unidadeNome}
+                                          </div>
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          max={item.itemContrato.saldoCreche}
+                                          value={unidade.quantidade || 0}
+                                          onChange={(e) =>
+                                            handleQuantidadeChange(
+                                              item.itemContrato.id,
+                                              unidade.unidadeId,
+                                              parseInt(e.target.value) || 0
+                                            )
+                                          }
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Sugerido: {unidade.sugestao}{" "}
+                                          {
+                                            item.itemContrato.unidadeMedida
+                                              .sigla
+                                          }
+                                        </p>
+                                      </div>
+                                    ))}
+                                </div>
+                              </TabsContent>
+
+                              {/* Conteúdo da Aba de Escolas */}
+                              <TabsContent value="escola">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                                  {item.unidades
+                                    .filter(
+                                      (unidade) =>
+                                        unidade.tipoEstoque === "escola"
+                                    )
+                                    .map((unidade) => (
+                                      <div
+                                        key={unidade.unidadeId}
+                                        className="space-y-2"
+                                      >
+                                        <Label className="text-sm font-medium">
+                                          <div className="flex items-center gap-1">
+                                            <Building2 className="h-3 w-3" />
+                                            {unidade.unidadeNome}
+                                          </div>
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          max={item.itemContrato.saldoEscola}
+                                          value={unidade.quantidade || 0}
+                                          onChange={(e) =>
+                                            handleQuantidadeChange(
+                                              item.itemContrato.id,
+                                              unidade.unidadeId,
+                                              parseInt(e.target.value) || 0
+                                            )
+                                          }
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Sugerido: {unidade.sugestao}{" "}
+                                          {
+                                            item.itemContrato.unidadeMedida
+                                              .sigla
+                                          }
+                                        </p>
+                                      </div>
+                                    ))}
+                                </div>
+                              </TabsContent>
+                            </Tabs>
                           </div>
                         ))}
                       </div>
