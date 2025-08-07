@@ -371,7 +371,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
                 />
               </div>
               <div>
-                <Label htmlFor="estudantesRegular">Turmas Regulares</Label>
+                <Label htmlFor="estudantesRegular">Turmas Parciais</Label>
                 <Input
                   id="estudantesRegular"
                   type="number"
