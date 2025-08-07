@@ -3249,7 +3249,7 @@ app.get(
 
       res.json(itensContrato);
     } catch (error) {
-      console.error("Erro ao buscar itens de contrato para percápita:", error);
+      console.error("Erro ao buscar itens de contrato para per cápita:", error);
       res
         .status(500)
         .json({ error: "Não foi possível buscar os itens de contrato." });
@@ -3297,8 +3297,8 @@ app.get("/api/percapita", async (req: Request, res: Response) => {
     });
     res.json(percapitas);
   } catch (error) {
-    console.error("Erro ao buscar percápitas:", error);
-    res.status(500).json({ error: "Não foi possível buscar as percápitas." });
+    console.error("Erro ao buscar per cápitas:", error);
+    res.status(500).json({ error: "Não foi possível buscar as per cápitas." });
   }
 });
 
@@ -3312,11 +3312,11 @@ app.post("/api/percapita", async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
-        return res.status(409).json({ error: "Esta percápita já existe." });
+        return res.status(409).json({ error: "Esta per cápita já existe." });
       }
     }
-    console.error("Erro ao criar percápita:", error);
-    res.status(500).json({ error: "Não foi possível criar a percápita." });
+    console.error("Erro ao criar per cápita:", error);
+    res.status(500).json({ error: "Não foi possível criar a per cápita." });
   }
 });
 
@@ -3332,11 +3332,11 @@ app.put("/api/percapita/:id", async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
-        return res.status(409).json({ error: "Esta percápita já existe." });
+        return res.status(409).json({ error: "Esta per cápita já existe." });
       }
     }
-    console.error("Erro ao atualizar percápita:", error);
-    res.status(500).json({ error: "Não foi possível atualizar a percápita." });
+    console.error("Erro ao atualizar per cápita:", error);
+    res.status(500).json({ error: "Não foi possível atualizar a per cápita." });
   }
 });
 
@@ -3347,8 +3347,8 @@ app.delete("/api/percapita/:id", async (req: Request, res: Response) => {
     await prisma.percapitaItem.delete({ where: { id } });
     res.status(204).send();
   } catch (error) {
-    console.error("Erro ao deletar percápita:", error);
-    res.status(500).json({ error: "Não foi possível deletar a percápita." });
+    console.error("Erro ao deletar per cápita:", error);
+    res.status(500).json({ error: "Não foi possível deletar a per cápita." });
   }
 });
 
@@ -3403,18 +3403,18 @@ app.post("/api/percapita/create-batch", async (req: Request, res: Response) => {
     });
 
     res.status(201).json({
-      message: `Foram cadastradas ${result.count} percápita(s) com sucesso.`,
+      message: `Foram cadastradas ${result.count} per cápita(s) com sucesso.`,
     });
   } catch (error) {
-    console.error("Erro ao criar percápita em lote:", error);
+    console.error("Erro ao criar per cápita em lote:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
         return res.status(409).json({
-          error: "Uma percápita para este tipo de estudante já existe.",
+          error: "Uma per cápita para este tipo de estudante já existe.",
         });
       }
     }
-    res.status(500).json({ error: "Não foi possível criar as percápitas." });
+    res.status(500).json({ error: "Não foi possível criar as per cápitas." });
   }
 });
 
@@ -3444,9 +3444,9 @@ app.get(
 
       res.json(itensContrato);
     } catch (error) {
-      console.error("Erro ao buscar itens de contrato com percápita:", error);
+      console.error("Erro ao buscar itens de contrato com per cápita:", error);
       res.status(500).json({
-        error: "Não foi possível buscar os itens de contrato para percápita.",
+        error: "Não foi possível buscar os itens de contrato para per cápita.",
       });
     }
   }

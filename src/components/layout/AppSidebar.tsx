@@ -80,7 +80,7 @@ export function AppSidebar() {
           module: "contratos",
         },
         {
-          title: "Percapita",
+          title: "Per cápita",
           url: "/percapita",
           icon: Calculator,
           module: "percapita",

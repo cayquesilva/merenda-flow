@@ -424,7 +424,7 @@ export function UnidadeDialog({ unidade, onSuccess }: UnidadeDialogProps) {
             </div>
             <p className="text-sm text-muted-foreground mt-2">
               Informe a quantidade de estudantes matriculados em cada modalidade
-              para cálculo automático de percápita.
+              para cálculo automático de per cápita.
             </p>
           </div>
         </div>

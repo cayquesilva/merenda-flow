@@ -178,7 +178,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       ]);
 
       if (!contratoRes.ok || !itensPercapitaRes.ok)
-        throw new Error("Falha ao buscar detalhes do contrato ou percápitas.");
+        throw new Error("Falha ao buscar detalhes do contrato ou per cápitas.");
 
       const contratoData = await contratoRes.json();
       const itensPercapitaData: ItemContratoDetalhado[] =
@@ -628,7 +628,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                                     <p className="text-xs text-muted-foreground mt-1">
                                       {unidade.sugestao > 0
                                         ? `Sugerido: ${unidade.sugestao}${" "}${item.itemContrato.unidadeMedida.sigla}`
-                                        : "Cadastre a percápita"}
+                                        : "Cadastre a per cápita"}
                                     </p>
                                   </div>
                                 );

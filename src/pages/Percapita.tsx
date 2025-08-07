@@ -210,12 +210,12 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao salvar percápitas em lote.");
+        throw new Error(errorData.error || "Falha ao salvar per cápitas em lote.");
       }
 
       toast({
         title: "Sucesso!",
-        description: "Percápitas cadastradas com sucesso.",
+        description: "Per cápitas cadastradas com sucesso.",
       });
 
       setOpen(false);
@@ -245,16 +245,16 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
       <DialogTrigger asChild>
         <Button variant="default">
           <Plus className="mr-2 h-4 w-4" />
-          Nova Percápita
+          Nova Per cápita
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto"> {/* Ajustado para altura máxima e rolagem */}
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
-            Nova Percápita
+            Nova Per cápita
           </DialogTitle>
           <DialogDescription>
-            Configure a percápita de consumo por tipo de estudante
+            Configure a per cápita de consumo por tipo de estudante
           </DialogDescription>
         </DialogHeader>
 
@@ -293,7 +293,7 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Calculator className="h-4 w-4" />
-                            Definir Percápita por Estudante
+                            Definir Per cápita por Estudante
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -417,12 +417,12 @@ export function PercapitaEditDialog({ percapita, onSuccess }: PercapitaEditDialo
   
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Falha ao salvar percápita.");
+          throw new Error(errorData.error || "Falha ao salvar per cápita.");
         }
   
         toast({
           title: "Sucesso!",
-          description: "Percápita atualizada com sucesso.",
+          description: "Per cápita atualizada com sucesso.",
         });
   
         setOpen(false);
@@ -450,10 +450,10 @@ export function PercapitaEditDialog({ percapita, onSuccess }: PercapitaEditDialo
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-popover-foreground">
-                        Editar Percápita
+                        Editar Per cápita
                     </DialogTitle>
                     <DialogDescription>
-                        Edite a percápita para o item{" "}
+                        Edite a per cápita para o item{" "}
                         <span className="font-semibold">{percapita.itemContrato.nome}</span>
                         {" "}do estudante{" "}
                         <span className="font-semibold">{percapita.tipoEstudante.nome}</span>.
@@ -500,7 +500,7 @@ export function PercapitaEditDialog({ percapita, onSuccess }: PercapitaEditDialo
                             }
                             disabled={isSubmitting}
                         />
-                        <Label htmlFor="ativo">Percápita ativa</Label>
+                        <Label htmlFor="ativo">Per cápita ativa</Label>
                     </div>
                 </div>
 
@@ -550,14 +550,14 @@ export default function Percapita() {
             import.meta.env.VITE_API_URL || "http://localhost:3001"
           }/api/percapita?q=${debouncedSearchTerm}`
         );
-        if (!response.ok) throw new Error("Falha ao buscar percápitas");
+        if (!response.ok) throw new Error("Falha ao buscar per cápitas");
         const data = await response.json();
         setPercapitas(data);
       } catch (error) {
-        console.error("Erro ao buscar percápitas:", error);
+        console.error("Erro ao buscar per cápitas:", error);
         toast({
           title: "Erro",
-          description: "Não foi possível carregar as percápitas",
+          description: "Não foi possível carregar as per cápitas",
           variant: "destructive",
         });
       } finally {
@@ -578,12 +578,12 @@ export default function Percapita() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao deletar percápita");
+        throw new Error(errorData.error || "Falha ao deletar per cápita");
       }
 
       toast({
-        title: "Percápita deletada!",
-        description: `Percápita do item ${percapitaToDelete.nome} foi removida com sucesso`,
+        title: "Per cápita deletada!",
+        description: `Per cápita do item ${percapitaToDelete.nome} foi removida com sucesso`,
       });
       setIsDeleteDialogOpen(false); // Fecha o modal após o sucesso
       setPercapitaToDelete(null); // Limpa o estado
@@ -615,7 +615,7 @@ export default function Percapita() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">
-            Percápita de Estudantes
+            Per cápita de Estudantes
           </h2>
           <p className="text-muted-foreground">
             Configure a gramagem e frequência de consumo por tipo de preparação
@@ -645,9 +645,9 @@ export default function Percapita() {
       {/* Lista de Percápitas */}
       <Card>
         <CardHeader>
-          <CardTitle>Percápitas Cadastradas</CardTitle>
+          <CardTitle>Per cápitas Cadastradas</CardTitle>
           <CardDescription>
-            {percapitas.length} percápita(s) encontrada(s)
+            {percapitas.length} per cápita(s) encontrada(s)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -655,12 +655,12 @@ export default function Percapita() {
             <div className="text-center py-8">
               <Calculator className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium">
-                Nenhuma percápita encontrada
+                Nenhuma per cápita encontrada
               </h3>
               <p className="text-muted-foreground">
                 {searchTerm
                   ? "Tente ajustar os filtros de busca"
-                  : "Comece cadastrando a primeira percápita"}
+                  : "Comece cadastrando a primeira per cápita"}
               </p>
             </div>
           ) : isLoading ? (
@@ -770,7 +770,7 @@ export default function Percapita() {
           <DialogHeader>
             <DialogTitle>Confirmação de Exclusão</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja deletar a percápita do item{" "}
+              Tem certeza que deseja deletar a per cápita do item{" "}
               <span className="font-bold">{percapitaToDelete?.nome}</span>?
               Essa ação não pode ser desfeita.
             </DialogDescription>
