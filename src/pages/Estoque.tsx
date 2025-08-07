@@ -373,10 +373,7 @@ function MovimentacaoDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {unidades
-                    .filter(
-                      (u) =>
-                        u.id !== estoque?.unidadeEducacionalId
-                    )
+                    .filter((u) => u.id !== estoque?.unidadeEducacionalId)
                     .map((unidade) => (
                       <SelectItem key={unidade.id} value={unidade.id}>
                         {unidade.nome}
@@ -393,7 +390,7 @@ function MovimentacaoDialog({
               id="quantidade"
               type="number"
               min="0"
-              step="0.01"
+              step="1"
               value={formData.quantidade}
               onChange={(e) =>
                 setFormData({ ...formData, quantidade: e.target.value })
@@ -583,7 +580,7 @@ function FotoDescarte({ mov }) {
         </button>
       )}
 
-      {isModalOpen && (
+      {isModalOpen && mov.fotoDescarte?.url && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-lg p-4 relative w-full max-w-md">
             <button
@@ -766,7 +763,11 @@ export default function Estoque() {
     return <Badge variant="default">Normal</Badge>;
   };
 
-  const getTipoMovimentacaoBadge = (tipo: string, anterior: number, nova: number) => {
+  const getTipoMovimentacaoBadge = (
+    tipo: string,
+    anterior: number,
+    nova: number
+  ) => {
     const variants = {
       entrada: "default",
       saida: "destructive",
@@ -1094,7 +1095,7 @@ export default function Estoque() {
                       <TableHead>Saldo Novo</TableHead>
                       <TableHead>Responsável</TableHead>
                       <TableHead>Motivo</TableHead>
-                      <TableHead>Foto</TableHead> {/* NOVO */}
+                      <TableHead>Foto</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1106,7 +1107,11 @@ export default function Estoque() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {getTipoMovimentacaoBadge(mov.tipo, mov.quantidadeAnterior, mov.quantidadeNova)}
+                          {getTipoMovimentacaoBadge(
+                            mov.tipo,
+                            mov.quantidadeAnterior,
+                            mov.quantidadeNova
+                          )}
                         </TableCell>
                         <TableCell>
                           <div>
@@ -1139,6 +1144,8 @@ export default function Estoque() {
                               mov.quantidadeAnterior > mov.quantidadeNova) ||
                             mov.tipo === "descarte"
                               ? "-"
+                              : mov.tipo === "ajuste"
+                              ? ""
                               : "+"}
                             {mov.quantidade}{" "}
                             {mov.estoque.itemContrato.unidadeMedida.sigla}

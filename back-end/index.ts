@@ -1451,7 +1451,7 @@ app.post(
             });
           }
         }
-        
+
         // ==================================================================
         // COMENTÁRIO: Início da nova lógica para definição do status do recibo.
         // Esta seção foi reescrita para atender às novas regras de negócio.
@@ -1479,9 +1479,14 @@ app.post(
             const temDivergenciaDeQuantidade = itensNaoConformes.some(
               (item) => {
                 // Encontra o item original no recibo para pegar a quantidade solicitada DESTE recibo.
-                const itemOriginal = recibo.itens.find(i => i.id === item.itemId);
-                const quantidadeSolicitadaNesteRecibo = itemOriginal?.quantidadeSolicitada ?? 0;
-                return item.quantidadeRecebida < quantidadeSolicitadaNesteRecibo;
+                const itemOriginal = recibo.itens.find(
+                  (i) => i.id === item.itemId
+                );
+                const quantidadeSolicitadaNesteRecibo =
+                  itemOriginal?.quantidadeSolicitada ?? 0;
+                return (
+                  item.quantidadeRecebida < quantidadeSolicitadaNesteRecibo
+                );
               }
             );
 
@@ -1503,7 +1508,7 @@ app.post(
             }
           }
         }
-        
+
         // ==================================================================
         // COMENTÁRIO: Fim da nova lógica de status.
         // ==================================================================
@@ -2159,6 +2164,22 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
         throw new Error("A foto do descarte é obrigatória.");
       }
 
+      // ==================================================================
+      // NOVA LÓGICA: SALVAR A FOTO ANTES DE CRIAR A MOVIMENTAÇÃO
+      // ==================================================================
+      let fotoCriadaId: string | null = null;
+      if (tipoMovimentacao === "descarte" && fotoDescarte) {
+        const novaFoto = await tx.fotoDescarte.create({
+          data: {
+            url: fotoDescarte, // Salva a string base64 diretamente no campo URL
+            motivo: motivo,
+            responsavel: responsavel,
+          },
+        });
+        fotoCriadaId = novaFoto.id;
+      }
+      // ==================================================================
+
       // 3. Atualiza a quantidade no estoque de ORIGEM
       const quantidadeAnteriorOrigem = estoqueOrigem.quantidadeAtual;
       let quantidadeNovaOrigem = quantidadeAnteriorOrigem;
@@ -2223,7 +2244,7 @@ app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
           dataMovimentacao: new Date(),
           unidadeDestinoId:
             tipoMovimentacao === "remanejamento" ? unidadeDestinoId : null,
-          // Lógica de foto de descarte permanece a mesma
+          fotoDescarteId: fotoCriadaId,
         },
       });
 
