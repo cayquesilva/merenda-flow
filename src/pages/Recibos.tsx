@@ -48,6 +48,7 @@ interface ReciboDaLista {
         nome: string;
       };
     };
+    dataPedido: string;
   };
   _count: {
     itens: number;
@@ -356,6 +357,7 @@ export default function Recibos() {
                   <TableHead>Número</TableHead>
                   <TableHead>Pedido</TableHead>
                   <TableHead>Fornecedor</TableHead>
+                  <TableHead>Data do Pedido</TableHead>
                   <TableHead>Data de Entrega</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Itens</TableHead>
@@ -371,6 +373,9 @@ export default function Recibos() {
                     </TableCell>
                     <TableCell>
                       {recibo.pedido.contrato.fornecedor.nome}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(recibo.pedido.dataPedido).toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell>
                       {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}

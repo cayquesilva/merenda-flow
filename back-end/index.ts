@@ -1006,6 +1006,7 @@ app.get("/api/recibos", async (req: Request, res: Response) => {
           select: {
             numero: true,
             contrato: { select: { fornecedor: { select: { nome: true } } } },
+            dataPedido: true,
           },
         },
         _count: { select: { itens: true } },

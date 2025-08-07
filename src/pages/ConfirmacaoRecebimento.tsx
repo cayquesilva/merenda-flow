@@ -105,6 +105,7 @@ interface ItemConfirmacaoForm {
   itemId: string;
   conforme: boolean;
   quantidadeRecebida: number;
+  quantidadeSolicitada: number;
   observacoes: string;
   fotosNaoConforme: string[];
 }
@@ -154,6 +155,7 @@ export default function ConfirmacaoRecebimento() {
               conforme: item.conforme,
               quantidadeRecebida:
                 item.quantidadeRecebida ?? item.quantidadeSolicitada, // Usa recebida se existir, senão o total
+              quantidadeSolicitada: item.quantidadeSolicitada,
               observacoes: item.observacoes || "",
               fotosNaoConforme: item.fotosNaoConforme?.map((f) => f.url) || [],
             }))
@@ -288,15 +290,24 @@ export default function ConfirmacaoRecebimento() {
     const itensInvalidos = itensConfirmacao.filter(
       (item) =>
         item.conforme === false &&
-        (!item.observacoes?.trim() || item.fotosNaoConforme.length === 0)
+        (!item.observacoes?.trim() || item.fotosNaoConforme.length === 0 || item.quantidadeRecebida > item.quantidadeSolicitada)
     );
     if (itensInvalidos.length > 0) {
-      toast({
+      if(itensInvalidos.some((item) => item.quantidadeRecebida > item.quantidadeSolicitada)){
+        toast({
         title: "Erro",
         description:
-          "Para itens não conformes, a observação e pelo menos uma foto são obrigatórias.",
+          "A quantidade de um item recebido não pode ser maior que a quantidade solicitada.",
         variant: "destructive",
       });
+      }else{
+        toast({
+          title: "Erro",
+          description:
+            "Para itens não conformes, a observação e pelo menos uma foto são obrigatórias.",
+          variant: "destructive",
+        });
+      }
       return;
     }
     setIsLoading(true);

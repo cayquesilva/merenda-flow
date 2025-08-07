@@ -559,7 +559,11 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
               Imprimir
             </Button>
             {["parcial"].includes(recibo?.status || "") &&
-              recibo.itens.some((item) => !item.conforme) && (
+              recibo.itens.some(
+                (item) =>
+                  !item.conforme &&
+                  item.quantidadeRecebida < item.quantidadeSolicitada
+              ) && (
                 <Button
                   onClick={handleOpenAjusteModal}
                   variant="default"
