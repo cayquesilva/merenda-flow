@@ -313,7 +313,7 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
                                                 id={`gramagem-${percapita.tipoEstudanteId}`}
                                                 type="number"
                                                 min="0"
-                                                step="0.1"
+                                                step="1"
                                                 value={percapita.gramagemPorEstudante}
                                                 onChange={(e) =>
                                                     handlePercapitaChange(
@@ -467,7 +467,7 @@ export function PercapitaEditDialog({ percapita, onSuccess }: PercapitaEditDialo
                             id="gramagem"
                             type="number"
                             min="0"
-                            step="0.1"
+                            step="1"
                             value={formData.gramagemPorEstudante}
                             onChange={(e) =>
                                 setFormData({ ...formData, gramagemPorEstudante: parseFloat(e.target.value) || 0 })

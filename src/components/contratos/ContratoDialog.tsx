@@ -574,7 +574,7 @@ export function ContratoDialog({
                           <Label>Valor Unitário *</Label>
                           <Input
                             type="number"
-                            step="0.01"
+                            step="1"
                             value={item.valorUnitario || ""}
                             onChange={(e) =>
                               atualizarItem(
