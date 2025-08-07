@@ -1281,6 +1281,14 @@ app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
   }
 });
 
+interface ItemConfirmacaoPayload {
+  itemId: string;
+  conforme: boolean;
+  quantidadeRecebida: number;
+  observacoes?: string;
+  fotosNaoConforme?: string[];
+}
+
 // COMENTÁRIO: Processa a submissão de uma confirmação de recebimento.
 // UTILIZAÇÃO: Chamada pelo `ConfirmacaoRecebimento.tsx` ao clicar em "Confirmar Recebimento".
 app.post(
@@ -1295,11 +1303,10 @@ app.post(
       fotoReciboAssinado,
     } = req.body;
 
+    const typedItensConfirmacao = itensConfirmacao as ItemConfirmacaoPayload[];
+
     try {
       const result = await prisma.$transaction(async (tx) => {
-        let todosConformes = true;
-        let algumRecebido = false;
-
         // CORREÇÃO: Busca o recibo com as relações necessárias para evitar erros de tipagem
         const recibo = await tx.recibo.findUnique({
           where: { id },
@@ -1322,8 +1329,6 @@ app.post(
           throw new Error("Recibo não encontrado.");
         }
 
-        // ATUALIZAÇÃO: Lógica para definir o motivo da movimentação de estoque.
-        // Verificamos se o recibo tem um `reciboOriginalId` para saber se é complementar.
         const motivoBaseDaMovimentacao = recibo.reciboOriginalId
           ? `Recebimento complementar - Recibo #${recibo.numero}`
           : `Recebimento confirmado - Recibo #${recibo.numero}`;
@@ -1343,9 +1348,6 @@ app.post(
 
           // Lógica para lidar com as fotos de itens não conformes
           const fotosUrls = item.fotosNaoConforme || [];
-          let fotosIds: { id: string }[] = [];
-
-          // Se o item for marcado como conforme, deletamos as fotos antigas
           if (item.conforme) {
             await tx.fotoNaoConforme.deleteMany({
               where: {
@@ -1353,26 +1355,15 @@ app.post(
               },
             });
           } else if (fotosUrls.length > 0) {
-            // Se não for conforme e tiver fotos, criamos novos registros
-            // Deletamos fotos antigas para evitar duplicatas em caso de reenvio
             await tx.fotoNaoConforme.deleteMany({
               where: { itemReciboId: item.itemId },
             });
-
-            // Criamos as novas fotos
-            const novasFotos = await tx.fotoNaoConforme.createMany({
+            await tx.fotoNaoConforme.createMany({
               data: fotosUrls.map((url: string) => ({
                 itemReciboId: item.itemId,
                 url,
               })),
             });
-
-            // Buscamos os IDs das fotos recém-criadas para a operação `connect`
-            const fotosCriadas = await tx.fotoNaoConforme.findMany({
-              where: { itemReciboId: item.itemId },
-              select: { id: true },
-            });
-            fotosIds = fotosCriadas.map((f) => ({ id: f.id }));
           }
 
           const itemRecibo = await tx.itemRecibo.update({
@@ -1384,13 +1375,6 @@ app.post(
             },
             include: { itemPedido: true },
           });
-
-          if (!item.conforme) {
-            todosConformes = false;
-          }
-          if (Number(item.quantidadeRecebida) > 0) {
-            algumRecebido = true;
-          }
 
           const diferenca =
             itemRecibo.itemPedido.quantidade - Number(item.quantidadeRecebida);
@@ -1467,25 +1451,67 @@ app.post(
             });
           }
         }
+        
+        // ==================================================================
+        // COMENTÁRIO: Início da nova lógica para definição do status do recibo.
+        // Esta seção foi reescrita para atender às novas regras de negócio.
+        // ==================================================================
 
-        let statusBase = "rejeitado";
-        if (algumRecebido) {
-          statusBase = todosConformes ? "confirmado" : "parcial";
+        let statusFinal: string;
+
+        // 1. Verifica se algum item foi efetivamente recebido. Se não, o recibo é rejeitado.
+        const algumRecebido = typedItensConfirmacao.some(
+          (item) => Number(item.quantidadeRecebida) > 0
+        );
+        if (!algumRecebido) {
+          statusFinal = "rejeitado";
+        } else {
+          // 2. Filtra os itens que foram marcados como não conformes na submissão.
+          const itensNaoConformes = typedItensConfirmacao.filter(
+            (item) => !item.conforme
+          );
+
+          // 3. Verifica se o recibo é um complemento de um anterior.
+          if (recibo.reciboOriginalId) {
+            // LÓGICA PARA RECIBO COMPLEMENTAR
+
+            // 3.1. Dentre os não conformes, verifica se algum tem divergência de QUANTIDADE.
+            const temDivergenciaDeQuantidade = itensNaoConformes.some(
+              (item) => {
+                // Encontra o item original no recibo para pegar a quantidade solicitada DESTE recibo.
+                const itemOriginal = recibo.itens.find(i => i.id === item.itemId);
+                const quantidadeSolicitadaNesteRecibo = itemOriginal?.quantidadeSolicitada ?? 0;
+                return item.quantidadeRecebida < quantidadeSolicitadaNesteRecibo;
+              }
+            );
+
+            if (temDivergenciaDeQuantidade) {
+              // Se houver não conformidade E falta de quantidade, o recibo fica 'parcial',
+              // indicando que ainda há pendências para um futuro recibo.
+              statusFinal = "parcial";
+            } else {
+              // Se todos os itens não conformes foram entregues na quantidade correta (problema apenas de qualidade)
+              // ou se não há itens não conformes, o ciclo deste complemento se encerra.
+              statusFinal = "complementar";
+            }
+          } else {
+            // LÓGICA PARA RECIBO ORIGINAL (mantida como antes)
+            if (itensNaoConformes.length > 0) {
+              statusFinal = "parcial";
+            } else {
+              statusFinal = "confirmado";
+            }
+          }
         }
-
-        let statusFinal = statusBase; // Por padrão, o status final é o status base.
-
-        // 2. Aplica a única exceção: um recibo complementar 100% confirmado.
-        // Se o recibo for um complemento E o resultado da entrega for "confirmado",
-        // então o status final se torna "complementar".
-        if (recibo.reciboOriginalId && statusBase === "confirmado") {
-          statusFinal = "complementar";
-        }
+        
+        // ==================================================================
+        // COMENTÁRIO: Fim da nova lógica de status.
+        // ==================================================================
 
         const dataParaUpdate: Prisma.ReciboUpdateInput = {
           responsavelRecebimento: responsavel,
           observacoes,
-          status: statusFinal,
+          status: statusFinal, // ATUALIZAÇÃO: Usa o status final calculado pela nova lógica.
         };
 
         if (assinaturaDigital) {
