@@ -20,15 +20,21 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 // Interface estendida para incluir userId no request
 interface AuthenticatedRequest extends Request {
   userId?: string;
+  user?: {
+    id: string;
+    categoria: string;
+  };
+  unidadesPermitidas?: string[];
 }
 
 // Define a tipagem esperada do payload JWT
 interface JwtPayload {
   userId: string;
+  categoria: string;
 }
 
-// Middleware para autenticação com tipagem correta
-const authenticateToken = (
+// ALTERAÇÃO: O middleware de autenticação agora busca as unidades vinculadas ao usuário, se aplicável.
+const authenticateToken = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
@@ -40,20 +46,44 @@ const authenticateToken = (
     return res.status(401).json({ error: "Token de acesso requerido" });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (
-      err ||
-      !decoded ||
-      typeof decoded !== "object" ||
-      !("userId" in decoded)
-    ) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    if (!decoded || typeof decoded !== "object" || !decoded.userId) {
       return res.status(403).json({ error: "Token inválido" });
     }
 
-    const { userId } = decoded as JwtPayload;
+    const { userId, categoria } = decoded;
     req.userId = userId;
+    req.user = { id: userId, categoria };
+
+    // COMENTÁRIO: Se o usuário pertence a uma categoria com acesso restrito,
+    // busca os IDs das unidades educacionais às quais ele está vinculado.
+    if (
+      ["comissao_recebimento", "nutricionistas_externas"].includes(categoria)
+    ) {
+      const usuarioComUnidades = await prisma.usuario.findUnique({
+        where: { id: userId },
+        select: {
+          unidadesEducacionais: {
+            select: { id: true },
+          },
+        },
+      });
+
+      if (usuarioComUnidades) {
+        req.unidadesPermitidas = usuarioComUnidades.unidadesEducacionais.map(
+          (u) => u.id
+        );
+      } else {
+        // Se o usuário não for encontrado, nega o acesso.
+        req.unidadesPermitidas = [];
+      }
+    }
+
     next();
-  });
+  } catch (err) {
+    return res.status(403).json({ error: "Token inválido ou expirado" });
+  }
 };
 
 interface DadosAtualizacaoUsuario {
@@ -169,6 +199,9 @@ app.get(
           categoria: true,
           ativo: true,
           createdAt: true,
+          _count: {
+            select: { unidadesEducacionais: true },
+          },
         },
         orderBy: { nome: "asc" },
       });
@@ -196,6 +229,13 @@ app.get(
           categoria: true,
           ativo: true,
           createdAt: true,
+          unidadesEducacionais: {
+            select: {
+              id: true,
+              nome: true,
+              codigo: true,
+            },
+          },
         },
       });
 
@@ -310,6 +350,63 @@ app.delete(
     } catch (error) {
       console.error("Erro ao deletar usuário:", error);
       res.status(500).json({ error: "Não foi possível deletar o usuário." });
+    }
+  }
+);
+
+// --- NOVAS ROTAS PARA VINCULAÇÃO DE USUÁRIO E UNIDADE ---
+
+// COMENTÁRIO: Esta rota permite vincular uma unidade educacional a um usuário.
+app.post(
+  "/api/usuarios/:userId/unidades",
+  authenticateToken,
+  async (req, res) => {
+    const { userId } = req.params;
+    const { unidadeId } = req.body;
+
+    if (!unidadeId) {
+      return res.status(400).json({ error: "O ID da Unidade é obrigatório." });
+    }
+
+    try {
+      await prisma.usuario.update({
+        where: { id: userId },
+        data: {
+          unidadesEducacionais: {
+            connect: { id: unidadeId },
+          },
+        },
+      });
+      res.status(200).json({ message: "Unidade vinculada com sucesso." });
+    } catch (error) {
+      console.error("Erro ao vincular unidade ao usuário:", error);
+      res.status(500).json({ error: "Não foi possível vincular a unidade." });
+    }
+  }
+);
+
+// COMENTÁRIO: Esta rota permite desvincular uma unidade educacional de um usuário.
+app.delete(
+  "/api/usuarios/:userId/unidades/:unidadeId",
+  authenticateToken,
+  async (req, res) => {
+    const { userId, unidadeId } = req.params;
+
+    try {
+      await prisma.usuario.update({
+        where: { id: userId },
+        data: {
+          unidadesEducacionais: {
+            disconnect: { id: unidadeId },
+          },
+        },
+      });
+      res.status(200).json({ message: "Unidade desvinculada com sucesso." });
+    } catch (error) {
+      console.error("Erro ao desvincular unidade do usuário:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível desvincular a unidade." });
     }
   }
 );
@@ -971,66 +1068,72 @@ app.get("/api/recibos/stats", async (req: Request, res: Response) => {
 // COMENTÁRIO: Lista todos os recibos com filtros.
 // UTILIZAÇÃO: Usada na tabela principal da página `Recibos.tsx`.
 // PARÂMETROS: Aceita `?q=` para busca e `?status=` para filtrar por status.
-app.get("/api/recibos", async (req: Request, res: Response) => {
-  const { q, status } = req.query;
-  try {
-    const recibos = await prisma.recibo.findMany({
-      where: {
-        AND: [
-          status && status !== "todos" ? { status: status as string } : {},
-          q
-            ? {
-                OR: [
-                  { numero: { contains: q as string, mode: "insensitive" } },
-                  {
-                    pedido: {
-                      numero: { contains: q as string, mode: "insensitive" },
-                    },
-                  },
-                  {
-                    pedido: {
-                      contrato: {
-                        fornecedor: {
-                          nome: { contains: q as string, mode: "insensitive" },
-                        },
-                      },
-                    },
-                  },
-                ],
-              }
-            : {},
-        ],
-      },
-      include: {
-        pedido: {
-          select: {
-            numero: true,
-            contrato: { select: { fornecedor: { select: { nome: true } } } },
-            dataPedido: true,
+app.get(
+  "/api/recibos",
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { q, status } = req.query;
+    try {
+      const whereClause: Prisma.ReciboWhereInput = {};
+
+      // ALTERAÇÃO: Adicionado filtro de segurança para usuários com acesso restrito a unidades.
+      if (req.unidadesPermitidas) {
+        whereClause.unidadeEducacionalId = { in: req.unidadesPermitidas };
+      }
+
+      if (status && status !== "todos") {
+        whereClause.status = status as string;
+      }
+
+      if (q) {
+        whereClause.OR = [
+          { numero: { contains: q as string, mode: "insensitive" } },
+          {
+            pedido: { numero: { contains: q as string, mode: "insensitive" } },
+          },
+          {
+            pedido: {
+              contrato: {
+                fornecedor: {
+                  nome: { contains: q as string, mode: "insensitive" },
+                },
+              },
+            },
+          },
+        ];
+      }
+
+      const recibos = await prisma.recibo.findMany({
+        where: whereClause, // A cláusula where agora contém o filtro de unidade, se aplicável.
+        include: {
+          pedido: {
+            select: {
+              numero: true,
+              contrato: { select: { fornecedor: { select: { nome: true } } } },
+              dataPedido: true,
+            },
+          },
+          _count: { select: { itens: true } },
+          historicoAjustes: {
+            orderBy: { dataAjuste: "desc" },
+            take: 1,
+          },
+          recibosComplementares: {
+            select: { id: true, numero: true, status: true },
+          },
+          reciboOriginal: {
+            select: { id: true, numero: true },
           },
         },
-        _count: { select: { itens: true } },
-        historicoAjustes: {
-          orderBy: { dataAjuste: "desc" },
-          take: 1, // Pega o último ajuste
-        },
-        recibosComplementares: {
-          // Inclui os recibos gerados a partir deste
-          select: { id: true, numero: true, status: true },
-        },
-        reciboOriginal: {
-          // Mostra se este recibo é um complemento de outro
-          select: { id: true, numero: true },
-        },
-      },
-      orderBy: { dataEntrega: "desc" },
-    });
-    res.json(recibos);
-  } catch (error) {
-    console.error("Erro ao buscar recibos:", error);
-    res.status(500).json({ error: "Não foi possível buscar os recibos." });
+        orderBy: { dataEntrega: "desc" },
+      });
+      res.json(recibos);
+    } catch (error) {
+      console.error("Erro ao buscar recibos:", error);
+      res.status(500).json({ error: "Não foi possível buscar os recibos." });
+    }
   }
-});
+);
 
 // ATUALIZAÇÃO: Definir um tipo recursivo seguro para a estrutura aninhada
 type ReciboComFilhos = Recibo & {
@@ -1998,357 +2101,396 @@ app.get(
   }
 );
 
-// COMENTÁRIO: Lista o estoque consolidado de todas as unidades
-app.get("/api/estoque/consolidado", async (req: Request, res: Response) => {
-  const { q, unidadeId, estoqueId, tipoEstoque } = req.query;
+// COMENTÁRIO: Rota de estoque consolidado. Aplicado filtro por unidade para usuários restritos.
+app.get(
+  "/api/estoque/consolidado",
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { q, unidadeId, estoqueId, tipoEstoque } = req.query;
 
-  try {
-    const whereClause: Prisma.EstoqueWhereInput = {};
+    try {
+      const whereClause: Prisma.EstoqueWhereInput = {};
 
-    if (unidadeId) {
-      whereClause.unidadeEducacionalId = unidadeId as string;
-    }
-    if (tipoEstoque && tipoEstoque !== "todos") {
-      whereClause.tipoEstoque = tipoEstoque as "creche" | "escola";
-    }
-    if (q) {
-      whereClause.itemContrato = {
-        nome: { contains: q as string, mode: "insensitive" },
-      };
-    }
-    if (estoqueId) {
-      whereClause.id = estoqueId as string;
-    }
+      // ALTERAÇÃO: Aplica o filtro de unidades permitidas se o usuário for de uma categoria restrita.
+      if (req.unidadesPermitidas) {
+        whereClause.unidadeEducacionalId = { in: req.unidadesPermitidas };
+      }
 
-    const estoque = await prisma.estoque.findMany({
-      where: whereClause,
-      include: {
-        itemContrato: {
-          include: {
-            unidadeMedida: true,
-            contrato: {
-              select: {
-                numero: true,
-                fornecedor: { select: { nome: true } },
+      if (unidadeId) {
+        whereClause.unidadeEducacionalId = unidadeId as string;
+      }
+      if (tipoEstoque && tipoEstoque !== "todos") {
+        whereClause.tipoEstoque = tipoEstoque as "creche" | "escola";
+      }
+      if (q) {
+        whereClause.itemContrato = {
+          nome: { contains: q as string, mode: "insensitive" },
+        };
+      }
+      if (estoqueId) {
+        whereClause.id = estoqueId as string;
+      }
+
+      const estoque = await prisma.estoque.findMany({
+        where: whereClause,
+        include: {
+          itemContrato: {
+            include: {
+              unidadeMedida: true,
+              contrato: {
+                select: {
+                  numero: true,
+                  fornecedor: { select: { nome: true } },
+                },
               },
             },
           },
+          unidadeEducacional: { select: { nome: true, codigo: true } },
         },
-        unidadeEducacional: { select: { nome: true, codigo: true } },
-      },
-      orderBy: [
-        { unidadeEducacional: { nome: "asc" } },
-        { itemContrato: { nome: "asc" } },
-      ],
-    });
+        orderBy: [
+          { unidadeEducacional: { nome: "asc" } },
+          { itemContrato: { nome: "asc" } },
+        ],
+      });
 
-    res.json(estoque);
-  } catch (error) {
-    console.error("Erro ao buscar estoque consolidado:", error);
-    res
-      .status(500)
-      .json({ error: "Não foi possível buscar o estoque consolidado." });
+      res.json(estoque);
+    } catch (error) {
+      console.error("Erro ao buscar estoque consolidado:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível buscar o estoque consolidado." });
+    }
   }
-});
+);
 
-// COMENTÁRIO: Busca as movimentações de estoque
-app.get("/api/estoque/movimentacoes", async (req: Request, res: Response) => {
-  const { estoqueId, unidadeId, dataInicio, dataFim, tipoEstoque } = req.query;
+// COMENTÁRIO: Rota de movimentações de estoque. Aplicado filtro por unidade para usuários restritos.
+app.get(
+  "/api/estoque/movimentacoes",
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { estoqueId, unidadeId, dataInicio, dataFim, tipoEstoque } =
+      req.query;
 
-  try {
-    const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
-    const estoqueWhereClause: Prisma.EstoqueWhereInput = {};
+    try {
+      const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
+      const estoqueWhereClause: Prisma.EstoqueWhereInput = {};
 
-    if (estoqueId) {
-      whereClause.estoqueId = estoqueId as string;
-    }
+      // ALTERAÇÃO: Aplica o filtro de unidades permitidas se o usuário for de uma categoria restrita.
+      if (req.unidadesPermitidas) {
+        estoqueWhereClause.unidadeEducacionalId = {
+          in: req.unidadesPermitidas,
+        };
+      }
 
-    if (unidadeId) {
-      estoqueWhereClause.unidadeEducacionalId = unidadeId as string;
-    }
+      if (estoqueId) {
+        whereClause.estoqueId = estoqueId as string;
+      }
 
-    if (tipoEstoque && tipoEstoque !== "todos") {
-      estoqueWhereClause.tipoEstoque = tipoEstoque as "creche" | "escola";
-    }
+      if (unidadeId) {
+        estoqueWhereClause.unidadeEducacionalId = unidadeId as string;
+      }
 
-    if (Object.keys(estoqueWhereClause).length > 0) {
-      whereClause.estoque = estoqueWhereClause;
-    }
+      if (tipoEstoque && tipoEstoque !== "todos") {
+        estoqueWhereClause.tipoEstoque = tipoEstoque as "creche" | "escola";
+      }
 
-    if (dataInicio && dataFim) {
-      whereClause.dataMovimentacao = {
-        gte: new Date(dataInicio as string),
-        lte: new Date(dataFim as string),
-      };
-    }
+      if (Object.keys(estoqueWhereClause).length > 0) {
+        whereClause.estoque = estoqueWhereClause;
+      }
 
-    // NOVO: Adicionado include para unidadeDestino e fotoDescarte
-    const movimentacoes = await prisma.movimentacaoEstoque.findMany({
-      where: whereClause,
-      include: {
-        estoque: {
-          include: {
-            itemContrato: {
-              include: {
-                unidadeMedida: true,
+      if (dataInicio && dataFim) {
+        whereClause.dataMovimentacao = {
+          gte: new Date(dataInicio as string),
+          lte: new Date(dataFim as string),
+        };
+      }
+
+      const movimentacoes = await prisma.movimentacaoEstoque.findMany({
+        where: whereClause,
+        include: {
+          estoque: {
+            include: {
+              itemContrato: {
+                include: {
+                  unidadeMedida: true,
+                },
               },
+              unidadeEducacional: { select: { nome: true, codigo: true } },
             },
-            unidadeEducacional: { select: { nome: true, codigo: true } },
           },
+          recibo: { select: { numero: true } },
+          unidadeDestino: { select: { nome: true } },
+          fotoDescarte: { select: { url: true } },
         },
-        recibo: { select: { numero: true } },
-        unidadeDestino: { select: { nome: true } },
-        fotoDescarte: { select: { url: true } },
-      },
-      orderBy: { dataMovimentacao: "desc" },
-      take: 100,
-    });
+        orderBy: { dataMovimentacao: "desc" },
+        take: 100,
+      });
 
-    res.json(movimentacoes);
-  } catch (error) {
-    console.error("Erro ao buscar movimentações:", error);
-    res
-      .status(500)
-      .json({ error: "Não foi possível buscar as movimentações." });
+      res.json(movimentacoes);
+    } catch (error) {
+      console.error("Erro ao buscar movimentações:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível buscar as movimentações." });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Registra uma movimentação manual de estoque (saída, ajuste, remanejamento, descarte)
-app.post("/api/estoque/movimentacao", async (req: Request, res: Response) => {
-  const {
-    estoqueId,
-    tipo,
-    quantidade,
-    motivo,
-    responsavel,
-    unidadeDestinoId,
-    fotoDescarte,
-  } = req.body;
+app.post(
+  "/api/estoque/movimentacao",
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const {
+      estoqueId,
+      tipo,
+      quantidade,
+      motivo,
+      responsavel,
+      unidadeDestinoId,
+      fotoDescarte,
+    } = req.body;
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Busca o estoque de origem e suas relações
-      const estoqueOrigem = await tx.estoque.findUnique({
-        where: { id: estoqueId },
-        include: {
-          itemContrato: true,
-          unidadeEducacional: true,
-        },
-      });
-
-      if (!estoqueOrigem) {
-        throw new Error("Estoque de origem não encontrado");
-      }
-
-      const quantidadeNum = Number(quantidade);
-      const tipoMovimentacao = tipo as
-        | "entrada"
-        | "saida"
-        | "ajuste"
-        | "remanejamento"
-        | "descarte";
-
-      // 2. Validações gerais
-      if (
-        (tipoMovimentacao === "saida" ||
-          tipoMovimentacao === "remanejamento" ||
-          tipoMovimentacao === "descarte") &&
-        quantidadeNum > estoqueOrigem.quantidadeAtual
-      ) {
-        throw new Error("Quantidade insuficiente em estoque");
-      }
-      if (tipoMovimentacao === "remanejamento" && !unidadeDestinoId) {
-        throw new Error("Unidade de destino é obrigatória para remanejamento.");
-      }
-      if (tipoMovimentacao === "descarte" && !fotoDescarte) {
-        throw new Error("A foto do descarte é obrigatória.");
-      }
-
-      // ==================================================================
-      // NOVA LÓGICA: SALVAR A FOTO ANTES DE CRIAR A MOVIMENTAÇÃO
-      // ==================================================================
-      let fotoCriadaId: string | null = null;
-      if (tipoMovimentacao === "descarte" && fotoDescarte) {
-        const novaFoto = await tx.fotoDescarte.create({
-          data: {
-            url: fotoDescarte, // Salva a string base64 diretamente no campo URL
-            motivo: motivo,
-            responsavel: responsavel,
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const estoqueOrigem = await tx.estoque.findUnique({
+          where: { id: estoqueId },
+          include: {
+            itemContrato: true,
+            unidadeEducacional: true,
           },
         });
-        fotoCriadaId = novaFoto.id;
-      }
-      // ==================================================================
 
-      // 3. Atualiza a quantidade no estoque de ORIGEM
-      const quantidadeAnteriorOrigem = estoqueOrigem.quantidadeAtual;
-      let quantidadeNovaOrigem = quantidadeAnteriorOrigem;
+        if (!estoqueOrigem) {
+          throw new Error("Estoque de origem não encontrado");
+        }
 
-      switch (tipoMovimentacao) {
-        case "entrada":
-          quantidadeNovaOrigem += quantidadeNum;
-          break;
-        case "saida":
-        case "remanejamento":
-        case "descarte":
-          quantidadeNovaOrigem -= quantidadeNum;
-          break;
-        case "ajuste":
-          quantidadeNovaOrigem = quantidadeNum;
-          break;
-      }
+        // ALTERAÇÃO: Verifica se o usuário tem permissão para movimentar estoque nesta unidade.
+        if (
+          req.unidadesPermitidas &&
+          !req.unidadesPermitidas.includes(estoqueOrigem.unidadeEducacionalId)
+        ) {
+          throw new Error(
+            "Usuário não tem permissão para acessar o estoque desta unidade."
+          );
+        }
 
-      await tx.estoque.update({
-        where: { id: estoqueId },
-        data: {
-          quantidadeAtual: quantidadeNovaOrigem,
-          ultimaAtualizacao: new Date(),
-        },
-      });
+        const quantidadeNum = Number(quantidade);
+        const tipoMovimentacao = tipo as
+          | "entrada"
+          | "saida"
+          | "ajuste"
+          | "remanejamento"
+          | "descarte";
 
-      // Lógica de atualização de saldo do contrato
-      const campoSaldoOrigem =
-        estoqueOrigem.tipoEstoque === "creche" ? "saldoCreche" : "saldoEscola";
+        // 2. Validações gerais
+        if (
+          (tipoMovimentacao === "saida" ||
+            tipoMovimentacao === "remanejamento" ||
+            tipoMovimentacao === "descarte") &&
+          quantidadeNum > estoqueOrigem.quantidadeAtual
+        ) {
+          throw new Error("Quantidade insuficiente em estoque");
+        }
+        if (tipoMovimentacao === "remanejamento" && !unidadeDestinoId) {
+          throw new Error(
+            "Unidade de destino é obrigatória para remanejamento."
+          );
+        }
+        if (tipoMovimentacao === "descarte" && !fotoDescarte) {
+          throw new Error("A foto do descarte é obrigatória.");
+        }
 
-      if (tipoMovimentacao === "remanejamento") {
-        // Para remanejamento, apenas decrementa o saldo específico da origem.
-        /* FUNÇÃO DE DECREMENTO DESATIVADA... O SALDO NÃO É PARA SER ALTERADO CASO HAJA REMANEJAMENTO
+        // ==================================================================
+        // NOVA LÓGICA: SALVAR A FOTO ANTES DE CRIAR A MOVIMENTAÇÃO
+        // ==================================================================
+        let fotoCriadaId: string | null = null;
+        if (tipoMovimentacao === "descarte" && fotoDescarte) {
+          const novaFoto = await tx.fotoDescarte.create({
+            data: {
+              url: fotoDescarte, // Salva a string base64 diretamente no campo URL
+              motivo: motivo,
+              responsavel: responsavel,
+            },
+          });
+          fotoCriadaId = novaFoto.id;
+        }
+        // ==================================================================
+
+        // 3. Atualiza a quantidade no estoque de ORIGEM
+        const quantidadeAnteriorOrigem = estoqueOrigem.quantidadeAtual;
+        let quantidadeNovaOrigem = quantidadeAnteriorOrigem;
+
+        switch (tipoMovimentacao) {
+          case "entrada":
+            quantidadeNovaOrigem += quantidadeNum;
+            break;
+          case "saida":
+          case "remanejamento":
+          case "descarte":
+            quantidadeNovaOrigem -= quantidadeNum;
+            break;
+          case "ajuste":
+            quantidadeNovaOrigem = quantidadeNum;
+            break;
+        }
+
+        await tx.estoque.update({
+          where: { id: estoqueId },
+          data: {
+            quantidadeAtual: quantidadeNovaOrigem,
+            ultimaAtualizacao: new Date(),
+          },
+        });
+
+        // Lógica de atualização de saldo do contrato
+        const campoSaldoOrigem =
+          estoqueOrigem.tipoEstoque === "creche"
+            ? "saldoCreche"
+            : "saldoEscola";
+
+        if (tipoMovimentacao === "remanejamento") {
+          // Para remanejamento, apenas decrementa o saldo específico da origem.
+          /* FUNÇÃO DE DECREMENTO DESATIVADA... O SALDO NÃO É PARA SER ALTERADO CASO HAJA REMANEJAMENTO
         await tx.itemContrato.update({
           where: { id: estoqueOrigem.itemContratoId },
           data: { [campoSaldoOrigem]: { decrement: quantidadeNum } },
         });
         */
-      } else {
-        // Para outras movimentações, ajusta o saldo específico E o saldo total.
-        const valorAjuste =
-          tipoMovimentacao === "entrada" ? quantidadeNum : -quantidadeNum;
-        await tx.itemContrato.update({
-          where: { id: estoqueOrigem.itemContratoId },
-          data: {
-            [campoSaldoOrigem]: { increment: valorAjuste },
-            saldoAtual: { increment: valorAjuste },
-          },
-        });
-      }
-
-      // 4. Cria o registro de movimentação de SAÍDA (na origem)
-      const movimentacaoSaida = await tx.movimentacaoEstoque.create({
-        data: {
-          estoqueId,
-          tipo: tipoMovimentacao,
-          quantidade: Math.abs(quantidadeNum),
-          quantidadeAnterior: quantidadeAnteriorOrigem,
-          quantidadeNova: quantidadeNovaOrigem,
-          motivo,
-          responsavel,
-          dataMovimentacao: new Date(),
-          unidadeDestinoId:
-            tipoMovimentacao === "remanejamento" ? unidadeDestinoId : null,
-          fotoDescarteId: fotoCriadaId,
-        },
-      });
-
-      // Lógica de remanejamento
-      if (tipoMovimentacao === "remanejamento" && unidadeDestinoId) {
-        // A. Busca a unidade de destino para saber seu tipo de estoque
-        const unidadeDestino = await tx.unidadeEducacional.findUnique({
-          where: { id: unidadeDestinoId },
-        });
-        if (!unidadeDestino) {
-          throw new Error(
-            "Unidade de destino não encontrada para obter o tipo de estoque."
-          );
-        }
-
-        /*
-         ******************************************************************
-         * CORREÇÃO:
-         * A propriedade 'tipoEstoque' não existe diretamente no modelo UnidadeEducacional.
-         * A lógica agora determina o tipo com base na contagem de estudantes,
-         * assumindo que unidades com alunos em berçário ou maternal são "creches".
-         ******************************************************************
-         */
-        const tipoEstoqueDestino =
-          unidadeDestino.estudantesBercario > 0 ||
-          unidadeDestino.estudantesMaternal > 0
-            ? "creche"
-            : "escola";
-
-        // B. Procura por um estoque existente para o item no destino, usando o TIPO DE ESTOQUE DO DESTINO
-        let estoqueDestino = await tx.estoque.findUnique({
-          where: {
-            unidadeEducacionalId_itemContratoId_tipoEstoque: {
-              unidadeEducacionalId: unidadeDestinoId,
-              itemContratoId: estoqueOrigem.itemContratoId,
-              tipoEstoque: tipoEstoqueDestino, // <-- PONTO CHAVE: Usa o tipo do destino
-            },
-          },
-        });
-
-        const quantidadeAnteriorDestino = estoqueDestino?.quantidadeAtual || 0;
-        const quantidadeNovaDestino = quantidadeAnteriorDestino + quantidadeNum;
-
-        if (estoqueDestino) {
-          // C. Se o estoque já existe no destino, apenas atualiza a quantidade
-          estoqueDestino = await tx.estoque.update({
-            where: { id: estoqueDestino.id },
-            data: {
-              quantidadeAtual: { increment: quantidadeNum },
-              ultimaAtualizacao: new Date(),
-            },
-          });
         } else {
-          // D. Se não existe, cria um novo registro de estoque com o TIPO DE ESTOQUE DO DESTINO
-          estoqueDestino = await tx.estoque.create({
+          // Para outras movimentações, ajusta o saldo específico E o saldo total.
+          const valorAjuste =
+            tipoMovimentacao === "entrada" ? quantidadeNum : -quantidadeNum;
+          await tx.itemContrato.update({
+            where: { id: estoqueOrigem.itemContratoId },
             data: {
-              unidadeEducacionalId: unidadeDestinoId,
-              itemContratoId: estoqueOrigem.itemContratoId,
-              quantidadeAtual: quantidadeNum,
-              quantidadeMinima: 0,
-              ultimaAtualizacao: new Date(),
-              tipoEstoque: tipoEstoqueDestino, // <-- PONTO CHAVE: Usa o tipo do destino
+              [campoSaldoOrigem]: { increment: valorAjuste },
+              saldoAtual: { increment: valorAjuste },
             },
           });
         }
 
-        // E. Incrementa o saldo específico (`saldoCreche` ou `saldoEscola`) do item no contrato para o destino
-        // Lógica desativada...
-        /*
+        // 4. Cria o registro de movimentação de SAÍDA (na origem)
+        const movimentacaoSaida = await tx.movimentacaoEstoque.create({
+          data: {
+            estoqueId,
+            tipo: tipoMovimentacao,
+            quantidade: Math.abs(quantidadeNum),
+            quantidadeAnterior: quantidadeAnteriorOrigem,
+            quantidadeNova: quantidadeNovaOrigem,
+            motivo,
+            responsavel,
+            dataMovimentacao: new Date(),
+            unidadeDestinoId:
+              tipoMovimentacao === "remanejamento" ? unidadeDestinoId : null,
+            fotoDescarteId: fotoCriadaId,
+          },
+        });
+
+        // Lógica de remanejamento
+        if (tipoMovimentacao === "remanejamento" && unidadeDestinoId) {
+          // A. Busca a unidade de destino para saber seu tipo de estoque
+          const unidadeDestino = await tx.unidadeEducacional.findUnique({
+            where: { id: unidadeDestinoId },
+          });
+          if (!unidadeDestino) {
+            throw new Error(
+              "Unidade de destino não encontrada para obter o tipo de estoque."
+            );
+          }
+
+          /*
+           ******************************************************************
+           * CORREÇÃO:
+           * A propriedade 'tipoEstoque' não existe diretamente no modelo UnidadeEducacional.
+           * A lógica agora determina o tipo com base na contagem de estudantes,
+           * assumindo que unidades com alunos em berçário ou maternal são "creches".
+           ******************************************************************
+           */
+          const tipoEstoqueDestino =
+            unidadeDestino.estudantesBercario > 0 ||
+            unidadeDestino.estudantesMaternal > 0
+              ? "creche"
+              : "escola";
+
+          // B. Procura por um estoque existente para o item no destino, usando o TIPO DE ESTOQUE DO DESTINO
+          let estoqueDestino = await tx.estoque.findUnique({
+            where: {
+              unidadeEducacionalId_itemContratoId_tipoEstoque: {
+                unidadeEducacionalId: unidadeDestinoId,
+                itemContratoId: estoqueOrigem.itemContratoId,
+                tipoEstoque: tipoEstoqueDestino, // <-- PONTO CHAVE: Usa o tipo do destino
+              },
+            },
+          });
+
+          const quantidadeAnteriorDestino =
+            estoqueDestino?.quantidadeAtual || 0;
+          const quantidadeNovaDestino =
+            quantidadeAnteriorDestino + quantidadeNum;
+
+          if (estoqueDestino) {
+            // C. Se o estoque já existe no destino, apenas atualiza a quantidade
+            estoqueDestino = await tx.estoque.update({
+              where: { id: estoqueDestino.id },
+              data: {
+                quantidadeAtual: { increment: quantidadeNum },
+                ultimaAtualizacao: new Date(),
+              },
+            });
+          } else {
+            // D. Se não existe, cria um novo registro de estoque com o TIPO DE ESTOQUE DO DESTINO
+            estoqueDestino = await tx.estoque.create({
+              data: {
+                unidadeEducacionalId: unidadeDestinoId,
+                itemContratoId: estoqueOrigem.itemContratoId,
+                quantidadeAtual: quantidadeNum,
+                quantidadeMinima: 0,
+                ultimaAtualizacao: new Date(),
+                tipoEstoque: tipoEstoqueDestino, // <-- PONTO CHAVE: Usa o tipo do destino
+              },
+            });
+          }
+
+          // E. Incrementa o saldo específico (`saldoCreche` ou `saldoEscola`) do item no contrato para o destino
+          // Lógica desativada...
+          /*
         const campoSaldoDestino = tipoEstoqueDestino === "creche" ? "saldoCreche" : "saldoEscola";
         await tx.itemContrato.update({
             where: { id: estoqueOrigem.itemContratoId },
             data: { [campoSaldoDestino]: { increment: quantidadeNum } },
         });
         */
-        // F. Cria o registro da movimentação de ENTRADA no destino
-        await tx.movimentacaoEstoque.create({
-          data: {
-            estoqueId: estoqueDestino.id,
-            tipo: "remanejamento",
-            quantidade: quantidadeNum,
-            quantidadeAnterior: quantidadeAnteriorDestino,
-            quantidadeNova: quantidadeNovaDestino,
-            motivo: `Recebido de: ${estoqueOrigem.unidadeEducacional.nome}`,
-            responsavel,
-            dataMovimentacao: new Date(),
-          },
-        });
-      }
+          // F. Cria o registro da movimentação de ENTRADA no destino
+          await tx.movimentacaoEstoque.create({
+            data: {
+              estoqueId: estoqueDestino.id,
+              tipo: "remanejamento",
+              quantidade: quantidadeNum,
+              quantidadeAnterior: quantidadeAnteriorDestino,
+              quantidadeNova: quantidadeNovaDestino,
+              motivo: `Recebido de: ${estoqueOrigem.unidadeEducacional.nome}`,
+              responsavel,
+              dataMovimentacao: new Date(),
+            },
+          });
+        }
 
-      return { movimentacao: movimentacaoSaida };
-    });
+        return { movimentacao: movimentacaoSaida };
+      });
 
-    res.status(201).json({
-      message: "Movimentação registrada com sucesso",
-      data: result,
-    });
-  } catch (error) {
-    console.error("Erro ao registrar movimentação:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Erro desconhecido";
-    res.status(500).json({ error: errorMessage });
+      res.status(201).json({
+        message: "Movimentação registrada com sucesso",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Erro ao registrar movimentação:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      res.status(500).json({ error: errorMessage });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Atualiza a quantidade mínima de um item no estoque
 app.put(
@@ -2512,16 +2654,24 @@ app.get(
 
 /// --- ROTAS DE RELATÓRIOS --- ///
 
-// COMENTÁRIO: Relatório de movimentação por responsável
+// COMENTÁRIO: Rota de relatório de movimentação. Aplicado filtro por unidade para usuários restritos.
 app.get(
   "/api/relatorios/movimentacao-responsavel",
-  async (req: Request, res: Response) => {
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
     const { responsavel, dataInicio, dataFim, tipoMovimentacao, unidadeId } =
       req.query;
 
     try {
       const whereClause: Prisma.MovimentacaoEstoqueWhereInput = {};
       const estoqueWhereClause: Prisma.EstoqueWhereInput = {};
+
+      // ALTERAÇÃO: Aplica o filtro de unidades permitidas se o usuário for de uma categoria restrita.
+      if (req.unidadesPermitidas) {
+        estoqueWhereClause.unidadeEducacionalId = {
+          in: req.unidadesPermitidas,
+        };
+      }
 
       if (responsavel && responsavel !== "all") {
         whereClause.responsavel = responsavel as string;
@@ -2589,7 +2739,6 @@ app.get(
       const totalAjustes = movimentacoes
         .filter((m) => m.tipo === "ajuste")
         .reduce((sum, m) => sum + m.quantidade, 0);
-
       const contaEntradas = movimentacoes.filter(
         (m) => m.tipo === "entrada"
       ).length;
@@ -2660,24 +2809,47 @@ app.get(
   }
 );
 
-// COMENTÁRIO: Relatório de estoque por unidade
+// COMENTÁRIO: Rota de relatório de estoque por unidade. Aplicado filtro para usuários restritos.
 app.get(
   "/api/relatorios/estoque-unidade",
-  async (req: Request, res: Response) => {
+  authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
     const { unidadeId, dataInicio, dataFim, itemId } = req.query;
 
     try {
       const whereClause: Prisma.EstoqueWhereInput = {};
       const movimentacoesWhere: Prisma.MovimentacaoEstoqueWhereInput = {};
 
-      if (unidadeId && unidadeId !== "all") {
+      // ALTERAÇÃO: Aplica o filtro de unidades permitidas se o usuário for de uma categoria restrita.
+      // Se um 'unidadeId' específico for passado na query, ele prevalece, mas apenas se o usuário tiver permissão.
+      if (req.unidadesPermitidas) {
+        if (unidadeId && unidadeId !== "all") {
+          if (req.unidadesPermitidas.includes(unidadeId as string)) {
+            whereClause.unidadeEducacionalId = unidadeId as string;
+            movimentacoesWhere.estoque = {
+              unidadeEducacionalId: unidadeId as string,
+            };
+          } else {
+            // Se o usuário não tem permissão para a unidade específica, retorna um resultado vazio.
+            return res.json({
+              estoque: [],
+              movimentacoes: [],
+              estatisticas: {},
+            });
+          }
+        } else {
+          whereClause.unidadeEducacionalId = { in: req.unidadesPermitidas };
+          movimentacoesWhere.estoque = {
+            unidadeEducacionalId: { in: req.unidadesPermitidas },
+          };
+        }
+      } else if (unidadeId && unidadeId !== "all") {
         whereClause.unidadeEducacionalId = unidadeId as string;
         movimentacoesWhere.estoque = {
           unidadeEducacionalId: unidadeId as string,
         };
       }
 
-      // CORREÇÃO: Adiciona o filtro por item de contrato de forma segura
       if (itemId && itemId !== "all") {
         whereClause.itemContratoId = itemId as string;
         movimentacoesWhere.estoque = {
@@ -2737,7 +2909,6 @@ app.get(
         (sum, e) => sum + e.quantidadeAtual * e.itemContrato.valorUnitario,
         0
       );
-
       const entradas = movimentacoes.filter((m) => m.tipo === "entrada");
       const saidas = movimentacoes.filter((m) => m.tipo === "saida");
       const descartes = movimentacoes.filter((m) => m.tipo === "descarte");

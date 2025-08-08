@@ -10,7 +10,8 @@ export interface User {
 export type UserCategory =
   | "administracao_tecnica"
   | "gerencia_nutricao"
-  | "comissao_recebimento";
+  | "comissao_recebimento"
+  | "nutricionistas_externas";
 
 export interface Permission {
   module: string;
@@ -84,11 +85,22 @@ export const USER_CATEGORIES: Partial<
   comissao_recebimento: {
     label: "Comissão de Recebimento",
     permissions: {
+      dashboard: { module: "dashboard", actions: ["read"] },
+      recibos: { module: "recibos", actions: ["read"] },
       confirmacoes: {
         module: "confirmacoes",
         actions: ["read", "create", "update"],
       },
       estoque: { module: "estoque", actions: ["read"] },
+    },
+  },
+  // NOVO: Adicionada a categoria 'nutricionistas_externas' com suas permissões específicas.
+  nutricionistas_externas: {
+    label: "Nutricionistas Externas",
+    permissions: {
+      dashboard: { module: "dashboard", actions: ["read"] },
+      estoque: { module: "estoque", actions: ["read", "create", "update"] }, // create/update para movimentações
+      relatorios: { module: "relatorios", actions: ["read"] },
     },
   },
 } as const;

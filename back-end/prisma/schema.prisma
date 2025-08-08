@@ -19,10 +19,14 @@ model Usuario {
   nome      String
   email     String   @unique
   senha     String
-  categoria String // 'administracao_tecnica', 'gerencia_nutricao', 'comissao_recebimento'
+  categoria String // 'administracao_tecnica', 'gerencia_nutricao', 'comissao_recebimento', 'nutricionistas_externas'
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  // NOVO: Adicionada a relação de muitos-para-muitos com UnidadeEducacional.
+  // Isso permite que um usuário seja vinculado a várias unidades e vice-versa.
+  unidadesEducacionais UnidadeEducacional[] @relation("UsuarioUnidades")
 
   @@map("usuarios")
 }
@@ -76,6 +80,9 @@ model UnidadeEducacional {
   recibos                  Recibo[]
   estoques                 Estoque[]
   movimentacoesRemanejadas MovimentacaoEstoque[] @relation("MovimentacaoRemanejamento")
+
+  // NOVO: Adicionada a relação de muitos-para-muitos com Usuario.
+  usuarios                 Usuario[]           @relation("UsuarioUnidades")
 }
 
 // ===================================
