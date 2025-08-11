@@ -86,6 +86,45 @@ const authenticateToken = async (
   }
 };
 
+// NOVO: Middleware para autenticação opcional.
+// Ele anexa os dados do usuário se um token válido for fornecido, mas não bloqueia a requisição se não houver token.
+const optionalAuthenticateToken = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    // Se não há token, tudo bem, apenas prossiga.
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    if (decoded && typeof decoded === "object" && decoded.userId) {
+      const { userId, categoria } = decoded;
+      req.userId = userId;
+      req.user = { id: userId, categoria };
+
+      // Se for um usuário restrito, busca suas unidades permitidas.
+      if (["comissao_recebimento", "nutricionistas_externas"].includes(categoria)) {
+        const usuarioComUnidades = await prisma.usuario.findUnique({
+          where: { id: userId },
+          select: { unidadesEducacionais: { select: { id: true } } },
+        });
+        req.unidadesPermitidas =
+          usuarioComUnidades?.unidadesEducacionais.map((u) => u.id) || [];
+      }
+    }
+  } catch (err) {
+    // Se o token for inválido, ignora o erro e continua como se o usuário não estivesse logado.
+  }
+
+  return next();
+};
+
 interface DadosAtualizacaoUsuario {
   nome?: string;
   email?: string;
@@ -102,6 +141,12 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
   try {
     const usuario = await prisma.usuario.findUnique({
       where: { email },
+      include: {
+        unidadesEducacionais: {
+          select: { id: true, nome: true },
+          orderBy: { nome: "asc" },
+        },
+      },
     });
 
     if (!usuario || !usuario.ativo) {
@@ -129,14 +174,7 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
 
     res.json({
       token,
-      usuario: {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        categoria: usuario.categoria,
-        ativo: usuario.ativo,
-        createdAt: usuario.createdAt,
-      },
+      usuario,
     });
   } catch (error) {
     console.error("Erro no login:", error);
@@ -152,13 +190,11 @@ app.get(
     try {
       const usuario = await prisma.usuario.findUnique({
         where: { id: req.userId },
-        select: {
-          id: true,
-          nome: true,
-          email: true,
-          categoria: true,
-          ativo: true,
-          createdAt: true,
+        include: {
+          unidadesEducacionais: {
+            select: { id: true, nome: true },
+            orderBy: { nome: "asc" },
+          },
         },
       });
 
@@ -1032,38 +1068,44 @@ app.get("/api/pedidos-para-recibo", async (req: Request, res: Response) => {
 
 // COMENTÁRIO: Retorna as estatísticas principais para os cards no topo da página de Recibos.
 // UTILIZAÇÃO: Chamada pela página `Recibos.tsx` para obter os totais.
-app.get("/api/recibos/stats", authenticateToken, async (req: Request, res: Response) => {
-  try {
-    const totalCount = await prisma.recibo.count();
-    const pendingCount = await prisma.recibo.count({
-      where: { status: "pendente" },
-    });
-    const confirmedCount = await prisma.recibo.count({
-      where: { status: "confirmado" },
-    });
-    const partialCount = await prisma.recibo.count({
-      where: { status: "parcial" },
-    });
-    const ajustedCount = await prisma.recibo.count({
-      where: { status: "ajustado" },
-    });
-    const complementarCount = await prisma.recibo.count({
-      where: { status: "complementar" },
-    });
+app.get(
+  "/api/recibos/stats",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const totalCount = await prisma.recibo.count();
+      const pendingCount = await prisma.recibo.count({
+        where: { status: "pendente" },
+      });
+      const confirmedCount = await prisma.recibo.count({
+        where: { status: "confirmado" },
+      });
+      const partialCount = await prisma.recibo.count({
+        where: { status: "parcial" },
+      });
+      const ajustedCount = await prisma.recibo.count({
+        where: { status: "ajustado" },
+      });
+      const complementarCount = await prisma.recibo.count({
+        where: { status: "complementar" },
+      });
 
-    res.json({
-      total: totalCount,
-      pendentes: pendingCount,
-      confirmados: confirmedCount,
-      parciais: partialCount,
-      ajustados: ajustedCount,
-      complementares: complementarCount,
-    });
-  } catch (error) {
-    console.error("Erro ao buscar estatísticas dos recibos:", error);
-    res.status(500).json({ error: "Não foi possível buscar as estatísticas." });
+      res.json({
+        total: totalCount,
+        pendentes: pendingCount,
+        confirmados: confirmedCount,
+        parciais: partialCount,
+        ajustados: ajustedCount,
+        complementares: complementarCount,
+      });
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas dos recibos:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível buscar as estatísticas." });
+    }
   }
-});
+);
 
 // COMENTÁRIO: Lista todos os recibos com filtros.
 // UTILIZAÇÃO: Usada na tabela principal da página `Recibos.tsx`.
@@ -1340,7 +1382,7 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
 
 // COMENTÁRIO: Retorna os dados para a página de confirmação de um recibo específico.
 // UTILIZAÇÃO: Usada pela página pública `ConfirmacaoRecebimento.tsx` para carregar os dados do recibo.
-app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
+app.get("/api/recibos/confirmacao/:id", optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   try {
     const recibo = await prisma.recibo.findUnique({
@@ -1372,6 +1414,17 @@ app.get("/api/recibos/confirmacao/:id", async (req: Request, res: Response) => {
     if (!recibo) {
       return res.status(404).json({ error: "Recibo não encontrado." });
     }
+    // NOVO: Bloco de verificação de permissão
+      // Se 'unidadesPermitidas' existe, significa que um usuário restrito está logado.
+      if (req.unidadesPermitidas) {
+        // Verifica se a unidade do recibo está na lista de unidades permitidas do usuário.
+        if (!req.unidadesPermitidas.includes(recibo.unidadeEducacionalId)) {
+          return res.status(403).json({
+            error:
+              "Acesso negado. Você não tem permissão para visualizar o recibo desta unidade.",
+          });
+        }
+      }
     if (!["pendente"].includes(recibo.status)) {
       return res.status(409).json({ error: "Este recibo já foi processado." });
     }

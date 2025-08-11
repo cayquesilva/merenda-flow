@@ -60,16 +60,14 @@ import {
   X,
 } from "lucide-react";
 // ALTERAÇÃO: A interface User agora inclui as unidades educacionais vinculadas.
-import { User, UserCategory, USER_CATEGORIES } from "@/types/auth";
+import {
+  UnidadeEducacional,
+  User,
+  UserCategory,
+  USER_CATEGORIES,
+} from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
-
-// NOVO: Definida a interface para os dados de uma Unidade Educacional.
-interface UnidadeEducacional {
-  id: string;
-  nome: string;
-  codigo: string;
-}
 
 interface UserDialogProps {
   user?: User & {
@@ -87,6 +85,9 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
   const [unidadesDisponiveis, setUnidadesDisponiveis] = useState<
     UnidadeEducacional[]
   >([]);
+  const [fullUserData, setFullUserData] =
+    useState<UserDialogProps["user"]>(null);
+
   const [formData, setFormData] = useState({
     nome: user?.nome || "",
     email: user?.email || "",
@@ -100,9 +101,10 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
 
   const isEdicao = !!user;
 
-  // NOVO: Carrega a lista de unidades educacionais ativas quando o diálogo é aberto.
+  // ALTERAÇÃO: O useEffect agora busca os dados completos do usuário ao abrir para edição.
   useEffect(() => {
-    const carregarUnidades = async () => {
+    const carregarDadosIniciais = async () => {
+      // Carrega a lista de todas as unidades para o seletor.
       try {
         const data = await apiService.getUnidadesAtivas();
         setUnidadesDisponiveis(data);
@@ -113,22 +115,50 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
           variant: "destructive",
         });
       }
+
+      if (isEdicao && user?.id) {
+        // Se for edição, busca os dados completos do usuário.
+        try {
+          setLoading(true);
+          const dataCompleta = await apiService.getUsuario(user.id);
+          setFullUserData(dataCompleta); // Guarda os dados completos no novo estado.
+          // Popula o formulário com os dados completos.
+          setFormData({
+            nome: dataCompleta.nome || "",
+            email: dataCompleta.email || "",
+            senha: "",
+            categoria: dataCompleta.categoria || "comissao_recebimento",
+            ativo: dataCompleta.ativo ?? true,
+            unidadeIds:
+              dataCompleta.unidadesEducacionais?.map(
+                (u: UnidadeEducacional) => u.id
+              ) || [],
+          });
+        } catch (error) {
+          toast({
+            title: "Erro",
+            description: "Não foi possível carregar os dados do usuário.",
+          });
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // Se for criação, apenas reseta o formulário.
+        setFormData({
+          nome: "",
+          email: "",
+          senha: "",
+          categoria: "comissao_recebimento",
+          ativo: true,
+          unidadeIds: [],
+        });
+      }
     };
 
     if (open) {
-      carregarUnidades();
-      // Reseta o formulário com os dados do usuário ao abrir para edição.
-      setFormData({
-        nome: user?.nome || "",
-        email: user?.email || "",
-        senha: "",
-        categoria: user?.categoria || "comissao_recebimento",
-        ativo: user?.ativo ?? true,
-        unidadeIds:
-          user?.unidadesEducacionais?.map((unidade) => unidade.id) || [],
-      });
+      carregarDadosIniciais();
     }
-  }, [open, user, toast]);
+  }, [open, user, toast, isEdicao]);
 
   const handleSubmit = async () => {
     if (!formData.nome.trim() || !formData.email.trim()) {
@@ -169,11 +199,10 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
         usuarioSalvo = await apiService.createUsuario(dadosParaApi);
       }
 
-      // NOVO: Lógica para sincronizar as unidades vinculadas após salvar o usuário.
-      // Esta parte agora usa a variável 'unidadeIds' que foi separada no início.
+      // ALTERAÇÃO: A lista de IDs iniciais agora vem do estado 'fullUserData', que contém os dados corretos.
       const idsIniciais =
-        user?.unidadesEducacionais?.map((u) => u.id) || [];
-      const idsFinais = unidadeIds; // Usamos a variável desestruturada
+        fullUserData?.unidadesEducacionais?.map((u) => u.id) || [];
+      const idsFinais = unidadeIds;
 
       const idsParaAdicionar = idsFinais.filter(
         (id) => !idsIniciais.includes(id)
@@ -456,7 +485,7 @@ export default function Usuarios() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const loadUsuarios = useCallback( async () => {
+  const loadUsuarios = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiService.getUsuarios(searchTerm);
@@ -470,7 +499,7 @@ export default function Usuarios() {
     } finally {
       setLoading(false);
     }
-  },[searchTerm, toast]);
+  }, [searchTerm, toast]);
 
   useEffect(() => {
     loadUsuarios();

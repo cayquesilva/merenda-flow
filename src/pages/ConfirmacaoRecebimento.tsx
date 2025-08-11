@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import SignatureCanvas from "react-signature-canvas";
+import { apiService } from "@/services/api"; // 1. Importe a apiService
 
 // Interfaces...
 interface UnidadeMedidaSigla {
@@ -81,12 +82,7 @@ interface ReciboConfirmacaoBackend {
   unidadeEducacionalId: string;
   dataEntrega: string;
   responsavelRecebimento?: string;
-  status:
-    | "pendente"
-    | "confirmado"
-    | "parcial"
-    | "rejeitado"
-    | "complementar";
+  status: "pendente" | "confirmado" | "parcial" | "rejeitado" | "complementar";
   qrcode: string;
   observacoes?: string;
   reciboOriginalId?: string | null; // Novo campo
@@ -138,23 +134,17 @@ export default function ConfirmacaoRecebimento() {
         setIsLoading(true);
         setError(null);
         try {
-          const response = await fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:3001"
-            }/api/recibos/confirmacao/${id}`
-          );
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.error || "Falha ao carregar recibo.");
-          }
-          const reciboData = data as ReciboConfirmacaoBackend;
+          // 2. ALTERAÇÃO: Use a apiService para fazer a requisição.
+          // Isso garante que o token de autenticação será enviado.
+          const reciboData = await apiService.getReciboForConfirmacao(id);
+
           setRecibo(reciboData);
           setItensConfirmacao(
             reciboData.itens.map((item) => ({
               itemId: item.id,
               conforme: item.conforme,
               quantidadeRecebida:
-                item.quantidadeRecebida ?? item.quantidadeSolicitada, // Usa recebida se existir, senão o total
+                item.quantidadeRecebida ?? item.quantidadeSolicitada,
               quantidadeSolicitada: item.quantidadeSolicitada,
               observacoes: item.observacoes || "",
               fotosNaoConforme: item.fotosNaoConforme?.map((f) => f.url) || [],
@@ -290,17 +280,23 @@ export default function ConfirmacaoRecebimento() {
     const itensInvalidos = itensConfirmacao.filter(
       (item) =>
         item.conforme === false &&
-        (!item.observacoes?.trim() || item.fotosNaoConforme.length === 0 || item.quantidadeRecebida > item.quantidadeSolicitada)
+        (!item.observacoes?.trim() ||
+          item.fotosNaoConforme.length === 0 ||
+          item.quantidadeRecebida > item.quantidadeSolicitada)
     );
     if (itensInvalidos.length > 0) {
-      if(itensInvalidos.some((item) => item.quantidadeRecebida > item.quantidadeSolicitada)){
+      if (
+        itensInvalidos.some(
+          (item) => item.quantidadeRecebida > item.quantidadeSolicitada
+        )
+      ) {
         toast({
-        title: "Erro",
-        description:
-          "A quantidade de um item recebido não pode ser maior que a quantidade solicitada.",
-        variant: "destructive",
-      });
-      }else{
+          title: "Erro",
+          description:
+            "A quantidade de um item recebido não pode ser maior que a quantidade solicitada.",
+          variant: "destructive",
+        });
+      } else {
         toast({
           title: "Erro",
           description:

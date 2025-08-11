@@ -37,6 +37,7 @@ import {
 } from "@/types";
 import React, { useEffect, useState, useCallback } from "react";
 import { AjustarRecebimentoDialog } from "@/components/recibos/AjustarRecebimentoDialog";
+import { useAuth } from "@/contexts/AuthContext"; // 1. Importe o hook useAuth
 
 // ATUALIZAÇÃO: A interface agora espera o campo `familiaRecibos` da API.
 interface ReciboDetalhado extends BaseRecibo {
@@ -133,6 +134,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   const [recibo, setRecibo] = useState<ReciboDetalhado | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAjusteModalOpen, setIsAjusteModalOpen] = useState(false);
+  const { user } = useAuth(); // 2. Obtenha os dados do usuário logado
 
   const fetchReciboDetails = useCallback(async (idToFetch: string) => {
     if (!idToFetch) return;
@@ -374,15 +376,17 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                         {recibo.pedido.contrato.fornecedor.cnpj}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Telefone:</span>
-                      <div className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        <span className="text-sm">
-                          {recibo.pedido.contrato.fornecedor.telefone}
-                        </span>
+                    {user?.categoria !== "comissao_recebimento" && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Telefone:</span>
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          <span className="text-sm">
+                            {recibo.pedido.contrato.fornecedor.telefone}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

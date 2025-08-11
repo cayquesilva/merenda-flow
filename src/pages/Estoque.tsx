@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -67,6 +67,13 @@ import {
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext"; // 1. Importe o hook de autenticação
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Refinando a interface Estoque para refletir os includes do backend
 interface EstoqueDetalhado {
@@ -137,12 +144,14 @@ interface MovimentacaoDialogProps {
   estoque: EstoqueDetalhado | null;
   onSuccess: () => void;
   unidades: UnidadeEducacional[]; // Passa a lista de unidades para o dialog
+  disabled?: boolean; // 2. Adicione a propriedade 'disabled'
 }
 
 function MovimentacaoDialog({
   estoque,
   onSuccess,
   unidades,
+  disabled = false, // 2. Adicione a propriedade 'disabled'
 }: MovimentacaoDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -298,6 +307,32 @@ function MovimentacaoDialog({
       }
     }
   }, [formData.tipo, formData.unidadeDestinoId, unidades]);
+
+  const BotaoMovimentar = (
+    <Button variant="outline" size="sm" disabled={disabled}>
+      <Edit className="h-3 w-3 mr-1" />
+      Movimentar
+    </Button>
+  );
+
+  // 5. Se estiver desabilitado, envolva o botão com um Tooltip
+  if (disabled) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {/* É necessário um elemento extra para o Tooltip funcionar em botões desabilitados */}
+            <span tabIndex={0} className="cursor-not-allowed">
+              {BotaoMovimentar}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Você não tem permissão para movimentar o estoque.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -598,6 +633,10 @@ export default function Estoque() {
   const [movimentacoes, setMovimentacoes] = useState<
     MovimentacaoEstoqueDetalhada[]
   >([]);
+  const [todasAsUnidades, setTodasAsUnidades] = useState<UnidadeEducacional[]>(
+    []
+  );
+
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
   const [unidadesComTipoEstoque, setUnidadesComTipoEstoque] = useState<
     UnidadeComTipoEstoque[]
@@ -610,12 +649,36 @@ export default function Estoque() {
     valorTotalEstoque: 0,
   });
 
+  const { user } = useAuth(); // 2. Obtenha os dados do usuário logado
+  const { hasPermission } = useAuth(); // 2. Obtenha a função de permissão do contexto
+
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const [isQRCodeDialogOpen, setIsQRCodeDialogOpen] = useState(false);
   const [selectedQRCodeEstoque, setSelectedQRCodeEstoque] =
     useState<EstoqueDetalhado | null>(null);
+
+  const unidadesParaFiltro = useMemo(() => {
+    // Verifica se o usuário tem uma categoria com permissão restrita a unidades
+    const isRestricted =
+      user &&
+      ["comissao_recebimento", "nutricionistas_externas"].includes(
+        user.categoria
+      );
+
+    // Se for restrito e tiver unidades vinculadas, use-as
+    if (
+      isRestricted &&
+      user.unidadesEducacionais &&
+      user.unidadesEducacionais.length > 0
+    ) {
+      return user.unidadesEducacionais;
+    }
+
+    // Senão, use a lista completa de todas as unidades
+    return todasAsUnidades;
+  }, [user, todasAsUnidades]);
 
   useEffect(() => {
     const fetchUnidadesComTipo = async () => {
@@ -629,11 +692,13 @@ export default function Estoque() {
     fetchUnidadesComTipo();
   }, []);
 
+  // Este useEffect agora busca TODAS as unidades ativas,
+  // pois um admin pode precisar ver todas para fazer remanejamentos.
   useEffect(() => {
     const fetchUnidades = async () => {
       try {
         const data = await apiService.getUnidadesAtivas();
-        setUnidades(data);
+        setTodasAsUnidades(data);
       } catch (error) {
         console.error("Erro ao buscar unidades:", error);
       }
@@ -862,8 +927,17 @@ export default function Estoque() {
                   <SelectValue placeholder="Selecionar unidade" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todas">Todas as unidades</SelectItem>
-                  {unidades.map((unidade) => (
+                  <SelectItem value="todas">
+                    {" "}
+                    {user &&
+                    [
+                      "comissao_recebimento",
+                      "nutricionistas_externas",
+                    ].includes(user.categoria)
+                      ? "Todas as minhas unidades"
+                      : "Todas as unidades"}
+                  </SelectItem>
+                  {unidadesParaFiltro.map((unidade) => (
                     <SelectItem key={unidade.id} value={unidade.id}>
                       {unidade.nome}
                     </SelectItem>
@@ -1001,7 +1075,8 @@ export default function Estoque() {
                             <MovimentacaoDialog
                               estoque={item}
                               onSuccess={handleSuccess}
-                              unidades={unidadesComTipoEstoque}
+                              unidades={todasAsUnidades}
+                              disabled={!hasPermission("estoque", "update")}
                             />
                             <Button
                               variant="outline"

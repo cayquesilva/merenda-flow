@@ -34,6 +34,7 @@ import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
 import { useNavigate } from "react-router-dom";
 import { apiService } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext"; // 1. Importe o hook useAuth
 
 // ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
 // Isto resolve o erro de tipagem.
@@ -68,6 +69,7 @@ function useDebounce(value: string, delay: number) {
 export default function Recibos() {
   const [busca, setBusca] = useState("");
   const navigate = useNavigate();
+  const { hasPermission } = useAuth(); // 2. Obtenha a função de permissão
 
   const debouncedBusca = useDebounce(busca, 300);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
@@ -166,7 +168,9 @@ export default function Recibos() {
             Gerencie os recibos de entrega com QR Code
           </p>
         </div>
-        <GerarReciboDialog onSuccess={handleSuccess} />
+        {hasPermission("recibos", "create") && (
+          <GerarReciboDialog onSuccess={handleSuccess} />
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

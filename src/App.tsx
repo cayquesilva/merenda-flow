@@ -207,21 +207,51 @@ function AppContent() {
         />
         <Route
           path="/confirmacao-recebimento/:id"
-          element={<ConfirmacaoRecebimento />}
+          element={
+            <ProtectedRoute module="confirmacoes">
+              <ConfirmacaoRecebimento />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/saida-estoque-qrcode/:estoqueId"
-          element={<SaidaEstoqueQRCode />}
+          element={
+            <ProtectedRoute module="estoque">
+              <SaidaEstoqueQRCode />
+            </ProtectedRoute>
+          }
         />
-        <Route path="/catalogo-qrcode" element={<QRCodeCatalog />} />
+        <Route
+          path="/catalogo-qrcode"
+          element={
+            <ProtectedRoute module="estoque">
+              <QRCodeCatalog />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/relatorios/movimentacao-responsavel"
-          element={<RelatorioMovimentacaoResponsavel />}
+          element={
+            <ProtectedRoute module="estoque">
+              <RelatorioMovimentacaoResponsavel />
+            </ProtectedRoute>
+          }
         />
-        <Route path="/recibos/imprimir/:id" element={<ImprimirRecibo />} />
+        <Route
+          path="/recibos/imprimir/:id"
+          element={
+            <ProtectedRoute module="recibos">
+              <ImprimirRecibo />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/recibos/imprimir-pedido/:pedidoId"
-          element={<ImprimirRecibosPedido />}
+          element={
+            <ProtectedRoute module="recibos">
+              <ImprimirRecibosPedido />
+            </ProtectedRoute>
+          }
         />
         <Route path="*" element={<NotFound />} />
       </Routes>

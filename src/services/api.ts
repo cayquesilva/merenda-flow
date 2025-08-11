@@ -4,7 +4,9 @@ const API_BASE_URL = `${
 import { User } from "@/types/auth";
 
 // Tipagem parcial para os dados de criação/atualização de usuário.
-type UsuarioData = Partial<Pick<User, "nome" | "email" | "categoria" | "ativo">>;
+type UsuarioData = Partial<
+  Pick<User, "nome" | "email" | "categoria" | "ativo">
+>;
 
 class ApiService {
   private getAuthHeaders() {
@@ -32,7 +34,8 @@ class ApiService {
       throw new Error(error.error || `HTTP ${response.status}`);
     }
 
-    if (response.status === 204) { // No Content
+    if (response.status === 204) {
+      // No Content
       return null;
     }
 
@@ -86,14 +89,14 @@ class ApiService {
   // COMENTÁRIO: Método para buscar a lista de todas as unidades educacionais ativas.
   // Ele chama a rota GET /api/unidades-ativas que já existe no backend.
   async getUnidadesAtivas() {
-    return this.request('/api/unidades-ativas');
+    return this.request("/api/unidades-ativas");
   }
 
   // COMENTÁRIO: Método para vincular uma unidade a um usuário.
   // Ele chama a rota POST /api/usuarios/:userId/unidades que foi criada no backend.
   async linkUnidadeToUsuario(userId: string, unidadeId: string) {
     return this.request(`/api/usuarios/${userId}/unidades`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ unidadeId }),
     });
   }
@@ -102,14 +105,14 @@ class ApiService {
   // Ele chama a rota DELETE /api/usuarios/:userId/unidades/:unidadeId do backend.
   async unlinkUnidadeFromUsuario(userId: string, unidadeId: string) {
     return this.request(`/api/usuarios/${userId}/unidades/${unidadeId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
-    // COMENTÁRIO: Adicionado método para buscar as estatísticas dos recibos.
+  // COMENTÁRIO: Adicionado método para buscar as estatísticas dos recibos.
   // Ele chama a rota GET /api/recibos/stats.
   async getRecibosStats() {
-    return this.request('/api/recibos/stats');
+    return this.request("/api/recibos/stats");
   }
 
   // COMENTÁRIO: Adicionado método para buscar a lista de recibos com filtros.
@@ -119,9 +122,9 @@ class ApiService {
     return this.request(`/api/recibos?${params.toString()}`);
   }
 
-   // COMENTÁRIO: Busca as unidades já com o tipo de estoque (creche/escola) definido.
+  // COMENTÁRIO: Busca as unidades já com o tipo de estoque (creche/escola) definido.
   async getUnidadesComTipoEstoque() {
-    return this.request('/api/unidades-com-tipo-estoque');
+    return this.request("/api/unidades-com-tipo-estoque");
   }
 
   // COMENTÁRIO: Busca o estoque consolidado com base nos filtros.
@@ -136,13 +139,16 @@ class ApiService {
 
   // COMENTÁRIO: Cria uma nova movimentação de estoque.
   async createMovimentacaoEstoque(payload) {
-    return this.request('/api/estoque/movimentacao', {
-      method: 'POST',
+    return this.request("/api/estoque/movimentacao", {
+      method: "POST",
       body: JSON.stringify(payload),
     });
   }
 
-
+  // NOVO: Método para buscar os dados de um recibo para a página de confirmação.
+  async getReciboForConfirmacao(id: string) {
+    return this.request(`/api/recibos/confirmacao/${id}`);
+  }
 }
 
 export const apiService = new ApiService();
