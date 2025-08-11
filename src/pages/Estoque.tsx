@@ -66,6 +66,7 @@ import {
   Recibo as BaseRecibo,
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from "@/services/api";
 
 // Refinando a interface Estoque para refletir os includes do backend
 interface EstoqueDetalhado {
@@ -238,10 +239,8 @@ function MovimentacaoDialog({
     try {
       const payload = {
         estoqueId: estoque.id,
-        tipoEstoque: estoque.tipoEstoque,
         ...formData,
-        quantidade,
-        // Envia o ID da unidade de destino apenas se for remanejamento
+        quantidade: Number(formData.quantidade),
         unidadeDestinoId:
           formData.tipo === "remanejamento"
             ? formData.unidadeDestinoId
@@ -250,21 +249,8 @@ function MovimentacaoDialog({
           formData.tipo === "descarte" ? formData.fotoDescarte : null,
       };
 
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/estoque/movimentacao`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao registrar movimentação");
-      }
+      // ALTERAÇÃO: Chamada à API agora usa a apiService
+      await apiService.createMovimentacaoEstoque(payload);
 
       toast({
         title: "Sucesso!",
@@ -634,14 +620,8 @@ export default function Estoque() {
   useEffect(() => {
     const fetchUnidadesComTipo = async () => {
       try {
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/unidades-com-tipo-estoque`
-        );
-        if (response.ok) {
-          setUnidadesComTipoEstoque(await response.json());
-        }
+        const data = await apiService.getUnidadesComTipoEstoque();
+        setUnidadesComTipoEstoque(data);
       } catch (error) {
         console.error("Erro ao buscar unidades com tipo de estoque:", error);
       }
@@ -652,14 +632,8 @@ export default function Estoque() {
   useEffect(() => {
     const fetchUnidades = async () => {
       try {
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/unidades-ativas`
-        );
-        if (response.ok) {
-          setUnidades(await response.json());
-        }
+        const data = await apiService.getUnidadesAtivas();
+        setUnidades(data);
       } catch (error) {
         console.error("Erro ao buscar unidades:", error);
       }
@@ -678,26 +652,11 @@ export default function Estoque() {
         if (tipoEstoqueSelecionado !== "todos")
           params.append("tipoEstoque", tipoEstoqueSelecionado);
 
-        const [estoqueRes, movimentacoesRes] = await Promise.all([
-          fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:3001"
-            }/api/estoque/consolidado?${params}`
-          ),
-          fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:3001"
-            }/api/estoque/movimentacoes?${params}`
-          ),
+        // Chamadas em paralelo usando a apiService
+        const [estoqueData, movimentacoesData] = await Promise.all([
+          apiService.getEstoqueConsolidado(params),
+          apiService.getEstoqueMovimentacoes(params),
         ]);
-
-        if (!estoqueRes.ok || !movimentacoesRes.ok) {
-          throw new Error("Falha ao buscar dados do estoque");
-        }
-
-        const estoqueData: EstoqueDetalhado[] = await estoqueRes.json();
-        const movimentacoesData: MovimentacaoEstoqueDetalhada[] =
-          await movimentacoesRes.json();
 
         setEstoque(estoqueData);
         setMovimentacoes(movimentacoesData);
@@ -722,10 +681,14 @@ export default function Estoque() {
           valorTotalEstoque,
         });
       } catch (error) {
+        let errorMessage = "Não foi possível carregar os dados do estoque";
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
         console.error("Erro:", error);
         toast({
           title: "Erro",
-          description: "Não foi possível carregar os dados do estoque",
+          description: errorMessage,
           variant: "destructive",
         });
       } finally {

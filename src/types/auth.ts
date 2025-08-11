@@ -85,7 +85,6 @@ export const USER_CATEGORIES: Partial<
   comissao_recebimento: {
     label: "Comissão de Recebimento",
     permissions: {
-      dashboard: { module: "dashboard", actions: ["read"] },
       recibos: { module: "recibos", actions: ["read"] },
       confirmacoes: {
         module: "confirmacoes",

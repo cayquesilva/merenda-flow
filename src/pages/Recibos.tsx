@@ -33,6 +33,7 @@ import {
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
 import { useNavigate } from "react-router-dom";
+import { apiService } from "@/services/api";
 
 // ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
 // Isto resolve o erro de tipagem.
@@ -87,31 +88,28 @@ export default function Recibos() {
     const fetchRecibosEStats = async () => {
       setIsLoading(true);
       try {
-        const [recibosRes, statsRes] = await Promise.all([
-          fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:3001"
-            }/api/recibos?q=${debouncedBusca}&status=${statusFilter}`
-          ),
-          fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:3001"
-            }/api/recibos/stats`
-          ),
+        // Agora usando a apiService, que envia o token de autenticação
+        const [recibosData, statsData] = await Promise.all([
+          apiService.getRecibos(debouncedBusca, statusFilter),
+          apiService.getRecibosStats(),
         ]);
-        if (!recibosRes.ok || !statsRes.ok)
-          throw new Error("Falha ao buscar dados dos recibos.");
 
-        setRecibos(await recibosRes.json());
-        setStats(await statsRes.json());
+        setRecibos(recibosData);
+        setStats(statsData);
       } catch (error) {
-        console.error("Erro:", error);
+        let errorMessage = "Falha ao buscar dados dos recibos.";
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        console.error("Erro:", errorMessage);
+        // Opcional: Adicionar um toast de erro para o usuário
+        // toast({ title: "Erro", description: errorMessage, variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     };
     fetchRecibosEStats();
-  }, [debouncedBusca, statusFilter, refreshKey]);
+  }, [debouncedBusca, statusFilter, refreshKey]); // Remova o 'toast' se não for usá-lo aqui
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -375,7 +373,9 @@ export default function Recibos() {
                       {recibo.pedido.contrato.fornecedor.nome}
                     </TableCell>
                     <TableCell>
-                      {new Date(recibo.pedido.dataPedido).toLocaleDateString("pt-BR")}
+                      {new Date(recibo.pedido.dataPedido).toLocaleDateString(
+                        "pt-BR"
+                      )}
                     </TableCell>
                     <TableCell>
                       {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}

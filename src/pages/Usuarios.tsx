@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -35,29 +35,100 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Search, Plus, Edit, Users, Mail, Shield } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Search,
+  Plus,
+  Edit,
+  Users,
+  Mail,
+  Check,
+  ChevronsUpDown,
+  Home,
+  X,
+} from "lucide-react";
+// ALTERAÇÃO: A interface User agora inclui as unidades educacionais vinculadas.
 import { User, UserCategory, USER_CATEGORIES } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
 
+// NOVO: Definida a interface para os dados de uma Unidade Educacional.
+interface UnidadeEducacional {
+  id: string;
+  nome: string;
+  codigo: string;
+}
+
 interface UserDialogProps {
-  user?: User;
+  user?: User & {
+    unidadesEducacionais?: UnidadeEducacional[];
+    _count?: { unidadesEducacionais?: number };
+  };
   onSuccess: () => void;
 }
 
+// ALTERAÇÃO: O componente UserDialog foi extensivamente modificado para gerenciar a vinculação de unidades.
 function UserDialog({ user, onSuccess }: UserDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  // NOVO: Estado para armazenar todas as unidades educacionais disponíveis para seleção.
+  const [unidadesDisponiveis, setUnidadesDisponiveis] = useState<
+    UnidadeEducacional[]
+  >([]);
   const [formData, setFormData] = useState({
     nome: user?.nome || "",
     email: user?.email || "",
     senha: "",
     categoria: user?.categoria || ("comissao_recebimento" as UserCategory),
     ativo: user?.ativo ?? true,
+    // NOVO: Campo para armazenar os IDs das unidades selecionadas.
+    unidadeIds: user?.unidadesEducacionais?.map((unidade) => unidade.id) || [],
   });
   const { toast } = useToast();
 
   const isEdicao = !!user;
+
+  // NOVO: Carrega a lista de unidades educacionais ativas quando o diálogo é aberto.
+  useEffect(() => {
+    const carregarUnidades = async () => {
+      try {
+        const data = await apiService.getUnidadesAtivas();
+        setUnidadesDisponiveis(data);
+      } catch (error) {
+        toast({
+          title: "Erro ao carregar unidades",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    };
+
+    if (open) {
+      carregarUnidades();
+      // Reseta o formulário com os dados do usuário ao abrir para edição.
+      setFormData({
+        nome: user?.nome || "",
+        email: user?.email || "",
+        senha: "",
+        categoria: user?.categoria || "comissao_recebimento",
+        ativo: user?.ativo ?? true,
+        unidadeIds:
+          user?.unidadesEducacionais?.map((unidade) => unidade.id) || [],
+      });
+    }
+  }, [open, user, toast]);
 
   const handleSubmit = async () => {
     if (!formData.nome.trim() || !formData.email.trim()) {
@@ -80,16 +151,46 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
 
     setLoading(true);
     try {
-      const dadosEnvio = { ...formData };
-      if (isEdicao && !dadosEnvio.senha) {
-        delete dadosEnvio.senha;
+      // 1. Usamos desestruturação para separar 'unidadeIds' do resto dos dados.
+      // 'dadosParaApi' será um novo objeto sem a propriedade 'unidadeIds'.
+      const { unidadeIds, ...dadosParaApi } = formData;
+
+      // 2. A lógica para remover a senha (se vazia na edição) continua a mesma,
+      // mas agora aplicada ao novo objeto 'dadosParaApi'.
+      if (isEdicao && !dadosParaApi.senha) {
+        delete dadosParaApi.senha;
       }
 
+      let usuarioSalvo: User;
       if (isEdicao) {
-        await apiService.updateUsuario(user!.id, dadosEnvio);
+        // 3. Enviamos para a API apenas o objeto 'dadosParaApi', que já está limpo.
+        usuarioSalvo = await apiService.updateUsuario(user!.id, dadosParaApi);
       } else {
-        await apiService.createUsuario(dadosEnvio);
+        usuarioSalvo = await apiService.createUsuario(dadosParaApi);
       }
+
+      // NOVO: Lógica para sincronizar as unidades vinculadas após salvar o usuário.
+      // Esta parte agora usa a variável 'unidadeIds' que foi separada no início.
+      const idsIniciais =
+        user?.unidadesEducacionais?.map((u) => u.id) || [];
+      const idsFinais = unidadeIds; // Usamos a variável desestruturada
+
+      const idsParaAdicionar = idsFinais.filter(
+        (id) => !idsIniciais.includes(id)
+      );
+      const idsParaRemover = idsIniciais.filter(
+        (id) => !idsFinais.includes(id)
+      );
+
+      // Executa as operações de vinculação e desvinculação em paralelo.
+      await Promise.all([
+        ...idsParaAdicionar.map((unidadeId) =>
+          apiService.linkUnidadeToUsuario(usuarioSalvo.id, unidadeId)
+        ),
+        ...idsParaRemover.map((unidadeId) =>
+          apiService.unlinkUnidadeFromUsuario(usuarioSalvo.id, unidadeId)
+        ),
+      ]);
 
       toast({
         title: isEdicao ? "Usuário atualizado!" : "Usuário cadastrado!",
@@ -99,26 +200,32 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
       });
 
       setOpen(false);
-      if (!isEdicao) {
-        setFormData({
-          nome: "",
-          email: "",
-          senha: "",
-          categoria: "comissao_recebimento",
-          ativo: true,
-        });
-      }
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
+      let errorMessage = "Não foi possível salvar o usuário";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível salvar o usuário",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  // NOVO: O seletor de unidades é renderizado condicionalmente.
+  const mostrarSeletorUnidades = [
+    "comissao_recebimento",
+    "nutricionistas_externas",
+  ].includes(formData.categoria);
+
+  const unidadesSelecionadas = useMemo(
+    () => unidadesDisponiveis.filter((u) => formData.unidadeIds.includes(u.id)),
+    [formData.unidadeIds, unidadesDisponiveis]
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -142,12 +249,13 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
           </DialogTitle>
           <DialogDescription>
             {isEdicao
-              ? "Edite as informações do usuário"
-              : "Cadastre um novo usuário no sistema"}
+              ? "Edite as informações do usuário e suas unidades vinculadas."
+              : "Cadastre um novo usuário no sistema."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
+          {/* ... campos de nome, email, senha ... */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="nome">Nome *</Label>
@@ -173,7 +281,6 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
               />
             </div>
           </div>
-
           <div>
             <Label htmlFor="senha">
               {isEdicao
@@ -193,25 +300,87 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
             />
           </div>
 
-          <div>
-            <Label htmlFor="categoria">Categoria de Usuário *</Label>
-            <Select
-              value={formData.categoria}
-              onValueChange={(value: UserCategory) =>
-                setFormData({ ...formData, categoria: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(USER_CATEGORIES).map(([key, category]) => (
-                  <SelectItem key={key} value={key}>
-                    {category.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="categoria">Categoria de Usuário *</Label>
+              <Select
+                value={formData.categoria}
+                onValueChange={(value: UserCategory) =>
+                  setFormData({ ...formData, categoria: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(USER_CATEGORIES).map(([key, category]) => (
+                    <SelectItem key={key} value={key}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* NOVO: Componente de seleção múltipla para unidades educacionais. */}
+            {mostrarSeletorUnidades && (
+              <div>
+                <Label htmlFor="unidades">Unidades Vinculadas</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                    >
+                      <span className="truncate">
+                        {unidadesSelecionadas.length > 0
+                          ? `${unidadesSelecionadas.length} unidade(s) selecionada(s)`
+                          : "Selecione as unidades..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar unidade..." />
+                      <CommandEmpty>Nenhuma unidade encontrada.</CommandEmpty>
+                      <CommandList>
+                        <CommandGroup>
+                          {unidadesDisponiveis.map((unidade) => (
+                            <CommandItem
+                              key={unidade.id}
+                              value={unidade.nome}
+                              onSelect={() => {
+                                const isSelected = formData.unidadeIds.includes(
+                                  unidade.id
+                                );
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  unidadeIds: isSelected
+                                    ? prev.unidadeIds.filter(
+                                        (id) => id !== unidade.id
+                                      )
+                                    : [...prev.unidadeIds, unidade.id],
+                                }));
+                              }}
+                            >
+                              <Check
+                                className={`mr-2 h-4 w-4 ${
+                                  formData.unidadeIds.includes(unidade.id)
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                }`}
+                              />
+                              {unidade.nome}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -225,29 +394,40 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
             <Label htmlFor="ativo">Usuário ativo</Label>
           </div>
 
-          {/* Mostrar permissões da categoria selecionada */}
-          <div className="mt-4 p-4 bg-muted rounded-lg">
-            <h4 className="font-medium mb-2">Permissões da Categoria:</h4>
-            <div className="text-sm text-muted-foreground">
-              <p className="font-medium">
-                {USER_CATEGORIES[formData.categoria].label}
-              </p>
-              <div className="mt-2 space-y-1">
-                {Object.entries(
-                  USER_CATEGORIES[formData.categoria].permissions
-                ).map(([module, permission]) => (
-                  <div key={module} className="flex justify-between">
-                    <span className="capitalize">
-                      {module.replace("_", " ")}
-                    </span>
-                    <span className="text-xs">
-                      {permission.actions.join(", ")}
-                    </span>
-                  </div>
+          {/* NOVO: Exibe as unidades selecionadas como badges. */}
+          {mostrarSeletorUnidades && unidadesSelecionadas.length > 0 && (
+            <div className="mt-2 p-2 border rounded-md">
+              <Label className="text-sm font-medium">
+                Unidades Selecionadas:
+              </Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {unidadesSelecionadas.map((unidade) => (
+                  <Badge
+                    key={unidade.id}
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                  >
+                    {unidade.nome}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 rounded-full"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          unidadeIds: prev.unidadeIds.filter(
+                            (id) => id !== unidade.id
+                          ),
+                        }));
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
                 ))}
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -267,18 +447,21 @@ function UserDialog({ user, onSuccess }: UserDialogProps) {
   );
 }
 
+// ALTERAÇÃO: O componente principal agora lida com o tipo de usuário que inclui o _count.
 export default function Usuarios() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [usuarios, setUsuarios] = useState<User[]>([]);
+  const [usuarios, setUsuarios] = useState<
+    (User & { _count?: { unidadesEducacionais?: number } })[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const loadUsuarios = async () => {
+  const loadUsuarios = useCallback( async () => {
     try {
       setLoading(true);
       const data = await apiService.getUsuarios(searchTerm);
       setUsuarios(data);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Erro",
         description: error.message || "Não foi possível carregar os usuários",
@@ -287,11 +470,15 @@ export default function Usuarios() {
     } finally {
       setLoading(false);
     }
-  };
+  },[searchTerm, toast]);
 
   useEffect(() => {
     loadUsuarios();
-  }, [searchTerm]);
+  }, [loadUsuarios]); // Carrega apenas uma vez inicialmente
+
+  const handleSearch = () => {
+    loadUsuarios();
+  };
 
   const handleSuccess = () => {
     loadUsuarios();
@@ -309,7 +496,7 @@ export default function Usuarios() {
         description: `${nome} foi removido com sucesso`,
       });
       loadUsuarios();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Erro",
         description: error.message || "Não foi possível deletar o usuário",
@@ -320,7 +507,7 @@ export default function Usuarios() {
 
   const getCategoryBadge = (categoria: UserCategory) => {
     const categoryInfo = USER_CATEGORIES[categoria];
-    return <Badge variant="outline">{categoryInfo.label}</Badge>;
+    return <Badge variant="outline">{categoryInfo?.label || categoria}</Badge>;
   };
 
   return (
@@ -337,26 +524,27 @@ export default function Usuarios() {
         <UserDialog onSuccess={handleSuccess} />
       </div>
 
-      {/* Filtros */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Filtros</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome ou email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
-              disabled={loading}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
+            <Button onClick={handleSearch} disabled={loading}>
+              <Search className="mr-2 h-4 w-4" />
+              Buscar
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Lista de Usuários */}
       <Card>
         <CardHeader>
           <CardTitle>Usuários Cadastrados</CardTitle>
@@ -373,21 +561,23 @@ export default function Usuarios() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Categoria</TableHead>
+                {/* NOVO: Coluna para Unidades Vinculadas. */}
+                <TableHead>Unidades Vinculadas</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Data Cadastro</TableHead>
-                <TableHead className="w-[100px]">Ações</TableHead>
+                <TableHead className="w-[180px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     Carregando usuários...
                   </TableCell>
                 </TableRow>
               ) : usuarios.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     Nenhum usuário encontrado
                   </TableCell>
                 </TableRow>
@@ -407,6 +597,13 @@ export default function Usuarios() {
                       </div>
                     </TableCell>
                     <TableCell>{getCategoryBadge(user.categoria)}</TableCell>
+                    {/* NOVO: Célula que exibe a contagem de unidades. */}
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Home className="mr-2 h-4 w-4 text-muted-foreground" />
+                        {user._count?.unidadesEducacionais || 0}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={user.ativo ? "default" : "secondary"}>
                         {user.ativo ? "Ativo" : "Inativo"}
@@ -436,41 +633,7 @@ export default function Usuarios() {
         </CardContent>
       </Card>
 
-      {/* Informações sobre Categorias */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Categorias de Usuário
-          </CardTitle>
-          <CardDescription>
-            Entenda as permissões de cada categoria
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {Object.entries(USER_CATEGORIES).map(([key, category]) => (
-              <Card key={key} className="p-4">
-                <h4 className="font-medium mb-2">{category.label}</h4>
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  {Object.entries(category.permissions).map(
-                    ([module, permission]) => (
-                      <div key={module} className="flex justify-between">
-                        <span className="capitalize">
-                          {module.replace("_", " ")}
-                        </span>
-                        <span className="text-xs">
-                          {permission.actions.join(", ")}
-                        </span>
-                      </div>
-                    )
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* ... Card de Informações sobre Categorias ... */}
     </div>
   );
 }

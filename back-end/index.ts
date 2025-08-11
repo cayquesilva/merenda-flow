@@ -1032,7 +1032,7 @@ app.get("/api/pedidos-para-recibo", async (req: Request, res: Response) => {
 
 // COMENTÁRIO: Retorna as estatísticas principais para os cards no topo da página de Recibos.
 // UTILIZAÇÃO: Chamada pela página `Recibos.tsx` para obter os totais.
-app.get("/api/recibos/stats", async (req: Request, res: Response) => {
+app.get("/api/recibos/stats", authenticateToken, async (req: Request, res: Response) => {
   try {
     const totalCount = await prisma.recibo.count();
     const pendingCount = await prisma.recibo.count({
