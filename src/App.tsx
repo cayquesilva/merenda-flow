@@ -176,7 +176,7 @@ function AppContent() {
         <Route
           path="/confirmacoes"
           element={
-            <ProtectedRoute module="confirmacoes">
+            <ProtectedRoute module="confirmacao_relatorio">
               <Confirmacoes />
             </ProtectedRoute>
           }
@@ -208,7 +208,7 @@ function AppContent() {
         <Route
           path="/confirmacao-recebimento/:id"
           element={
-            <ProtectedRoute module="confirmacoes">
+            <ProtectedRoute module="confirmacao_recebimento">
               <ConfirmacaoRecebimento />
             </ProtectedRoute>
           }

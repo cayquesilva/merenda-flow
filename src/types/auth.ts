@@ -36,7 +36,8 @@ export type ModuleName =
   | "unidades"
   | "pedidos"
   | "recibos"
-  | "confirmacoes"
+  | "confirmacao_recebimento"
+  | "confirmacao_relatorio"
   | "estoque"
   | "relatorios"
   | "usuarios"
@@ -81,8 +82,12 @@ export const USER_CATEGORIES: Partial<
         module: "recibos",
         actions: ["read", "create", "update", "delete"],
       },
-      confirmacoes: {
-        module: "confirmacoes",
+      confirmacao_recebimento: {
+        module: "confirmacao_recebimento",
+        actions: ["read", "create", "update", "delete"],
+      },
+      confirmacao_relatorio: {
+        module: "confirmacao_relatorio",
         actions: ["read", "create", "update", "delete"],
       },
       estoque: {
@@ -115,7 +120,14 @@ export const USER_CATEGORIES: Partial<
       unidades: { module: "unidades", actions: ["read", "create", "update"] },
       pedidos: { module: "pedidos", actions: ["read", "create", "update"] },
       recibos: { module: "recibos", actions: ["read", "create", "update"] },
-      confirmacoes: { module: "confirmacoes", actions: ["read"] },
+      confirmacao_recebimento: {
+        module: "confirmacao_recebimento",
+        actions: ["read", "create", "update"],
+      },
+      confirmacao_relatorio: {
+        module: "confirmacao_relatorio",
+        actions: ["read", "create", "update"],
+      },
       estoque: { module: "estoque", actions: ["read", "update"] },
       relatorios: { module: "relatorios", actions: ["read", "create"] },
       percapita: {
@@ -127,16 +139,18 @@ export const USER_CATEGORIES: Partial<
   comissao_recebimento: {
     label: "Comissão de Recebimento",
     permissions: {
-      dashboard: { module: "dashboard", actions: ["read"] },
       recibos: { module: "recibos", actions: ["read"] },
       estoque: { module: "estoque", actions: ["read"] },
+      confirmacao_recebimento: {
+        module: "confirmacao_recebimento",
+        actions: ["read", "create"],
+      },
     },
   },
   // NOVO: Adicionada a categoria 'nutricionistas_externas' com suas permissões específicas.
   nutricionistas_externas: {
     label: "Nutricionistas Externas",
     permissions: {
-      dashboard: { module: "dashboard", actions: ["read"] },
       recibos: { module: "recibos", actions: ["read"] },
       estoque: { module: "estoque", actions: ["read", "create", "update"] }, // create/update para movimentações
       relatorios: { module: "relatorios", actions: ["read"] },

@@ -1431,17 +1431,22 @@ app.get("/api/recibos/confirmacao/:id", optionalAuthenticateToken, async (req: A
     if (!recibo) {
       return res.status(404).json({ error: "Recibo não encontrado." });
     }
-    // NOVO: Bloco de verificação de permissão
-      // Se 'unidadesPermitidas' existe, significa que um usuário restrito está logado.
-      if (req.unidadesPermitidas) {
-        // Verifica se a unidade do recibo está na lista de unidades permitidas do usuário.
-        if (!req.unidadesPermitidas.includes(recibo.unidadeEducacionalId)) {
-          return res.status(403).json({
-            error:
-              "Acesso negado. Você não tem permissão para visualizar o recibo desta unidade.",
-          });
-        }
+    // NOVO: LÓGICA DE PERMISSÃO AJUSTADA
+    // Verifica se há um usuário logado e se ele tem restrição de unidades.
+    if (req.user && req.unidadesPermitidas) {
+      
+      // CONDIÇÃO ESPECIAL: Se o usuário for da 'comissao_recebimento',
+      // esta verificação de unidade é ignorada, permitindo o acesso.
+      const isComissaoRecebimento = req.user.categoria === 'comissao_recebimento';
+
+      if (!isComissaoRecebimento && !req.unidadesPermitidas.includes(recibo.unidadeEducacionalId)) {
+        return res.status(403).json({
+          error:
+            "Acesso negado. Você não tem permissão para visualizar o recibo desta unidade.",
+        });
       }
+    }
+    
     if (!["pendente"].includes(recibo.status)) {
       return res.status(409).json({ error: "Este recibo já foi processado." });
     }
