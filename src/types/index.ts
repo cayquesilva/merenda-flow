@@ -29,6 +29,7 @@ export interface ItemContrato {
   saldoCreche: number;
   saldoEscola: number;
   percapitas?: PercapitaItem[];
+  gramagemPorPacote?: number;
 }
 
 export interface Contrato {

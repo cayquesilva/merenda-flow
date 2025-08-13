@@ -121,6 +121,9 @@ model ItemContrato {
   saldoCreche        Float @default(0) @map("saldo_creche")
   saldoEscola        Float @default(0) @map("saldo_escola")
 
+  gramagemPorPacote  Float?  @map("gramagem_por_pacote") // Gramagem do pacote em gramas. É opcional.
+
+
   // Relação com Contrato
   contrato   Contrato @relation(fields: [contratoId], references: [id])
   contratoId String   @map("contrato_id")

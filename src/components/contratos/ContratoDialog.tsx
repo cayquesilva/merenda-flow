@@ -197,6 +197,7 @@ export function ContratoDialog({
         quantidadeEscola: 0,
         saldoCreche: 0,
         saldoEscola: 0,
+        gramagemPorPacote: 0,
       },
     ]);
 
@@ -213,7 +214,8 @@ export function ContratoDialog({
     | "quantidadeCreche"
     | "quantidadeEscola"
     | "saldoCreche"
-    | "saldoEscola";
+    | "saldoEscola"
+    | "gramagemPorPacote";
 
   // Função para atualizar item com tipagem forte usando sobrecarga
   function atualizarItem(
@@ -223,7 +225,11 @@ export function ContratoDialog({
   ): void;
   function atualizarItem(
     index: number,
-    campo: "valorUnitario" | "quantidadeCreche" | "quantidadeEscola",
+    campo:
+      | "valorUnitario"
+      | "quantidadeCreche"
+      | "quantidadeEscola"
+      | "gramagemPorPacote",
     valor: number
   ): void;
   function atualizarItem(
@@ -240,7 +246,11 @@ export function ContratoDialog({
         item[campo as "nome" | "unidadeMedidaId"] = valor;
       } else if (typeof valor === "number") {
         item[
-          campo as "valorUnitario" | "quantidadeCreche" | "quantidadeEscola"
+          campo as
+            | "valorUnitario"
+            | "quantidadeCreche"
+            | "quantidadeEscola"
+            | "gramagemPorPacote"
         ] = valor;
       }
 
@@ -309,6 +319,7 @@ export function ContratoDialog({
       quantidadeEscola: Number(item.quantidadeEscola),
       saldoCreche: Number(item.quantidadeCreche),
       saldoEscola: Number(item.quantidadeEscola),
+      gramagemPorPacote: Number(item.gramagemPorPacote) || null,
     }));
 
     const contratoPayload = {
@@ -502,142 +513,175 @@ export function ContratoDialog({
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {itens.map((item, index) => (
-                    <Card key={item.id || index} className="p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-                        <div className="md:col-span-2">
-                          <Label>Nome do Item *</Label>
-                          <Input
-                            value={item.nome || ""}
-                            onChange={(e) =>
-                              atualizarItem(index, "nome", e.target.value)
-                            }
-                            placeholder="Ex: Arroz integral"
-                            disabled={isSubmitting || isEdicao}
-                          />
-                        </div>
-                        <div>
-                          <Label>Unidade de Medida *</Label>
-                          <Select
-                            value={item.unidadeMedidaId || ""}
-                            onValueChange={(value) =>
-                              atualizarItem(index, "unidadeMedidaId", value)
-                            }
-                            disabled={isSubmitting || isEdicao}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {unidadesMedida.map((unidade) => (
-                                <SelectItem key={unidade.id} value={unidade.id}>
-                                  {unidade.sigla} - {unidade.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {/* Campos de quantidade separados */}
-                        <div>
-                          <Label>Qtd. Creches *</Label>
-                          <Input
-                            type="number"
-                            value={item.quantidadeCreche || ""}
-                            onChange={(e) =>
-                              atualizarItem(
-                                index,
-                                "quantidadeCreche",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            placeholder="0"
-                            disabled={isEdicao}
-                          />
-                        </div>
-                        <div>
-                          <Label>Qtd. Escolas *</Label>
-                          <Input
-                            type="number"
-                            value={item.quantidadeEscola || ""}
-                            onChange={(e) =>
-                              atualizarItem(
-                                index,
-                                "quantidadeEscola",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            placeholder="0"
-                            disabled={isEdicao}
-                          />
-                        </div>
-                        <div>
-                          <Label>Valor Unitário *</Label>
-                          <Input
-                            type="number"
-                            step="1"
-                            value={item.valorUnitario || ""}
-                            onChange={(e) =>
-                              atualizarItem(
-                                index,
-                                "valorUnitario",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            placeholder="0,00"
-                            disabled={isEdicao}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {itens.length > 1 && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removerItem(index)}
-                              className="text-destructive"
-                              disabled={isEdicao}
+                  {itens.map((item, index) => {
+                    // NOVO: Lógica para verificar se a unidade selecionada é "Pacote"
+                    const unidadeSelecionada = unidadesMedida.find(
+                      (u) => u.id === item.unidadeMedidaId
+                    );
+                    const isPacote =
+                      unidadeSelecionada?.sigla.toLowerCase() === "pct";
+
+                    return (
+                      <Card key={item.id || index} className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
+                          <div className="md:col-span-2">
+                            <Label>Nome do Item *</Label>
+                            <Input
+                              value={item.nome || ""}
+                              onChange={(e) =>
+                                atualizarItem(index, "nome", e.target.value)
+                              }
+                              placeholder="Ex: Arroz integral"
+                              disabled={isSubmitting || isEdicao}
+                            />
+                          </div>
+                          <div>
+                            <Label>Unidade de Medida *</Label>
+                            <Select
+                              value={item.unidadeMedidaId || ""}
+                              onValueChange={(value) =>
+                                atualizarItem(index, "unidadeMedidaId", value)
+                              }
+                              disabled={isSubmitting || isEdicao}
                             >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecionar" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {unidadesMedida.map((unidade) => (
+                                  <SelectItem
+                                    key={unidade.id}
+                                    value={unidade.id}
+                                  >
+                                    {unidade.sigla} - {unidade.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* NOVO: Campo condicional para Gramagem do Pacote */}
+                          {isPacote && (
+                            <div>
+                              <Label>Gramagem (g) *</Label>
+                              <Input
+                                type="number"
+                                value={item.gramagemPorPacote || ""}
+                                onChange={(e) =>
+                                  atualizarItem(
+                                    index,
+                                    "gramagemPorPacote",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                placeholder="Ex: 500"
+                                disabled={isEdicao}
+                              />
+                            </div>
                           )}
+
+                          {/* Campos de quantidade separados */}
+                          <div>
+                            <Label>Qtd. Creches *</Label>
+                            <Input
+                              type="number"
+                              value={item.quantidadeCreche || ""}
+                              onChange={(e) =>
+                                atualizarItem(
+                                  index,
+                                  "quantidadeCreche",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              placeholder="0"
+                              disabled={isEdicao}
+                            />
+                          </div>
+                          <div>
+                            <Label>Qtd. Escolas *</Label>
+                            <Input
+                              type="number"
+                              value={item.quantidadeEscola || ""}
+                              onChange={(e) =>
+                                atualizarItem(
+                                  index,
+                                  "quantidadeEscola",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              placeholder="0"
+                              disabled={isEdicao}
+                            />
+                          </div>
+                          <div>
+                            <Label>Valor Unitário *</Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              value={item.valorUnitario || ""}
+                              onChange={(e) =>
+                                atualizarItem(
+                                  index,
+                                  "valorUnitario",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              placeholder="0,00"
+                              disabled={isEdicao}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {itens.length > 1 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removerItem(index)}
+                                className="text-destructive"
+                                disabled={isEdicao}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                          <div>
-                            Total Geral:{" "}
-                            {new Intl.NumberFormat("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            }).format(
-                              (item.valorUnitario || 0) *
-                                ((item.quantidadeCreche || 0) +
-                                  (item.quantidadeEscola || 0))
-                            )}
-                          </div>
-                          <div>
-                            Creches:{" "}
-                            {new Intl.NumberFormat("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            }).format(
-                              (item.valorUnitario || 0) *
-                                (item.quantidadeCreche || 0)
-                            )}
-                          </div>
-                          <div>
-                            Escolas:{" "}
-                            {new Intl.NumberFormat("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            }).format(
-                              (item.valorUnitario || 0) *
-                                (item.quantidadeEscola || 0)
-                            )}
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                            <div>
+                              Total Geral:{" "}
+                              {new Intl.NumberFormat("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              }).format(
+                                (item.valorUnitario || 0) *
+                                  ((item.quantidadeCreche || 0) +
+                                    (item.quantidadeEscola || 0))
+                              )}
+                            </div>
+                            <div>
+                              Creches:{" "}
+                              {new Intl.NumberFormat("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              }).format(
+                                (item.valorUnitario || 0) *
+                                  (item.quantidadeCreche || 0)
+                              )}
+                            </div>
+                            <div>
+                              Escolas:{" "}
+                              {new Intl.NumberFormat("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              }).format(
+                                (item.valorUnitario || 0) *
+                                  (item.quantidadeEscola || 0)
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Card>
-                  ))}
+                      </Card>
+                    );
+                  })}
                 </div>
                 <div className="mt-4 p-4 bg-primary/5 rounded-lg">
                   <div className="flex justify-between items-center">

@@ -422,6 +422,13 @@ export default function Contratos() {
                                 currency: "BRL",
                               })}{" "}
                               / {item.unidadeMedida.sigla}
+                              {item.unidadeMedida.sigla.toLowerCase() ===
+                                "pct" &&
+                                item.gramagemPorPacote && (
+                                  <span className="ml-1 font-semibold">
+                                    ({item.gramagemPorPacote}g)
+                                  </span>
+                                )}
                             </p>
                           </div>
                           {status === "baixo" && (

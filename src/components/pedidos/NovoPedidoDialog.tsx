@@ -212,13 +212,10 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     itemContrato: ItemContratoDetalhado,
     unidade: UnidadeEducacional
   ) => {
-    let quantidadeSugerida = 0;
-
-    // Itera sobre as percápitas DO ITEM ESPECÍFICO, e não sobre todos os tipos de estudante
+    // 1. Calcula o consumo total necessário em GRAMAS para a unidade educacional
+    let totalConsumoEmGramas = 0;
     itemContrato.percapitas.forEach((percapita) => {
       let numEstudantes = 0;
-
-      // Mapeia a contagem de estudantes com base no tipo de estudante da percápita
       switch (percapita.tipoEstudante.id) {
         case "bercario":
           numEstudantes = unidade.estudantesBercario;
@@ -240,18 +237,36 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
           break;
       }
 
-      if (numEstudantes > 0) {
-        const consumoMensalG =
+      if (numEstudantes > 0 && percapita.ativo) {
+        const consumoMensalPorEstudante =
           percapita.gramagemPorEstudante * percapita.frequenciaMensal;
-
-        const fatorConversao =
-          itemContrato.unidadeMedida.sigla.toLowerCase() === "kg" ? 1000 : 1;
-
-        quantidadeSugerida += (consumoMensalG * numEstudantes) / fatorConversao;
+        totalConsumoEmGramas += consumoMensalPorEstudante * numEstudantes;
       }
     });
 
-    return Math.max(0, Math.ceil(quantidadeSugerida));
+    if (totalConsumoEmGramas === 0) {
+      return 0;
+    }
+
+    // 2. Converte o total em gramas para a unidade de medida do CONTRATO
+    let quantidadeSugerida = 0;
+    const siglaUnidade = itemContrato.unidadeMedida.sigla.toLowerCase();
+    const gramagemPacote = itemContrato.gramagemPorPacote;
+
+    if (siglaUnidade === "pct" && gramagemPacote && gramagemPacote > 0) {
+      // Se for pacote, divide o total de gramas pela gramagem do pacote
+      quantidadeSugerida = totalConsumoEmGramas / gramagemPacote;
+    } else if (siglaUnidade === "kg") {
+      // Se for Kg, divide por 1000
+      quantidadeSugerida = totalConsumoEmGramas / 1000;
+    } else {
+      // Para outras unidades (Un, L, etc.), a sugestão considera 1 para 1 (assumindo que a percápita representa a unidade)
+      // Esta parte pode ser ajustada se a lógica for diferente
+      quantidadeSugerida = totalConsumoEmGramas;
+    }
+
+    // 3. Arredonda para cima, pois não se pode pedir frações de um pacote ou item.
+    return Math.ceil(quantidadeSugerida);
   };
 
   const handleAdicionarItem = (item: ItemContratoDetalhado) => {
