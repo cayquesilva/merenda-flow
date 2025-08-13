@@ -1071,23 +1071,40 @@ app.get("/api/pedidos-para-recibo", async (req: Request, res: Response) => {
 app.get(
   "/api/recibos/stats",
   authenticateToken,
-  async (req: Request, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const totalCount = await prisma.recibo.count();
+      // NOVO: Define uma cláusula 'where' base para o filtro de unidades.
+      const whereClause: Prisma.ReciboWhereInput = {};
+
+      // NOVO: Se o usuário tem um array de 'unidadesPermitidas' (vindo do middleware),
+      // adiciona o filtro ao 'whereClause'.
+      if (req.unidadesPermitidas && req.unidadesPermitidas.length > 0) {
+        whereClause.unidadeEducacionalId = { in: req.unidadesPermitidas };
+      }
+
+      // ALTERAÇÃO: Todas as contagens agora usam a 'whereClause'.
+      // Para usuários sem restrição, a 'whereClause' estará vazia, retornando a contagem global.
+      // Para usuários restritos, ela conterá o filtro das unidades.
+      const totalCount = await prisma.recibo.count({ where: whereClause });
+
       const pendingCount = await prisma.recibo.count({
-        where: { status: "pendente" },
+        where: { ...whereClause, status: "pendente" },
       });
+
       const confirmedCount = await prisma.recibo.count({
-        where: { status: "confirmado" },
+        where: { ...whereClause, status: "confirmado" },
       });
+
       const partialCount = await prisma.recibo.count({
-        where: { status: "parcial" },
+        where: { ...whereClause, status: "parcial" },
       });
+
       const ajustedCount = await prisma.recibo.count({
-        where: { status: "ajustado" },
+        where: { ...whereClause, status: "ajustado" },
       });
+      
       const complementarCount = await prisma.recibo.count({
-        where: { status: "complementar" },
+        where: { ...whereClause, status: "complementar" },
       });
 
       res.json({
@@ -2577,7 +2594,7 @@ app.put(
 
 // COMENTÁRIO: Processa a saída de estoque via QR Code
 app.post(
-  "/api/estoque/saida-qrcode/:estoqueId",
+  "/api/estoque/saida-qrcode/:estoqueId", authenticateToken, 
   async (req: Request, res: Response) => {
     const { estoqueId } = req.params;
     const { quantidade } = req.body;

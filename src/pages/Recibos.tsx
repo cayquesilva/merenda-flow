@@ -397,6 +397,7 @@ export default function Recibos() {
                           variant="outline"
                           size="sm"
                           onClick={() => abrirConfirmacao(recibo.id)}
+                          disabled={!hasPermission("recibos", "update")}
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
                           Confirmar

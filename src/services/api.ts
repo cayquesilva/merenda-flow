@@ -149,6 +149,13 @@ class ApiService {
   async getReciboForConfirmacao(id: string) {
     return this.request(`/api/recibos/confirmacao/${id}`);
   }
+
+  async postSaidaEstoqueQRCode(estoqueId: string, quantidade: number) {
+    return this.request(`/api/estoque/saida-qrcode/${estoqueId}`, {
+      method: "POST",
+      body: JSON.stringify({ quantidade }),
+    });
+  }
 }
 
 export const apiService = new ApiService();

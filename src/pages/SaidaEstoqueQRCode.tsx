@@ -19,6 +19,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from "@/services/api"; // 1. Importar o apiService
 
 // Interface para os dados do estoque que serão exibidos
 interface EstoqueItemData {
@@ -58,21 +59,12 @@ export default function SaidaEstoqueQRCode() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/estoque/consolidado?q=&unidadeId=&estoqueId=${estoqueId}`
-        );
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error || "Falha ao carregar detalhes do item de estoque."
-          );
-        }
-        const data = await response.json();
-        if (data.length > 0) {
+        // 2. Usar o apiService para chamar a rota AUTENTICADA
+        const params = new URLSearchParams({ estoqueId });
+        const data = await apiService.getEstoqueConsolidado(params);
+
+        if (data && data.length > 0) {
           setItemEstoque(data[0]);
-          // Define a quantidade de saída como 1 ou a quantidade atual se for menor
           setQuantidadeSaida(
             data[0].quantidadeAtual >= 1 ? 1 : data[0].quantidadeAtual
           );
@@ -116,23 +108,8 @@ export default function SaidaEstoqueQRCode() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:3001"
-        }/api/estoque/saida-qrcode/${itemEstoque.id}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantidade: quantidadeSaida }), // Envia a quantidade editável
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Falha ao registrar saída de estoque."
-        );
-      }
+      // 3. Usar o apiService para confirmar a saída
+      await apiService.postSaidaEstoqueQRCode(itemEstoque.id, quantidadeSaida);
 
       toast({
         title: "Saída Confirmada!",

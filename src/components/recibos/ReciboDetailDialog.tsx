@@ -38,6 +38,12 @@ import {
 import React, { useEffect, useState, useCallback } from "react";
 import { AjustarRecebimentoDialog } from "@/components/recibos/AjustarRecebimentoDialog";
 import { useAuth } from "@/contexts/AuthContext"; // 1. Importe o hook useAuth
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // ATUALIZAÇÃO: A interface agora espera o campo `familiaRecibos` da API.
 interface ReciboDetalhado extends BaseRecibo {
@@ -134,7 +140,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   const [recibo, setRecibo] = useState<ReciboDetalhado | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAjusteModalOpen, setIsAjusteModalOpen] = useState(false);
-  const { user } = useAuth(); // 2. Obtenha os dados do usuário logado
+  const { user, hasPermission } = useAuth(); // 2. Obtenha os dados do usuário logado
 
   const fetchReciboDetails = useCallback(async (idToFetch: string) => {
     if (!idToFetch) return;
@@ -431,10 +437,32 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                           <QrCode className="h-3 w-3 mr-1" />
                           Ver QR Code
                         </Button>
-                        <Button onClick={abrirConfirmacao} size="sm">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          Abrir Confirmação
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className={
+                                  !hasPermission("recibos", "update")
+                                    ? "cursor-not-allowed"
+                                    : ""
+                                }
+                              >
+                                <Button
+                                  onClick={abrirConfirmacao}
+                                  size="sm"
+                                  disabled={!hasPermission("recibos", "update")}
+                                >
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  Abrir Confirmação
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Você não tem permissão para confirmar o
+                              recebimento.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     </div>
                   </div>
