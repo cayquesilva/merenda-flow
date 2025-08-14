@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import puppeteer from "puppeteer";
+import multer from "multer";
+import xlsx from "xlsx";
 
 dotenv.config();
 
@@ -15,7 +17,26 @@ app.use(cors());
 // NOVO: Aumenta o limite de tamanho do corpo da requisição para 10MB
 app.use(express.json({ limit: "10mb" }));
 
+// Configuração do Multer para upload em memória
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+
+interface PlanilhaUnidadeRow {
+  nome?: string;
+  codigo?: string | number;
+  email?: string;
+  telefone?: string | number;
+  endereco?: string;
+  ativo?: string | boolean;
+  estudantesBercario?: number;
+  estudantesMaternal?: number;
+  estudantesPreEscola?: number;
+  estudantesRegular?: number;
+  estudantesIntegral?: number;
+  estudantesEja?: number;
+}
 
 // Interface estendida para incluir userId no request
 interface AuthenticatedRequest extends Request {
@@ -109,7 +130,9 @@ const optionalAuthenticateToken = async (
       req.user = { id: userId, categoria };
 
       // Se for um usuário restrito, busca suas unidades permitidas.
-      if (["comissao_recebimento", "nutricionistas_externas"].includes(categoria)) {
+      if (
+        ["comissao_recebimento", "nutricionistas_externas"].includes(categoria)
+      ) {
         const usuarioComUnidades = await prisma.usuario.findUnique({
           where: { id: userId },
           select: { unidadesEducacionais: { select: { id: true } } },
@@ -822,6 +845,151 @@ app.delete("/api/unidades/:id", async (req: Request, res: Response) => {
   }
 });
 
+// ROTA 6: Importar Unidades via Planilha (VERSÃO APRIMORADA: CRIA OU ATUALIZA)
+// POST /api/unidades/importar
+app.post(
+  "/api/unidades/importar",
+  authenticateToken,
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    }
+
+    const errors: { row: number; messages: string[] }[] = [];
+    let unidadesCriadas = 0;
+    let unidadesAtualizadas = 0;
+
+    try {
+      const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const data = xlsx.utils.sheet_to_json(sheet);
+
+      // Busca todas as unidades existentes e mapeia pelo código para uma busca rápida
+      const unidadesExistentes = await prisma.unidadeEducacional.findMany();
+      const mapaUnidadesExistentes = new Map(
+        unidadesExistentes.map((u) => [u.codigo, u])
+      );
+
+      const transacoesPrisma = [];
+
+      for (const [index, row] of data.entries()) {
+        const rowIndex = index + 2; // +1 pelo header, +1 pelo índice 0
+        const rowErrors: string[] = [];
+        const typedRow = row as PlanilhaUnidadeRow;
+
+        const {
+          nome,
+          codigo,
+          email,
+          telefone,
+          endereco,
+          ativo,
+          estudantesBercario,
+          estudantesMaternal,
+          estudantesPreEscola,
+          estudantesRegular,
+          estudantesIntegral,
+          estudantesEja,
+        } = typedRow;
+
+        // Validação Essencial: Código é a chave para tudo
+        if (!codigo || String(codigo).trim() === "") {
+          rowErrors.push(
+            "A coluna 'codigo' é obrigatória para criar ou atualizar."
+          );
+        }
+        if (!nome || String(nome).trim() === "") {
+          rowErrors.push("A coluna 'nome' é obrigatória.");
+        }
+        if (!email || String(email).trim() === "") {
+          rowErrors.push("A coluna 'email' é obrigatória.");
+        }
+
+        if (rowErrors.length > 0) {
+          errors.push({ row: rowIndex, messages: rowErrors });
+          continue; // Pula para a próxima linha se houver erro
+        }
+
+        const codigoStr = String(codigo!).trim();
+
+        // Prepara os dados da unidade com base na linha da planilha
+        const dadosDaPlanilha = {
+          nome: String(nome!).trim(),
+          email: String(email!).trim(),
+          telefone: telefone ? String(telefone) : null,
+          endereco: endereco ? String(endereco) : null,
+          ativo:
+            String(ativo).toLowerCase() === "sim" ||
+            String(ativo).toLowerCase() === "true",
+          estudantesBercario: Number(estudantesBercario) || 0,
+          estudantesMaternal: Number(estudantesMaternal) || 0,
+          estudantesPreEscola: Number(estudantesPreEscola) || 0,
+          estudantesRegular: Number(estudantesRegular) || 0,
+          estudantesIntegral: Number(estudantesIntegral) || 0,
+          estudantesEja: Number(estudantesEja) || 0,
+        };
+
+        const unidadeExistente = mapaUnidadesExistentes.get(codigoStr);
+
+        if (unidadeExistente) {
+          // --- LÓGICA DE ATUALIZAÇÃO ---
+          // Adiciona uma operação de 'update' à lista de transações
+          transacoesPrisma.push(
+            prisma.unidadeEducacional.update({
+              where: { id: unidadeExistente.id },
+              data: dadosDaPlanilha,
+            })
+          );
+          unidadesAtualizadas++;
+        } else {
+          // --- LÓGICA DE CRIAÇÃO ---
+          // Adiciona uma operação de 'create' à lista de transações
+          transacoesPrisma.push(
+            prisma.unidadeEducacional.create({
+              data: {
+                ...dadosDaPlanilha,
+                codigo: codigoStr, // Adiciona o código apenas na criação
+              },
+            })
+          );
+          unidadesCriadas++;
+        }
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({
+          error:
+            "Foram encontrados erros na planilha. Nenhuma unidade foi importada.",
+          details: errors,
+        });
+      }
+
+      // Executa todas as operações (creates e updates) em uma única transação
+      if (transacoesPrisma.length > 0) {
+        await prisma.$transaction(transacoesPrisma);
+      }
+
+      res.status(201).json({
+        message: "Importação concluída com sucesso!",
+        details: {
+          criadas: unidadesCriadas,
+          atualizadas: unidadesAtualizadas,
+        },
+      });
+    } catch (error: unknown) {
+      console.error("Erro ao importar unidades:", error);
+      const message =
+        error instanceof Error ? error.message : "Erro desconhecido.";
+      res.status(500).json({
+        error: "Ocorreu um erro inesperado no servidor ao processar o arquivo.",
+        details: message,
+      });
+    }
+  }
+);
+
 // --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
 
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
@@ -1102,7 +1270,7 @@ app.get(
       const ajustedCount = await prisma.recibo.count({
         where: { ...whereClause, status: "ajustado" },
       });
-      
+
       const complementarCount = await prisma.recibo.count({
         where: { ...whereClause, status: "complementar" },
       });
@@ -1399,65 +1567,74 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
 
 // COMENTÁRIO: Retorna os dados para a página de confirmação de um recibo específico.
 // UTILIZAÇÃO: Usada pela página pública `ConfirmacaoRecebimento.tsx` para carregar os dados do recibo.
-app.get("/api/recibos/confirmacao/:id", optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
-  try {
-    const recibo = await prisma.recibo.findUnique({
-      where: { id },
-      include: {
-        unidadeEducacional: true,
-        pedido: {
-          select: { numero: true, dataEntregaPrevista: true },
-        },
-        itens: {
-          include: {
-            itemPedido: {
-              include: {
-                itemContrato: {
-                  select: {
-                    nome: true,
-                    unidadeMedida: { select: { sigla: true } },
+app.get(
+  "/api/recibos/confirmacao/:id",
+  optionalAuthenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    try {
+      const recibo = await prisma.recibo.findUnique({
+        where: { id },
+        include: {
+          unidadeEducacional: true,
+          pedido: {
+            select: { numero: true, dataEntregaPrevista: true },
+          },
+          itens: {
+            include: {
+              itemPedido: {
+                include: {
+                  itemContrato: {
+                    select: {
+                      nome: true,
+                      unidadeMedida: { select: { sigla: true } },
+                    },
                   },
                 },
               },
             },
           },
+          assinaturaDigital: true, // Incluir no retorno
+          fotoReciboAssinado: true, // Incluir no retorno
         },
-        assinaturaDigital: true, // Incluir no retorno
-        fotoReciboAssinado: true, // Incluir no retorno
-      },
-    });
+      });
 
-    if (!recibo) {
-      return res.status(404).json({ error: "Recibo não encontrado." });
-    }
-    // NOVO: LÓGICA DE PERMISSÃO AJUSTADA
-    // Verifica se há um usuário logado e se ele tem restrição de unidades.
-    if (req.user && req.unidadesPermitidas) {
-      
-      // CONDIÇÃO ESPECIAL: Se o usuário for da 'comissao_recebimento',
-      // esta verificação de unidade é ignorada, permitindo o acesso.
-      const isComissaoRecebimento = req.user.categoria === 'comissao_recebimento';
-
-      if (!isComissaoRecebimento && !req.unidadesPermitidas.includes(recibo.unidadeEducacionalId)) {
-        return res.status(403).json({
-          error:
-            "Acesso negado. Você não tem permissão para visualizar o recibo desta unidade.",
-        });
+      if (!recibo) {
+        return res.status(404).json({ error: "Recibo não encontrado." });
       }
+      // NOVO: LÓGICA DE PERMISSÃO AJUSTADA
+      // Verifica se há um usuário logado e se ele tem restrição de unidades.
+      if (req.user && req.unidadesPermitidas) {
+        // CONDIÇÃO ESPECIAL: Se o usuário for da 'comissao_recebimento',
+        // esta verificação de unidade é ignorada, permitindo o acesso.
+        const isComissaoRecebimento =
+          req.user.categoria === "comissao_recebimento";
+
+        if (
+          !isComissaoRecebimento &&
+          !req.unidadesPermitidas.includes(recibo.unidadeEducacionalId)
+        ) {
+          return res.status(403).json({
+            error:
+              "Acesso negado. Você não tem permissão para visualizar o recibo desta unidade.",
+          });
+        }
+      }
+
+      if (!["pendente"].includes(recibo.status)) {
+        return res
+          .status(409)
+          .json({ error: "Este recibo já foi processado." });
+      }
+      res.json(recibo);
+    } catch (error) {
+      console.error("Erro ao buscar recibo para confirmação:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível carregar os dados do recibo." });
     }
-    
-    if (!["pendente"].includes(recibo.status)) {
-      return res.status(409).json({ error: "Este recibo já foi processado." });
-    }
-    res.json(recibo);
-  } catch (error) {
-    console.error("Erro ao buscar recibo para confirmação:", error);
-    res
-      .status(500)
-      .json({ error: "Não foi possível carregar os dados do recibo." });
   }
-});
+);
 
 interface ItemConfirmacaoPayload {
   itemId: string;
@@ -2599,7 +2776,8 @@ app.put(
 
 // COMENTÁRIO: Processa a saída de estoque via QR Code
 app.post(
-  "/api/estoque/saida-qrcode/:estoqueId", authenticateToken, 
+  "/api/estoque/saida-qrcode/:estoqueId",
+  authenticateToken,
   async (req: Request, res: Response) => {
     const { estoqueId } = req.params;
     const { quantidade } = req.body;

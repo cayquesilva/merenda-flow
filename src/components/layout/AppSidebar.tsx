@@ -101,7 +101,7 @@ export function AppSidebar() {
           title: "Confirmações",
           url: "/confirmacoes",
           icon: CheckCircle,
-          module: "confirmacoes",
+          module: "confirmacao_relatorio",
         },
         { title: "Estoque", url: "/estoque", icon: Package, module: "estoque" },
       ],

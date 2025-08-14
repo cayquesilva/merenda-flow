@@ -19,9 +19,7 @@ import {
 } from "@/components/ui/table";
 import {
   Search,
-  Plus,
   Eye,
-  Edit,
   Phone,
   Mail,
   MapPin,
@@ -29,6 +27,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { UnidadeDialog } from "@/components/unidades/UnidadeDialog";
+import { ImportDialog } from "@/components/unidades/ImportDialog";
+import { UnidadeDetailDialog } from "@/components/unidades/UnidadeDetailDialog";
+
 import { formatTelefone } from "@/lib/utils";
 
 // COMENTÁRIO: Tipo para os dados que vêm da API.
@@ -105,7 +106,10 @@ export default function Unidades() {
             Gerencie as unidades educacionais do sistema
           </p>
         </div>
-        <UnidadeDialog onSuccess={handleSuccess} />
+        <div className="flex items-center space-x-2">
+          <ImportDialog onSuccess={handleSuccess} />
+          <UnidadeDialog onSuccess={handleSuccess} />
+        </div>
       </div>
 
       {/* Filtros */}
@@ -199,10 +203,7 @@ export default function Unidades() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3" />
-                          Ver
-                        </Button>
+                        <UnidadeDetailDialog unidade={unidade} />
                         <UnidadeDialog
                           unidade={unidade}
                           onSuccess={handleSuccess}
