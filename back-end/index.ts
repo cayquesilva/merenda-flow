@@ -519,7 +519,18 @@ app.get("/api/fornecedores/lista", async (req: Request, res: Response) => {
 app.get("/api/fornecedores/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const fornecedor = await prisma.fornecedor.findUnique({ where: { id } });
+    const fornecedor = await prisma.fornecedor.findUnique({
+      where: { id },
+      include: {
+        contratos: {
+          // Inclui a relação 'contratos'
+          orderBy: {
+            dataInicio: "desc", // Ordena os contratos do mais novo para o mais antigo
+          },
+        },
+      },
+    });
+
     if (fornecedor) {
       res.json(fornecedor);
     } else {

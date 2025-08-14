@@ -7,7 +7,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -19,7 +18,6 @@ import {
 } from "@/components/ui/table";
 import {
   Search,
-  Eye,
   Phone,
   Mail,
   MapPin,
@@ -85,10 +83,9 @@ export default function Unidades() {
           apiService.getUnidades(debouncedSearchTerm),
           apiService.getUnidadesUltimaImportacao(),
         ]);
-        
+
         setUnidades(unidadesData);
         setUltimaImportacao(importacaoData.ultimaImportacao);
-
       } catch (error) {
         console.error("Erro ao buscar dados das unidades:", error);
         // Adicionar um toast de erro aqui seria uma boa prática

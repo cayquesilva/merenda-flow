@@ -7,7 +7,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -17,9 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Eye, Phone, Mail, MapPin, Loader2, Users } from "lucide-react";
+import { Search, Phone, Mail, MapPin, Loader2, Users } from "lucide-react";
 import { FornecedorDialog } from "@/components/fornecedores/FornecedorDialog";
 import { formatCNPJ, formatTelefone } from "@/lib/utils";
+import { FornecedorDetailDialog } from "@/components/fornecedores/FornecedorDetailDialog";
 
 // NOVO: Definimos o tipo Fornecedor aqui, já que não vem mais do mock.
 export interface Fornecedor {
@@ -202,10 +202,7 @@ export default function Fornecedores() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3" />
-                          Ver
-                        </Button>
+                        <FornecedorDetailDialog fornecedorId={fornecedor.id} />
                         <FornecedorDialog
                           fornecedor={fornecedor}
                           onSuccess={handleSuccess}
