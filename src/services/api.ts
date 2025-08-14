@@ -92,6 +92,17 @@ class ApiService {
     return this.request("/api/unidades-ativas");
   }
 
+  //Recebe todas as unidades
+  async getUnidades(search?: string) {
+    const query = search ? `?q=${encodeURIComponent(search)}` : "";
+    return this.request(`/api/unidades${query}`);
+  }
+
+  //Recebe data da ultima importação
+  async getUnidadesUltimaImportacao() {
+    return this.request("/api/unidades/ultima-importacao");
+  }
+
   // COMENTÁRIO: Método para vincular uma unidade a um usuário.
   // Ele chama a rota POST /api/usuarios/:userId/unidades que foi criada no backend.
   async linkUnidadeToUsuario(userId: string, unidadeId: string) {

@@ -1,6 +1,11 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { PrismaClient, Prisma, Recibo } from "@prisma/client";
+import {
+  PrismaClient,
+  Prisma,
+  Recibo,
+  UnidadeEducacional,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -845,6 +850,31 @@ app.delete("/api/unidades/:id", async (req: Request, res: Response) => {
   }
 });
 
+//Rota para buscar importações
+app.get(
+  "/api/unidades/ultima-importacao",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      console.log(">>> Acessando a rota /api/unidades/ultima-importacao"); // Log de depuração
+      const metadado = await prisma.metadado.findUnique({
+        where: { chave: "ultima_importacao_unidades" },
+      });
+
+      if (metadado) {
+        res.json({ ultimaImportacao: metadado.valor });
+      } else {
+        res.json({ ultimaImportacao: null });
+      }
+    } catch (error) {
+      console.error("Erro ao buscar data de última importação:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível obter a data de importação." });
+    }
+  }
+);
+
 // ROTA 6: Importar Unidades via Planilha (VERSÃO APRIMORADA: CRIA OU ATUALIZA)
 // POST /api/unidades/importar
 app.post(
@@ -860,22 +890,22 @@ app.post(
     let unidadesCriadas = 0;
     let unidadesAtualizadas = 0;
 
+    // ALTERAÇÃO: Adicionamos o tipo explícito para o array de transações.
+    const transacoesPrisma: Prisma.PrismaPromise<UnidadeEducacional>[] = [];
+
     try {
       const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const data = xlsx.utils.sheet_to_json(sheet);
 
-      // Busca todas as unidades existentes e mapeia pelo código para uma busca rápida
       const unidadesExistentes = await prisma.unidadeEducacional.findMany();
       const mapaUnidadesExistentes = new Map(
         unidadesExistentes.map((u) => [u.codigo, u])
       );
 
-      const transacoesPrisma = [];
-
       for (const [index, row] of data.entries()) {
-        const rowIndex = index + 2; // +1 pelo header, +1 pelo índice 0
+        const rowIndex = index + 2;
         const rowErrors: string[] = [];
         const typedRow = row as PlanilhaUnidadeRow;
 
@@ -894,7 +924,6 @@ app.post(
           estudantesEja,
         } = typedRow;
 
-        // Validação Essencial: Código é a chave para tudo
         if (!codigo || String(codigo).trim() === "") {
           rowErrors.push(
             "A coluna 'codigo' é obrigatória para criar ou atualizar."
@@ -909,12 +938,10 @@ app.post(
 
         if (rowErrors.length > 0) {
           errors.push({ row: rowIndex, messages: rowErrors });
-          continue; // Pula para a próxima linha se houver erro
+          continue;
         }
 
         const codigoStr = String(codigo!).trim();
-
-        // Prepara os dados da unidade com base na linha da planilha
         const dadosDaPlanilha = {
           nome: String(nome!).trim(),
           email: String(email!).trim(),
@@ -934,8 +961,6 @@ app.post(
         const unidadeExistente = mapaUnidadesExistentes.get(codigoStr);
 
         if (unidadeExistente) {
-          // --- LÓGICA DE ATUALIZAÇÃO ---
-          // Adiciona uma operação de 'update' à lista de transações
           transacoesPrisma.push(
             prisma.unidadeEducacional.update({
               where: { id: unidadeExistente.id },
@@ -944,13 +969,11 @@ app.post(
           );
           unidadesAtualizadas++;
         } else {
-          // --- LÓGICA DE CRIAÇÃO ---
-          // Adiciona uma operação de 'create' à lista de transações
           transacoesPrisma.push(
             prisma.unidadeEducacional.create({
               data: {
                 ...dadosDaPlanilha,
-                codigo: codigoStr, // Adiciona o código apenas na criação
+                codigo: codigoStr,
               },
             })
           );
@@ -968,7 +991,19 @@ app.post(
 
       // Executa todas as operações (creates e updates) em uma única transação
       if (transacoesPrisma.length > 0) {
-        await prisma.$transaction(transacoesPrisma);
+        // Agora o 'prisma.$transaction' aceita o array sem problemas de tipo
+        await prisma.$transaction(async (tx) => {
+          await Promise.all(transacoesPrisma);
+
+          await tx.metadado.upsert({
+            where: { chave: "ultima_importacao_unidades" },
+            update: { valor: new Date().toISOString() },
+            create: {
+              chave: "ultima_importacao_unidades",
+              valor: new Date().toISOString(),
+            },
+          });
+        });
       }
 
       res.status(201).json({

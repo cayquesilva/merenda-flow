@@ -367,3 +367,15 @@ model FotoNaoConforme {
 
   @@map("fotos_nao_conforme")
 }
+
+// ===================================
+// MODELO PARA METADADOS DO SISTEMA
+// ===================================
+
+model Metadado {
+  chave     String   @id
+  valor     String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("metadados")
+}

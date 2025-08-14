@@ -25,12 +25,14 @@ import {
   MapPin,
   Building2,
   Loader2,
+  Info,
 } from "lucide-react";
 import { UnidadeDialog } from "@/components/unidades/UnidadeDialog";
 import { ImportDialog } from "@/components/unidades/ImportDialog";
 import { UnidadeDetailDialog } from "@/components/unidades/UnidadeDetailDialog";
 
 import { formatTelefone } from "@/lib/utils";
+import { apiService } from "@/services/api";
 
 // COMENTÁRIO: Tipo para os dados que vêm da API.
 interface UnidadeEducacional {
@@ -67,6 +69,7 @@ export default function Unidades() {
   // COMENTÁRIO: Estados para armazenar os dados da API e controlar o carregamento.
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [ultimaImportacao, setUltimaImportacao] = useState<string | null>(null);
 
   const handleSuccess = () => {
     setRefreshKey((prev) => prev + 1);
@@ -74,25 +77,26 @@ export default function Unidades() {
 
   // COMENTÁRIO: Efeito que busca a lista de unidades da API.
   useEffect(() => {
-    const fetchUnidades = async () => {
+    const fetchPageData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/api/unidades?q=${debouncedSearchTerm}`
-        );
-        if (!response.ok) throw new Error("Falha ao buscar unidades");
-        const data = await response.json();
-        setUnidades(data);
+        // Usa o apiService para fazer as chamadas em paralelo
+        const [unidadesData, importacaoData] = await Promise.all([
+          apiService.getUnidades(debouncedSearchTerm),
+          apiService.getUnidadesUltimaImportacao(),
+        ]);
+        
+        setUnidades(unidadesData);
+        setUltimaImportacao(importacaoData.ultimaImportacao);
+
       } catch (error) {
-        console.error("Erro ao buscar fornecedores:", error);
-        // Aqui poderia ser adicionado um toast de erro.
+        console.error("Erro ao buscar dados das unidades:", error);
+        // Adicionar um toast de erro aqui seria uma boa prática
       } finally {
         setIsLoading(false);
       }
     };
-    fetchUnidades();
+    fetchPageData();
   }, [debouncedSearchTerm, refreshKey]);
 
   return (
@@ -105,6 +109,22 @@ export default function Unidades() {
           <p className="text-muted-foreground">
             Gerencie as unidades educacionais do sistema
           </p>
+          <div className="flex items-center text-xs text-muted-foreground mt-2">
+            <Info className="h-3 w-3 mr-1.5" />
+            {ultimaImportacao ? (
+              <span>
+                Dados da planilha atualizados em:{" "}
+                <strong className="text-foreground">
+                  {new Date(ultimaImportacao).toLocaleString("pt-BR", {
+                    dateStyle: "long",
+                    timeStyle: "short",
+                  })}
+                </strong>
+              </span>
+            ) : (
+              <span>Nenhuma importação de planilha foi realizada ainda.</span>
+            )}
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <ImportDialog onSuccess={handleSuccess} />
