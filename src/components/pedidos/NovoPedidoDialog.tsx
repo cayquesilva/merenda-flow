@@ -377,6 +377,16 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       return false;
     }
 
+    if (calcularTotalPedido() <= 0) {
+      toast({
+        title: "Pedido sem valor",
+        description:
+          "O valor total do pedido não pode ser R$ 0,00. Verifique as quantidades.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     const saldosCreche: Record<string, number> = {};
     const saldosEscola: Record<string, number> = {};
 
@@ -766,7 +776,10 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
           <Button
             onClick={handleSalvar}
             disabled={
-              isLoading || !contratoSelecionado || itensPedido.length === 0
+              isLoading ||
+              !contratoSelecionado ||
+              itensPedido.length === 0 ||
+              calcularTotalPedido() <= 0
             }
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
