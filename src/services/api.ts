@@ -100,7 +100,7 @@ class ApiService {
 
   //Recebe data da ultima importação
   async getUnidadesUltimaImportacao() {
-    return this.request("/api/unidades/ultima-importacao");
+    return this.request("/api/unidades/data/ultima-importacao");
   }
 
   // COMENTÁRIO: Método para vincular uma unidade a um usuário.

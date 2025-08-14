@@ -852,11 +852,10 @@ app.delete("/api/unidades/:id", async (req: Request, res: Response) => {
 
 //Rota para buscar importações
 app.get(
-  "/api/unidades/ultima-importacao",
+  "/api/unidades/data/ultima-importacao",
   authenticateToken,
   async (req, res) => {
     try {
-      console.log(">>> Acessando a rota /api/unidades/ultima-importacao"); // Log de depuração
       const metadado = await prisma.metadado.findUnique({
         where: { chave: "ultima_importacao_unidades" },
       });
