@@ -167,6 +167,36 @@ class ApiService {
       body: JSON.stringify({ quantidade }),
     });
   }
+
+  // NOVO: Faz o POST da planilha de percápita para o backend
+  async importPercapitas(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Nota: O método 'request' precisa ser ajustado para lidar com FormData
+    // Por enquanto, faremos uma chamada fetch direta aqui.
+    const url = `${API_BASE_URL}/api/percapita/importar`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...this.getAuthHeaders(), // Reutiliza o método para pegar o token
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ error: "Erro de rede" }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    return response.json();
+  }
+
+  // NOVO: Método para buscar a lista de contratos ativos (simplificada)
+  async getContratosAtivosLista() {
+    return this.request("/api/contratos-ativos");
+  }
 }
 
 export const apiService = new ApiService();

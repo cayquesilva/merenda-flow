@@ -54,6 +54,8 @@ import {
   Contrato,
   Fornecedor,
 } from "@/types";
+import { ImportPercapitaDialog } from "@/components/percapita/ImportPercapitaDialog"; // Importe o novo diálogo
+
 import { useToast } from "@/hooks/use-toast";
 
 // Interfaces detalhadas para corresponder ao retorno das APIs
@@ -84,7 +86,9 @@ interface PercapitaCreateDialogProps {
 }
 
 // NOVO: Componente de diálogo para CRIAR percápitas
-export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps) {
+export function PercapitaCreateDialog({
+  onSuccess,
+}: PercapitaCreateDialogProps) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
@@ -127,7 +131,7 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
 
           setItensContrato(itens);
           setTiposEstudante(tipos);
-          
+
           setFormData({
             itemContratoId: "",
             percapitas: tipos.map((tipo: TipoEstudante) => ({
@@ -139,7 +143,6 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
               tipoEstudanteCategoria: tipo.categoria,
             })),
           });
-
         } catch (error) {
           toast({
             title: "Erro",
@@ -156,8 +159,8 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
   }, [open, toast]);
 
   const handlePercapitaChange = (
-    index: number, 
-    field: keyof PercapitaCreateFormItem, 
+    index: number,
+    field: keyof PercapitaCreateFormItem,
     value: string | number | boolean
   ) => {
     setFormData((prev) => {
@@ -176,12 +179,15 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
       });
       return;
     }
-    
-    const percápitasValidas = formData.percapitas.filter(p => p.gramagemPorEstudante > 0);
+
+    const percápitasValidas = formData.percapitas.filter(
+      (p) => p.gramagemPorEstudante > 0
+    );
     if (percápitasValidas.length === 0) {
       toast({
         title: "Erro",
-        description: "Preencha a gramagem para pelo menos um tipo de preparação.",
+        description:
+          "Preencha a gramagem para pelo menos um tipo de preparação.",
         variant: "destructive",
       });
       return;
@@ -189,17 +195,19 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
 
     setIsSubmitting(true);
     try {
-      const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/create-batch`;
+      const url = `${
+        import.meta.env.VITE_API_URL || "http://localhost:3001"
+      }/api/percapita/create-batch`;
       const method = "POST";
-      
+
       const payload = {
-          itemContratoId: formData.itemContratoId,
-          percapitas: percápitasValidas.map(p => ({
-              tipoEstudanteId: p.tipoEstudanteId,
-              gramagemPorEstudante: p.gramagemPorEstudante,
-              frequenciaMensal: p.frequenciaMensal,
-              ativo: p.ativo,
-          }))
+        itemContratoId: formData.itemContratoId,
+        percapitas: percápitasValidas.map((p) => ({
+          tipoEstudanteId: p.tipoEstudanteId,
+          gramagemPorEstudante: p.gramagemPorEstudante,
+          frequenciaMensal: p.frequenciaMensal,
+          ativo: p.ativo,
+        })),
       };
 
       const response = await fetch(url, {
@@ -210,7 +218,9 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao salvar per cápitas em lote.");
+        throw new Error(
+          errorData.error || "Falha ao salvar per cápitas em lote."
+        );
       }
 
       toast({
@@ -237,8 +247,10 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
       ? "bg-blue-100 text-blue-800"
       : "bg-green-100 text-green-800";
   };
-  
-  const selectedItemContrato = itensContrato.find(i => i.id === formData.itemContratoId);
+
+  const selectedItemContrato = itensContrato.find(
+    (i) => i.id === formData.itemContratoId
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -248,7 +260,9 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
           Nova Per cápita
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto"> {/* Ajustado para altura máxima e rolagem */}
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        {" "}
+        {/* Ajustado para altura máxima e rolagem */}
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
             Nova Per cápita
@@ -257,7 +271,6 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
             Configure a per cápita de consumo por tipo de estudante
           </DialogDescription>
         </DialogHeader>
-
         {isLoading ? (
           <div className="flex justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -287,79 +300,97 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
                 </Select>
               </div>
             </div>
-            
+
             {formData.itemContratoId && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Calculator className="h-4 w-4" />
-                            Definir Per cápita por Estudante
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            {formData.percapitas.map((percapita, index) => (
-                                <Card key={percapita.tipoEstudanteId} className="p-4">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h5 className="font-semibold">{percapita.tipoEstudanteNome} ({percapita.tipoEstudanteCategoria})</h5>
-                                        <Badge variant={percapita.ativo ? "default" : "secondary"}>
-                                            {percapita.ativo ? "Ativo" : "Inativo"}
-                                        </Badge>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor={`gramagem-${percapita.tipoEstudanteId}`}>Gramagem por Estudante (g) *</Label>
-                                            <Input
-                                                id={`gramagem-${percapita.tipoEstudanteId}`}
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                value={percapita.gramagemPorEstudante}
-                                                onChange={(e) =>
-                                                    handlePercapitaChange(
-                                                        index,
-                                                        "gramagemPorEstudante",
-                                                        parseFloat(e.target.value) || 0
-                                                    )
-                                                }
-                                                placeholder="0.0"
-                                                disabled={isSubmitting}
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor={`frequencia-${percapita.tipoEstudanteId}`}>Frequência Mensal *</Label>
-                                            <Input
-                                                id={`frequencia-${percapita.tipoEstudanteId}`}
-                                                type="number"
-                                                min="1"
-                                                max="30"
-                                                value={percapita.frequenciaMensal}
-                                                onChange={(e) =>
-                                                    handlePercapitaChange(
-                                                        index,
-                                                        "frequenciaMensal",
-                                                        parseInt(e.target.value) || 0
-                                                    )
-                                                }
-                                                placeholder="5"
-                                                disabled={isSubmitting}
-                                            />
-                                        </div>
-                                    </div>
-                                    {percapita.gramagemPorEstudante > 0 && percapita.frequenciaMensal > 0 && (
-                                      <p className="text-sm text-muted-foreground mt-2">
-                                        Consumo mensal: {(percapita.gramagemPorEstudante * percapita.frequenciaMensal).toFixed(1)}g
-                                      </p>
-                                    )}
-                                </Card>
-                            ))}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calculator className="h-4 w-4" />
+                    Definir Per cápita por Estudante
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {formData.percapitas.map((percapita, index) => (
+                      <Card key={percapita.tipoEstudanteId} className="p-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h5 className="font-semibold">
+                            {percapita.tipoEstudanteNome} (
+                            {percapita.tipoEstudanteCategoria})
+                          </h5>
+                          <Badge
+                            variant={percapita.ativo ? "default" : "secondary"}
+                          >
+                            {percapita.ativo ? "Ativo" : "Inativo"}
+                          </Badge>
                         </div>
-                    </CardContent>
-                </Card>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label
+                              htmlFor={`gramagem-${percapita.tipoEstudanteId}`}
+                            >
+                              Gramagem por Estudante (g) *
+                            </Label>
+                            <Input
+                              id={`gramagem-${percapita.tipoEstudanteId}`}
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={percapita.gramagemPorEstudante}
+                              onChange={(e) =>
+                                handlePercapitaChange(
+                                  index,
+                                  "gramagemPorEstudante",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              placeholder="0.0"
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div>
+                            <Label
+                              htmlFor={`frequencia-${percapita.tipoEstudanteId}`}
+                            >
+                              Frequência Mensal *
+                            </Label>
+                            <Input
+                              id={`frequencia-${percapita.tipoEstudanteId}`}
+                              type="number"
+                              min="1"
+                              max="30"
+                              value={percapita.frequenciaMensal}
+                              onChange={(e) =>
+                                handlePercapitaChange(
+                                  index,
+                                  "frequenciaMensal",
+                                  parseInt(e.target.value) || 0
+                                )
+                              }
+                              placeholder="5"
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                        </div>
+                        {percapita.gramagemPorEstudante > 0 &&
+                          percapita.frequenciaMensal > 0 && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              Consumo mensal:{" "}
+                              {(
+                                percapita.gramagemPorEstudante *
+                                percapita.frequenciaMensal
+                              ).toFixed(1)}
+                              g
+                            </p>
+                          )}
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         )}
-
         <DialogFooter>
           <Button
             variant="outline"
@@ -379,143 +410,157 @@ export function PercapitaCreateDialog({ onSuccess }: PercapitaCreateDialogProps)
 }
 
 interface PercapitaEditDialogProps {
-    percapita: PercapitaItemDetalhado;
-    onSuccess: () => void;
+  percapita: PercapitaItemDetalhado;
+  onSuccess: () => void;
 }
 
 // NOVO: Componente de diálogo para EDITAR uma única percápita
-export function PercapitaEditDialog({ percapita, onSuccess }: PercapitaEditDialogProps) {
-    const [open, setOpen] = useState(false);
-    const { toast } = useToast();
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [formData, setFormData] = useState({
-        gramagemPorEstudante: percapita.gramagemPorEstudante,
-        frequenciaMensal: percapita.frequenciaMensal,
-        ativo: percapita.ativo,
-    });
+export function PercapitaEditDialog({
+  percapita,
+  onSuccess,
+}: PercapitaEditDialogProps) {
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    gramagemPorEstudante: percapita.gramagemPorEstudante,
+    frequenciaMensal: percapita.frequenciaMensal,
+    ativo: percapita.ativo,
+  });
 
-    const handleSubmit = async () => {
-      if (formData.gramagemPorEstudante <= 0 || formData.frequenciaMensal <= 0) {
-        toast({
-          title: "Erro",
-          description: "Preencha todos os campos corretamente.",
-          variant: "destructive",
-        });
-        return;
+  const handleSubmit = async () => {
+    if (formData.gramagemPorEstudante <= 0 || formData.frequenciaMensal <= 0) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos corretamente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const url = `${
+        import.meta.env.VITE_API_URL || "http://localhost:3001"
+      }/api/percapita/${percapita.id}`;
+      const method = "PUT";
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao salvar per cápita.");
       }
-  
-      setIsSubmitting(true);
-      try {
-        const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${percapita.id}`;
-        const method = "PUT";
-  
-        const response = await fetch(url, {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-  
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Falha ao salvar per cápita.");
-        }
-  
-        toast({
-          title: "Sucesso!",
-          description: "Per cápita atualizada com sucesso.",
-        });
-  
-        setOpen(false);
-        onSuccess();
-      } catch (error) {
-        toast({
-          title: "Erro",
-          description:
-            error instanceof Error ? error.message : "Erro desconhecido",
-          variant: "destructive",
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
 
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                    <Edit className="h-3 w-3" />
-                    Editar
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="text-popover-foreground">
-                        Editar Per cápita
-                    </DialogTitle>
-                    <DialogDescription>
-                        Edite a per cápita para o item{" "}
-                        <span className="font-semibold">{percapita.itemContrato.nome}</span>
-                        {" "}do estudante{" "}
-                        <span className="font-semibold">{percapita.tipoEstudante.nome}</span>.
-                    </DialogDescription>
-                </DialogHeader>
+      toast({
+        title: "Sucesso!",
+        description: "Per cápita atualizada com sucesso.",
+      });
 
-                <div className="grid gap-4 py-4">
-                    <div>
-                        <Label htmlFor="gramagem">Gramagem por Estudante (g) *</Label>
-                        <Input
-                            id="gramagem"
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={formData.gramagemPorEstudante}
-                            onChange={(e) =>
-                                setFormData({ ...formData, gramagemPorEstudante: parseFloat(e.target.value) || 0 })
-                            }
-                            placeholder="0.0"
-                            disabled={isSubmitting}
-                        />
-                    </div>
-                    <div>
-                        <Label htmlFor="frequencia">Frequência Mensal *</Label>
-                        <Input
-                            id="frequencia"
-                            type="number"
-                            min="1"
-                            max="30"
-                            value={formData.frequenciaMensal}
-                            onChange={(e) =>
-                                setFormData({ ...formData, frequenciaMensal: parseInt(e.target.value) || 0 })
-                            }
-                            placeholder="5"
-                            disabled={isSubmitting}
-                        />
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Switch
-                            id="ativo"
-                            checked={formData.ativo}
-                            onCheckedChange={(checked) =>
-                                setFormData({ ...formData, ativo: checked })
-                            }
-                            disabled={isSubmitting}
-                        />
-                        <Label htmlFor="ativo">Per cápita ativa</Label>
-                    </div>
-                </div>
+      setOpen(false);
+      onSuccess();
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>
-                        Cancelar
-                    </Button>
-                    <Button onClick={handleSubmit} disabled={isSubmitting}>
-                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Atualizar
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Edit className="h-3 w-3" />
+          Editar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-popover-foreground">
+            Editar Per cápita
+          </DialogTitle>
+          <DialogDescription>
+            Edite a per cápita para o item{" "}
+            <span className="font-semibold">{percapita.itemContrato.nome}</span>{" "}
+            do estudante{" "}
+            <span className="font-semibold">
+              {percapita.tipoEstudante.nome}
+            </span>
+            .
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          <div>
+            <Label htmlFor="gramagem">Gramagem por Estudante (g) *</Label>
+            <Input
+              id="gramagem"
+              type="number"
+              min="0"
+              step="1"
+              value={formData.gramagemPorEstudante}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  gramagemPorEstudante: parseFloat(e.target.value) || 0,
+                })
+              }
+              placeholder="0.0"
+              disabled={isSubmitting}
+            />
+          </div>
+          <div>
+            <Label htmlFor="frequencia">Frequência Mensal *</Label>
+            <Input
+              id="frequencia"
+              type="number"
+              min="1"
+              max="30"
+              value={formData.frequenciaMensal}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  frequenciaMensal: parseInt(e.target.value) || 0,
+                })
+              }
+              placeholder="5"
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="ativo"
+              checked={formData.ativo}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, ativo: checked })
+              }
+              disabled={isSubmitting}
+            />
+            <Label htmlFor="ativo">Per cápita ativa</Label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Atualizar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function useDebounce(value: string, delay: number) {
@@ -535,7 +580,10 @@ export default function Percapita() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [percapitaToDelete, setPercapitaToDelete] = useState<{ id: string; nome: string } | null>(null);
+  const [percapitaToDelete, setPercapitaToDelete] = useState<{
+    id: string;
+    nome: string;
+  } | null>(null);
 
   const handleSuccess = () => {
     setRefreshKey((prev) => prev + 1);
@@ -569,10 +617,12 @@ export default function Percapita() {
 
   const handleDelete = async () => {
     if (!percapitaToDelete) return;
-    
+
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/percapita/${percapitaToDelete.id}`,
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/percapita/${percapitaToDelete.id}`,
         { method: "DELETE" }
       );
 
@@ -621,7 +671,10 @@ export default function Percapita() {
             Configure a gramagem e frequência de consumo por tipo de preparação
           </p>
         </div>
-        <PercapitaCreateDialog onSuccess={handleSuccess} />
+        <div className="flex items-center space-x-2">
+          <ImportPercapitaDialog onSuccess={handleSuccess} />
+          <PercapitaCreateDialog onSuccess={handleSuccess} />
+        </div>
       </div>
 
       {/* Filtros */}
@@ -771,12 +824,15 @@ export default function Percapita() {
             <DialogTitle>Confirmação de Exclusão</DialogTitle>
             <DialogDescription>
               Tem certeza que deseja deletar a per cápita do item{" "}
-              <span className="font-bold">{percapitaToDelete?.nome}</span>?
-              Essa ação não pode ser desfeita.
+              <span className="font-bold">{percapitaToDelete?.nome}</span>? Essa
+              ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleDelete}>

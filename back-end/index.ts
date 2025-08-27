@@ -5156,6 +5156,181 @@ app.post(
   }
 );
 
+// ALTERAÇÃO: Interface para a linha da planilha de percápita (template e importação)
+interface TemplatePercapitaRow {
+  item_id: string;
+  item_nome: string;
+  unidade_medida: string;
+  [key: string]: string | number | boolean; // Para colunas dinâmicas
+}
+
+// ALTERAÇÃO: Interface para os dados de percápita processados da planilha
+interface PercapitaImportData {
+  tipoEstudanteId: string;
+  gramagemPorEstudante?: number;
+  frequenciaMensal?: number;
+  ativo?: boolean;
+}
+
+// ROTA NOVA: Gerar e baixar a planilha de modelo para preenchimento de percápitas
+app.get(
+  "/api/percapita/template/:contratoId",
+  authenticateToken,
+  async (req, res) => {
+    const { contratoId } = req.params;
+    try {
+      // 1. Buscar os itens do contrato e todos os tipos de estudante
+      const [itensContrato, tiposEstudante] = await Promise.all([
+        prisma.itemContrato.findMany({
+          where: { contratoId },
+          include: { percapitas: true, unidadeMedida: true },
+          orderBy: { nome: "asc" },
+        }),
+        prisma.tipoEstudante.findMany({ orderBy: { ordem: "asc" } }),
+      ]);
+
+      if (itensContrato.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "Nenhum item encontrado para este contrato." });
+      }
+
+      // 2. Montar a estrutura de dados para o JSON que será convertido em planilha
+      const jsonData = itensContrato.map((item) => {
+        const row: TemplatePercapitaRow = {
+          item_id: item.id,
+          item_nome: item.nome,
+          unidade_medida: item.unidadeMedida.sigla,
+        };
+
+        // 3. Criar colunas dinâmicas para cada tipo de estudante (ex: Bercario_gramagem, Bercario_frequencia)
+        tiposEstudante.forEach((tipo) => {
+          const percapitaExistente = item.percapitas.find(
+            (p) => p.tipoEstudanteId === tipo.id
+          );
+          const prefixo = tipo.nome.replace(/\s+/g, "_"); // Ex: "Pré Escola" vira "Pré_Escola"
+
+          row[`${prefixo}_gramagem_g`] =
+            percapitaExistente?.gramagemPorEstudante ?? 0;
+          row[`${prefixo}_frequencia_mensal`] =
+            percapitaExistente?.frequenciaMensal ?? 5;
+          row[`${prefixo}_ativo`] = percapitaExistente?.ativo ?? true;
+        });
+
+        return row;
+      });
+
+      // 4. Criar a planilha em memória usando a biblioteca xlsx
+      const worksheet = xlsx.utils.json_to_sheet(jsonData);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, "Percapitas");
+
+      // 5. Enviar o arquivo para o navegador para download
+      const buffer = xlsx.write(workbook, { bookType: "xlsx", type: "buffer" });
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="template-percapita-contrato-${contratoId}.xlsx"`
+      );
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.send(buffer);
+    } catch (error) {
+      console.error("Erro ao gerar template de percápita:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível gerar a planilha de modelo." });
+    }
+  }
+);
+
+// ROTA NOVA: Processar a importação da planilha de percápitas preenchida
+app.post(
+  "/api/percapita/importar",
+  authenticateToken,
+  upload.single("file"),
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    }
+
+    try {
+      // 1. Ler e processar a planilha enviada
+      const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const data: TemplatePercapitaRow[] = xlsx.utils.sheet_to_json(
+        workbook.Sheets[sheetName]
+      );
+
+      const tiposEstudante = await prisma.tipoEstudante.findMany();
+      const mapaTiposEstudante = new Map(
+        tiposEstudante.map((t) => [t.nome.replace(/\s+/g, "_"), t.id])
+      );
+
+      // 2. Agrupar todas as atualizações em uma única transação
+      const resultado = await prisma.$transaction(async (tx) => {
+        let itensAtualizados = 0;
+        for (const row of data) {
+          const itemContratoId = row.item_id;
+          if (!itemContratoId) continue;
+
+          const percapitasParaSalvar: PercapitaImportData[] = [];
+
+          // 3. Iterar pelas chaves da linha para encontrar as colunas de percápita
+          for (const key in row) {
+            const parts = key.match(
+              /(.+)_(gramagem_g|frequencia_mensal|ativo)$/
+            );
+            if (parts) {
+              const nomeTipoEstudante = parts[1];
+              const tipoDado = parts[2];
+              const tipoEstudanteId = mapaTiposEstudante.get(nomeTipoEstudante);
+
+              if (tipoEstudanteId) {
+                let percapita = percapitasParaSalvar.find(
+                  (p) => p.tipoEstudanteId === tipoEstudanteId
+                );
+                if (!percapita) {
+                  percapita = { tipoEstudanteId };
+                  percapitasParaSalvar.push(percapita);
+                }
+                if (tipoDado === "gramagem_g")
+                  percapita.gramagemPorEstudante = Number(row[key]) || 0;
+                if (tipoDado === "frequencia_mensal")
+                  percapita.frequenciaMensal = Number(row[key]) || 0;
+                if (tipoDado === "ativo") percapita.ativo = Boolean(row[key]);
+              }
+            }
+          }
+
+          // 4. Usar a lógica de "create-batch" para substituir as percápitas do item
+          if (percapitasParaSalvar.length > 0) {
+            await tx.percapitaItem.deleteMany({ where: { itemContratoId } });
+            await tx.percapitaItem.createMany({
+              data: percapitasParaSalvar.map((p) => ({ ...p, itemContratoId })),
+              skipDuplicates: true,
+            });
+            itensAtualizados++;
+          }
+        }
+        return { count: itensAtualizados };
+      });
+
+      res
+        .status(200)
+        .json({
+          message: `Percápitas para ${resultado.count} itens foram importadas com sucesso.`,
+        });
+    } catch (error) {
+      console.error("Erro ao importar percápitas:", error);
+      res
+        .status(500)
+        .json({ error: "Ocorreu um erro ao processar a planilha." });
+    }
+  }
+);
+
 /// --- FIM ROTA DE PDFs --- ///
 // Rota de teste
 app.get("/api/test-db", async (req: Request, res: Response) => {
