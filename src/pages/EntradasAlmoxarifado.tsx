@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
 import { NovaEntradaDialog } from "@/components/almoxarifado/NovaEntradaDialog";
-import { Button } from "@/components/ui/button";
+import { EntradaDetailDialog } from "@/components/almoxarifado/EntradaDetailDialog"; // 1. IMPORTE O NOVO COMPONENTE
+import { Badge } from "@/components/ui/badge";
 
 // COMENTÁRIO: Interface que define a estrutura de uma Entrada que vem da API.
 export interface Entrada {
@@ -27,6 +28,7 @@ export interface Entrada {
   notaFiscal: string;
   dataEntrada: string;
   valorTotal: number | null;
+  status: string; // Adicionado status para a listagem
   fornecedor: {
     nome: string;
   };
@@ -72,6 +74,14 @@ export default function EntradasAlmoxarifado() {
 
   const handleSuccess = () => {
     setRefreshKey((prev) => prev + 1);
+  };
+
+  // Função para renderizar o badge de status na tabela
+  const getStatusBadge = (status: string) => {
+    if (status === "ajustada") {
+      return <Badge variant="destructive">Ajustada</Badge>;
+    }
+    return <Badge variant="default">Ativa</Badge>;
   };
 
   return (
@@ -138,6 +148,7 @@ export default function EntradasAlmoxarifado() {
                   <TableHead>Data da Entrada</TableHead>
                   <TableHead>Nº de Itens</TableHead>
                   <TableHead>Valor Total</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -159,10 +170,13 @@ export default function EntradasAlmoxarifado() {
                         ? `R$ ${entrada.valorTotal.toFixed(2)}`
                         : "N/A"}
                     </TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm">
-                        Ver Detalhes
-                      </Button>
+                    <TableCell>{getStatusBadge(entrada.status)}</TableCell>
+                    <TableCell className="text-center">
+                      {/* ALTERAÇÃO: Adicionada a prop 'onSuccess' */}
+                      <EntradaDetailDialog
+                        entradaId={entrada.id}
+                        onSuccess={handleSuccess}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

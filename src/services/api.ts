@@ -324,15 +324,27 @@ class ApiService {
     });
   }
 
-// NOVO: Busca a lista de entradas de estoque com filtro de busca
+  // NOVO: Busca a lista de entradas de estoque com filtro de busca
   async getEntradasAlmoxarifado(search?: string) {
     const query = search ? `?q=${encodeURIComponent(search)}` : "";
     return this.request(`/api/almoxarifado/entradas${query}`);
   }
-  
 
+  // NOVO: Busca os detalhes de uma única entrada de estoque pelo ID
+  async getEntradaAlmoxarifadoById(id: string) {
+    return this.request(`/api/almoxarifado/entradas/${id}`);
+  }
 
-
+  // NOVO: "Ajusta" uma entrada de estoque, criando uma nova versão corrigida.
+  async ajustarEntradaAlmoxarifado(
+    id: string,
+    payload: EntradaAlmoxarifadoPayload
+  ) {
+    return this.request(`/api/almoxarifado/entradas/${id}/ajustar`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 export const apiService = new ApiService();

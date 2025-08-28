@@ -403,6 +403,12 @@ model EntradaEstoque {
   valorTotal   Float?     @map("valor_total")
   observacoes  String?
   createdAt    DateTime   @default(now()) @map("created_at")
+
+  // ALTERAÇÃO: Adicionados campos para o histórico de alterações
+  status             String          @default("ativo") // 'ativo', 'ajustada'
+  entradaOriginal    EntradaEstoque? @relation("HistoricoEntrada", fields: [entradaOriginalId], references: [id])
+  entradaOriginalId  String?         @map("entrada_original_id")
+  entradasAjustadas  EntradaEstoque[] @relation("HistoricoEntrada")
   
   itens        ItemEntradaEstoque[]
   movimentacoes MovimentacaoEstoqueCentral[]

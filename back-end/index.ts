@@ -1167,6 +1167,139 @@ app.get('/api/almoxarifado/entradas', authenticateToken, async (req: Request, re
     }
 });
 
+// NOVO: Rota para buscar os detalhes de uma única entrada de estoque
+app.get('/api/almoxarifado/entradas/:id', authenticateToken, async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        const entrada = await prisma.entradaEstoque.findUnique({
+            where: { id },
+            include: {
+                fornecedor: true,
+                itens: {
+                    include: { insumo: { include: { unidadeMedida: true } } },
+                    orderBy: { insumo: { nome: 'asc' } }
+                },
+                // Busca as versões "filhas" (ajustes feitos a partir desta)
+                entradasAjustadas: {
+                    select: { id: true, notaFiscal: true, dataEntrada: true }
+                },
+                // Busca a versão "pai" (a original que esta ajustou)
+                entradaOriginal: {
+                    select: { id: true, notaFiscal: true, dataEntrada: true }
+                }
+            }
+        });
+
+        if (!entrada) return res.status(404).json({ error: 'Registro de entrada não encontrado.' });
+        res.json(entrada);
+    } catch (error) {
+        res.status(500).json({ error: 'Não foi possível buscar os detalhes da entrada.' });
+    }
+});
+// NOVO: Rota para "ajustar" uma entrada de estoque, criando uma nova versão.
+app.post('/api/almoxarifado/entradas/:id/ajustar', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { id: entradaOriginalId } = req.params;
+    const { notaFiscal, dataEntrada, fornecedorId, itens, observacoes, valorTotal } = req.body;
+    const responsavel = req.user?.nome || 'Usuário do Sistema';
+
+    try {
+        const entradaOriginal = await prisma.entradaEstoque.findUnique({
+            where: { id: entradaOriginalId },
+            include: { itens: true }
+        });
+
+        if (!entradaOriginal) {
+            return res.status(404).json({ error: "Entrada original não encontrada." });
+        }
+        if (entradaOriginal.status === 'ajustada') {
+            return res.status(400).json({ error: "Esta entrada já foi ajustada e não pode ser modificada novamente." });
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+            // 1. "Estornar" o estoque da entrada original
+            for (const itemOriginal of entradaOriginal.itens) {
+                const estoqueCentralItem = await tx.estoqueCentral.findUnique({ where: { insumoId: itemOriginal.insumoId } });
+                if (!estoqueCentralItem) continue; // Item pode não ter mais estoque, mas a lógica continua
+
+                await tx.estoqueCentral.update({
+                    where: { id: estoqueCentralItem.id },
+                    data: { quantidadeAtual: { decrement: Number(itemOriginal.quantidade) } }
+                });
+
+                // Registra uma movimentação de "estorno"
+                await tx.movimentacaoEstoqueCentral.create({
+                    data: {
+                        estoqueId: estoqueCentralItem.id,
+                        tipo: 'ajuste_estorno',
+                        quantidade: Number(itemOriginal.quantidade),
+                        quantidadeAnterior: estoqueCentralItem.quantidadeAtual,
+                        quantidadeNova: estoqueCentralItem.quantidadeAtual - Number(itemOriginal.quantidade),
+                        responsavel,
+                        motivo: `Estorno referente ao ajuste da NF: ${entradaOriginal.notaFiscal}`,
+                    }
+                });
+            }
+
+            // 2. Marcar a entrada original como 'ajustada'
+            await tx.entradaEstoque.update({
+                where: { id: entradaOriginalId },
+                data: { status: 'ajustada' }
+            });
+            
+            // 3. Criar a NOVA entrada (a versão corrigida), vinculando-a à original
+            const novaEntradaAjustada = await tx.entradaEstoque.create({
+                data: {
+                    notaFiscal, dataEntrada: new Date(dataEntrada), fornecedorId, observacoes, valorTotal,
+                    status: 'ativo', // A nova entrada é a ativa
+                    entradaOriginalId: entradaOriginalId, // Link para a versão anterior
+                }
+            });
+
+            // 4. Aplicar o novo estoque e as novas movimentações
+            for (const item of itens) {
+                const insumo = await tx.insumo.upsert({
+                    where: { nome: item.nome },
+                    update: {},
+                    create: { nome: item.nome, unidadeMedidaId: item.unidadeMedidaId }
+                });
+                
+                await tx.itemEntradaEstoque.create({
+                    data: {
+                        entradaId: novaEntradaAjustada.id, insumoId: insumo.id,
+                        quantidade: Number(item.quantidade),
+                        valorUnitario: item.valorUnitario ? Number(item.valorUnitario) : null,
+                    }
+                });
+
+                const estoqueCentralItem = await tx.estoqueCentral.upsert({
+                    where: { insumoId: insumo.id },
+                    update: { quantidadeAtual: { increment: Number(item.quantidade) } },
+                    create: { insumoId: insumo.id, quantidadeAtual: Number(item.quantidade) }
+                });
+
+                await tx.movimentacaoEstoqueCentral.create({
+                    data: {
+                        estoqueId: estoqueCentralItem.id, tipo: 'entrada',
+                        quantidade: Number(item.quantidade),
+                        quantidadeAnterior: estoqueCentralItem.quantidadeAtual - Number(item.quantidade),
+                        quantidadeNova: estoqueCentralItem.quantidadeAtual,
+                        responsavel, entradaEstoqueId: novaEntradaAjustada.id,
+                        motivo: `Entrada ajustada da NF: ${notaFiscal}`,
+                    }
+                });
+            }
+            return novaEntradaAjustada;
+        });
+
+        res.status(201).json({ message: "Entrada ajustada com sucesso!", entrada: result });
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+        res.status(500).json({ error: `Falha ao ajustar entrada: ${errorMessage}` });
+    }
+});
+
+
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
 
 // COMENTÁRIO: Retorna uma lista simplificada de contratos ativos.
