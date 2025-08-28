@@ -1037,14 +1037,151 @@ app.post(
 
 // --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
 
+// =======================================================
+// --- ROTAS DE ALMOXARIFADO - INSUMOS (VERSÃO COMPLETA) ---
+// =======================================================
+
+// NOVO: Rota para buscar um único insumo pelo ID
+app.get(
+  "/api/almoxarifado/insumos/:id",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+      const insumo = await prisma.itemAlmoxarifado.findUnique({
+        where: { id },
+        include: { unidadeMedida: true },
+      });
+      if (insumo) {
+        res.json(insumo);
+      } else {
+        res.status(404).json({ error: "Insumo não encontrado." });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Não foi possível buscar o insumo." });
+    }
+  }
+);
+
+// Rota para listar todos os insumos de almoxarifado (já criada)
+app.get('/api/almoxarifado/insumos', authenticateToken, async (req: Request, res: Response) => {
+    const { q, contratoId } = req.query;
+    try {
+        const whereClause: Prisma.ItemAlmoxarifadoWhereInput = {}; // Corrigido para o tipo correto se existir
+        if(contratoId) {
+            whereClause.contratoId = contratoId as string;
+        }
+        if (q) {
+            whereClause.nome = { contains: q as string, mode: 'insensitive' };
+        }
+
+        const insumos = await prisma.itemAlmoxarifado.findMany({
+            where: whereClause,
+            include: {
+                unidadeMedida: true,
+                // ALTERAÇÃO DEFINITIVA:
+                // Garanta que o 'select' para o contrato inclua o 'id'.
+                contrato: {
+                    select: {
+                        id: true, // ESSA LINHA É ESSENCIAL
+                        numero: true
+                    }
+                }
+            },
+            orderBy: { nome: 'asc' }
+        });
+        res.json(insumos);
+    } catch (error) {
+        res.status(500).json({ error: 'Não foi possível buscar os insumos.' });
+    }
+});
+
+// Rota para criar um novo insumo (já criada)
+app.post(
+  "/api/almoxarifado/insumos",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    const { nome, valorUnitario, quantidade, unidadeMedidaId, contratoId } =
+      req.body;
+    try {
+      const novoInsumo = await prisma.itemAlmoxarifado.create({
+        data: {
+          nome,
+          valorUnitario: Number(valorUnitario),
+          quantidade: Number(quantidade),
+          saldo: Number(quantidade),
+          unidadeMedidaId,
+          contratoId,
+        },
+      });
+      res.status(201).json(novoInsumo);
+    } catch (error) {
+      res.status(500).json({ error: "Não foi possível criar o insumo." });
+    }
+  }
+);
+
+// Rota para atualizar um insumo (já criada)
+app.put(
+  "/api/almoxarifado/insumos/:id",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { nome, valorUnitario, quantidade, saldo, unidadeMedidaId } =
+      req.body;
+    try {
+      const insumoAtualizado = await prisma.itemAlmoxarifado.update({
+        where: { id },
+        data: {
+          nome,
+          valorUnitario: Number(valorUnitario),
+          quantidade: Number(quantidade),
+          saldo: Number(saldo),
+          unidadeMedidaId,
+        },
+      });
+      res.json(insumoAtualizado);
+    } catch (error) {
+      res.status(500).json({ error: "Não foi possível atualizar o insumo." });
+    }
+  }
+);
+
+// NOVO: Rota para deletar um insumo
+app.delete(
+  "/api/almoxarifado/insumos/:id",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+      // Adicionar verificação se o item tem dependências (pedidos, etc) antes de deletar
+      await prisma.itemAlmoxarifado.delete({
+        where: { id },
+      });
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Não foi possível deletar o insumo." });
+    }
+  }
+);
+
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
 
 // COMENTÁRIO: Retorna uma lista simplificada de contratos ativos.
 // UTILIZAÇÃO: Usada para preencher o campo de seleção (<Select>) de contratos no `NovoPedidoDialog.tsx`.
 app.get("/api/contratos-ativos", async (req: Request, res: Response) => {
+  const { tipo } = req.query;
   try {
+    const whereClause: Prisma.ContratoWhereInput = {
+      status: "ativo",
+    };
+
+    if (tipo) {
+      whereClause.tipo = tipo as string;
+    }
+
     const contratos = await prisma.contrato.findMany({
-      where: { status: "ativo" },
+      where: whereClause,
       select: {
         id: true,
         numero: true,
@@ -5317,11 +5454,9 @@ app.post(
         return { count: itensAtualizados };
       });
 
-      res
-        .status(200)
-        .json({
-          message: `Percápitas para ${resultado.count} itens foram importadas com sucesso.`,
-        });
+      res.status(200).json({
+        message: `Percápitas para ${resultado.count} itens foram importadas com sucesso.`,
+      });
     } catch (error) {
       console.error("Erro ao importar percápitas:", error);
       res

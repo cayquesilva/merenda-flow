@@ -41,7 +41,8 @@ model UnidadeMedida {
   sigla String @unique
 
   // Relações
-  itensContrato ItemContrato[]
+  itensContrato     ItemContrato[]
+  itensAlmoxarifado ItemAlmoxarifado[]
 }
 
 model Fornecedor {
@@ -82,7 +83,12 @@ model UnidadeEducacional {
   movimentacoesRemanejadas MovimentacaoEstoque[] @relation("MovimentacaoRemanejamento")
 
   // NOVO: Adicionada a relação de muitos-para-muitos com Usuario.
-  usuarios                 Usuario[]           @relation("UsuarioUnidades")
+  usuarios Usuario[] @relation("UsuarioUnidades")
+
+  // NOVO: Adicionadas as relações inversas para o módulo de almoxarifado.
+  pedidosAlmoxarifado  ItemPedidoAlmoxarifado[]
+  recibosAlmoxarifado  ReciboAlmoxarifado[]
+  estoquesAlmoxarifado EstoqueAlmoxarifado[]
 }
 
 // ===================================
@@ -92,6 +98,7 @@ model UnidadeEducacional {
 model Contrato {
   id         String   @id @default(uuid())
   numero     String   @unique
+  tipo       String   @default("nutricao") // 'nutricao' ou 'almoxarifado'
   dataInicio DateTime @map("data_inicio")
   dataFim    DateTime @map("data_fim")
   valorTotal Float    @map("valor_total")
@@ -106,6 +113,11 @@ model Contrato {
   itens   ItemContrato[]
   // Relação com Pedidos
   pedidos Pedido[]
+
+  // NOVO: Relação com Itens do Almoxarifado
+  itensAlmoxarifado   ItemAlmoxarifado[]
+  // NOVO: Relação com Pedidos do Almoxarifado
+  pedidosAlmoxarifado PedidoAlmoxarifado[]
 }
 
 model ItemContrato {
@@ -121,8 +133,7 @@ model ItemContrato {
   saldoCreche        Float @default(0) @map("saldo_creche")
   saldoEscola        Float @default(0) @map("saldo_escola")
 
-  gramagemPorPacote  Float?  @map("gramagem_por_pacote") // Gramagem do pacote em gramas. É opcional.
-
+  gramagemPorPacote Float? @map("gramagem_por_pacote") // Gramagem do pacote em gramas. É opcional.
 
   // Relação com Contrato
   contrato   Contrato @relation(fields: [contratoId], references: [id])
@@ -197,8 +208,8 @@ model Recibo {
   unidadeEducacionalId String             @map("unidade_educacional_id")
 
   // NOVO: Relação para rastrear recibos de ajuste (complementares)
-  reciboOriginal   Recibo? @relation("ReciboComplementar", fields: [reciboOriginalId], references: [id])
-  reciboOriginalId String? @map("recibo_original_id")
+  reciboOriginal        Recibo?  @relation("ReciboComplementar", fields: [reciboOriginalId], references: [id])
+  reciboOriginalId      String?  @map("recibo_original_id")
   recibosComplementares Recibo[] @relation("ReciboComplementar")
 
   // Relação com Itens do Recibo
@@ -346,6 +357,152 @@ model MovimentacaoEstoque {
   // NOVO: Relação para Descarte com foto
   fotoDescarte   FotoDescarte? @relation(fields: [fotoDescarteId], references: [id])
   fotoDescarteId String?       @unique @map("foto_descarte_id")
+}
+
+// ===================================
+// NOVOS MODELOS PARA O ALMOXARIFADO
+// ===================================
+
+// NOVO: Itens de um contrato de almoxarifado (Insumos)
+model ItemAlmoxarifado {
+  id            String @id @default(uuid())
+  nome          String
+  valorUnitario Float  @map("valor_unitario")
+  quantidade    Float  @map("quantidade")
+  saldo         Float  @map("saldo")
+
+  contrato   Contrato @relation(fields: [contratoId], references: [id])
+  contratoId String   @map("contrato_id")
+
+  unidadeMedida   UnidadeMedida @relation(fields: [unidadeMedidaId], references: [id])
+  unidadeMedidaId String        @map("unidade_medida_id")
+
+  // Relações
+  itensPedido ItemPedidoAlmoxarifado[]
+  estoques    EstoqueAlmoxarifado[]
+
+  @@map("itens_almoxarifado")
+}
+
+// NOVO: Pedidos de insumos do almoxarifado
+model PedidoAlmoxarifado {
+  id                  String   @id @default(uuid())
+  numero              String   @unique
+  dataPedido          DateTime @map("data_pedido")
+  dataEntregaPrevista DateTime @map("data_entrega_prevista")
+  status              String // 'pendente', 'entregue', 'cancelado'
+  valorTotal          Float    @map("valor_total")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  contrato   Contrato @relation(fields: [contratoId], references: [id])
+  contratoId String   @map("contrato_id")
+
+  // Relações
+  itens   ItemPedidoAlmoxarifado[]
+  recibos ReciboAlmoxarifado[]
+
+  @@map("pedidos_almoxarifado")
+}
+
+// NOVO: Itens de um pedido de almoxarifado
+model ItemPedidoAlmoxarifado {
+  id         String @id @default(uuid())
+  quantidade Float
+
+  pedido   PedidoAlmoxarifado @relation(fields: [pedidoId], references: [id])
+  pedidoId String             @map("pedido_id")
+
+  itemAlmoxarifado   ItemAlmoxarifado @relation(fields: [itemAlmoxarifadoId], references: [id])
+  itemAlmoxarifadoId String           @map("item_almoxarifado_id")
+
+  unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
+  unidadeEducacionalId String             @map("unidade_educacional_id")
+
+  // Relações
+  itensRecibo ItemReciboAlmoxarifado[]
+
+  @@map("itens_pedido_almoxarifado")
+}
+
+// NOVO: Recibos de insumos do almoxarifado
+model ReciboAlmoxarifado {
+  id                     String   @id @default(uuid())
+  numero                 String   @unique
+  dataEntrega            DateTime @map("data_entrega")
+  responsavelRecebimento String   @map("responsavel_recebimento")
+  status                 String // 'pendente', 'confirmado', 'parcial', 'rejeitado'
+  qrcode                 String?
+  observacoes            String?
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  pedido   PedidoAlmoxarifado @relation(fields: [pedidoId], references: [id])
+  pedidoId String             @map("pedido_id")
+
+  unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
+  unidadeEducacionalId String             @map("unidade_educacional_id")
+
+  itens ItemReciboAlmoxarifado[]
+
+  // NOVO: Adicionada a relação inversa para as movimentações.
+  movimentacoesEstoque MovimentacaoEstoqueAlmoxarifado[]
+
+  @@map("recibos_almoxarifado")
+}
+
+// NOVO: Itens de um recibo de almoxarifado
+model ItemReciboAlmoxarifado {
+  id                   String  @id @default(uuid())
+  quantidadeSolicitada Float   @map("quantidade_solicitada")
+  quantidadeRecebida   Float   @map("quantidade_recebida")
+  conforme             Boolean
+  observacoes          String?
+
+  recibo   ReciboAlmoxarifado @relation(fields: [reciboId], references: [id])
+  reciboId String             @map("recibo_id")
+
+  itemPedido   ItemPedidoAlmoxarifado @relation(fields: [itemPedidoId], references: [id])
+  itemPedidoId String                 @map("item_pedido_id")
+
+  @@map("itens_recibo_almoxarifado")
+}
+
+// NOVO: Controle de estoque de insumos nas unidades
+model EstoqueAlmoxarifado {
+  id                String   @id @default(uuid())
+  quantidadeAtual   Float    @default(0) @map("quantidade_atual")
+  quantidadeMinima  Float    @default(0) @map("quantidade_minima")
+  ultimaAtualizacao DateTime @default(now()) @map("ultima_atualizacao")
+
+  unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
+  unidadeEducacionalId String             @map("unidade_educacional_id")
+
+  itemAlmoxarifado   ItemAlmoxarifado @relation(fields: [itemAlmoxarifadoId], references: [id])
+  itemAlmoxarifadoId String           @map("item_almoxarifado_id")
+
+  movimentacoes MovimentacaoEstoqueAlmoxarifado[]
+
+  @@unique([unidadeEducacionalId, itemAlmoxarifadoId])
+  @@map("estoques_almoxarifado")
+}
+
+// NOVO: Movimentações do estoque de almoxarifado (sem descarte)
+model MovimentacaoEstoqueAlmoxarifado {
+  id                 String   @id @default(uuid())
+  tipo               String // 'entrada', 'saida', 'ajuste', 'remanejamento'
+  quantidade         Float
+  quantidadeAnterior Float    @map("quantidade_anterior")
+  quantidadeNova     Float    @map("quantidade_nova")
+  motivo             String
+  responsavel        String
+  dataMovimentacao   DateTime @default(now()) @map("data_movimentacao")
+
+  estoque   EstoqueAlmoxarifado @relation(fields: [estoqueId], references: [id])
+  estoqueId String              @map("estoque_id")
+
+  recibo   ReciboAlmoxarifado? @relation(fields: [reciboId], references: [id])
+  reciboId String?             @map("recibo_id")
+
+  @@map("movimentacoes_estoque_almoxarifado")
 }
 
 model FotoDescarte {

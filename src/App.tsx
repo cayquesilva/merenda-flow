@@ -29,6 +29,7 @@ import RelatorioMovimentacaoResponsavel from "./components/relatorios/RelatorioM
 import ImprimirRecibo from "./components/recibos/ImprimirRecibo";
 import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
 import Percapita from "./pages/Percapita";
+import Insumos from "./pages/Insumos"; // Crie este arquivo a seguir
 
 const queryClient = new QueryClient();
 
@@ -250,6 +251,14 @@ function AppContent() {
           element={
             <ProtectedRoute module="recibos">
               <ImprimirRecibosPedido />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/almoxarifado/insumos"
+          element={
+            <ProtectedRoute module="almoxarifado">
+              <Insumos />
             </ProtectedRoute>
           }
         />
