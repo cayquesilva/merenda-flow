@@ -49,6 +49,7 @@ interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     categoria: string;
+    nome: string;
   };
   unidadesPermitidas?: string[];
 }
@@ -57,6 +58,7 @@ interface AuthenticatedRequest extends Request {
 interface JwtPayload {
   userId: string;
   categoria: string;
+  nome: string;
 }
 
 // ALTERAÇÃO: O middleware de autenticação agora busca as unidades vinculadas ao usuário, se aplicável.
@@ -78,9 +80,9 @@ const authenticateToken = async (
       return res.status(403).json({ error: "Token inválido" });
     }
 
-    const { userId, categoria } = decoded;
+    const { userId, categoria, nome } = decoded;
     req.userId = userId;
-    req.user = { id: userId, categoria };
+    req.user = { id: userId, categoria, nome };
 
     // COMENTÁRIO: Se o usuário pertence a uma categoria com acesso restrito,
     // busca os IDs das unidades educacionais às quais ele está vinculado.
@@ -130,9 +132,9 @@ const optionalAuthenticateToken = async (
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     if (decoded && typeof decoded === "object" && decoded.userId) {
-      const { userId, categoria } = decoded;
+      const { userId, categoria, nome } = decoded;
       req.userId = userId;
-      req.user = { id: userId, categoria };
+      req.user = { id: userId, categoria, nome };
 
       // Se for um usuário restrito, busca suas unidades permitidas.
       if (
@@ -195,6 +197,7 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
         userId: usuario.id,
         email: usuario.email,
         categoria: usuario.categoria,
+        nome: usuario.nome,
       },
       JWT_SECRET,
       { expiresIn: "24h" }
@@ -1038,239 +1041,137 @@ app.post(
 // --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
 
 // =======================================================
-// --- ROTAS DE ALMOXARIFADO - INSUMOS (VERSÃO COMPLETA) ---
+// --- ROTAS DE ALMOXARIFADO (FLUXO SIMPLIFICADO) ---
 // =======================================================
 
-// NOVO: Rota para buscar um único insumo pelo ID
+// Rota para listar ou buscar insumos do catálogo mestre
 app.get(
-  "/api/almoxarifado/insumos/:id",
+  "/api/almoxarifado/insumos",
   authenticateToken,
   async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const { q } = req.query;
     try {
-      const insumo = await prisma.itemAlmoxarifado.findUnique({
-        where: { id },
+      const insumos = await prisma.insumo.findMany({
+        where: q
+          ? { nome: { contains: q as string, mode: "insensitive" } }
+          : {},
         include: { unidadeMedida: true },
+        orderBy: { nome: "asc" },
       });
-      if (insumo) {
-        res.json(insumo);
-      } else {
-        res.status(404).json({ error: "Insumo não encontrado." });
-      }
+      res.json(insumos);
     } catch (error) {
-      res.status(500).json({ error: "Não foi possível buscar o insumo." });
+      res.status(500).json({ error: "Não foi possível buscar os insumos." });
     }
   }
 );
 
-// Rota para listar todos os insumos de almoxarifado (já criada)
-app.get('/api/almoxarifado/insumos', authenticateToken, async (req: Request, res: Response) => {
-    const { q, contratoId } = req.query;
-    try {
-        const whereClause: Prisma.ItemAlmoxarifadoWhereInput = {}; // Corrigido para o tipo correto se existir
-        if(contratoId) {
-            whereClause.contratoId = contratoId as string;
-        }
-        if (q) {
-            whereClause.nome = { contains: q as string, mode: 'insensitive' };
-        }
-
-        const insumos = await prisma.itemAlmoxarifado.findMany({
-            where: whereClause,
-            include: {
-                unidadeMedida: true,
-                // ALTERAÇÃO DEFINITIVA:
-                // Garanta que o 'select' para o contrato inclua o 'id'.
-                contrato: {
-                    select: {
-                        id: true, // ESSA LINHA É ESSENCIAL
-                        numero: true
-                    }
-                }
-            },
-            orderBy: { nome: 'asc' }
-        });
-        res.json(insumos);
-    } catch (error) {
-        res.status(500).json({ error: 'Não foi possível buscar os insumos.' });
-    }
-});
-
-// Rota para criar um novo insumo (já criada)
+// Rota para criar um novo insumo no catálogo mestre
 app.post(
   "/api/almoxarifado/insumos",
   authenticateToken,
   async (req: Request, res: Response) => {
-    const { nome, valorUnitario, quantidade, unidadeMedidaId, contratoId } =
-      req.body;
     try {
-      const novoInsumo = await prisma.itemAlmoxarifado.create({
-        data: {
-          nome,
-          valorUnitario: Number(valorUnitario),
-          quantidade: Number(quantidade),
-          saldo: Number(quantidade),
-          unidadeMedidaId,
-          contratoId,
-        },
-      });
+      const novoInsumo = await prisma.insumo.create({ data: req.body });
       res.status(201).json(novoInsumo);
     } catch (error) {
+      // ... (seu tratamento de erro para P2002 - nome único)
       res.status(500).json({ error: "Não foi possível criar o insumo." });
     }
   }
 );
 
-// Rota para atualizar um insumo (já criada)
-app.put(
-  "/api/almoxarifado/insumos/:id",
+// --- ROTA PRINCIPAL PARA ENTRADA DE ESTOQUE ---
+
+// Rota para registrar uma nova entrada de estoque (via Nota Fiscal)
+app.post(
+  "/api/almoxarifado/entradas",
   authenticateToken,
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { nome, valorUnitario, quantidade, saldo, unidadeMedidaId } =
-      req.body;
+  async (req: AuthenticatedRequest, res: Response) => {
+    const {
+      notaFiscal,
+      dataEntrada,
+      fornecedorId,
+      itens,
+      observacoes,
+      valorTotal,
+    } = req.body;
+    const responsavel = req.user?.nome || "Usuário do Sistema";
+
     try {
-      const insumoAtualizado = await prisma.itemAlmoxarifado.update({
-        where: { id },
-        data: {
-          nome,
-          valorUnitario: Number(valorUnitario),
-          quantidade: Number(quantidade),
-          saldo: Number(saldo),
-          unidadeMedidaId,
-        },
-      });
-      res.json(insumoAtualizado);
-    } catch (error) {
-      res.status(500).json({ error: "Não foi possível atualizar o insumo." });
-    }
-  }
-);
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Cria o registro da Entrada (a "capa" da nota fiscal)
+        const novaEntrada = await tx.entradaEstoque.create({
+          data: {
+            notaFiscal,
+            dataEntrada: new Date(dataEntrada),
+            fornecedorId,
+            observacoes,
+            valorTotal: valorTotal ? Number(valorTotal) : null,
+          },
+        });
 
-// NOVO: Rota para deletar um insumo
-app.delete(
-  "/api/almoxarifado/insumos/:id",
-  authenticateToken,
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    try {
-      // Adicionar verificação se o item tem dependências (pedidos, etc) antes de deletar
-      await prisma.itemAlmoxarifado.delete({
-        where: { id },
-      });
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ error: "Não foi possível deletar o insumo." });
-    }
-  }
-);
-
-// =======================================================
-// --- ROTAS DE ALMOXARIFADO - PEDIDOS ---
-// =======================================================
-
-// NOVO: Rota para listar todos os pedidos de almoxarifado com filtros
-app.get('/api/almoxarifado/pedidos', authenticateToken, async (req: Request, res: Response) => {
-    const { q, status } = req.query;
-    try {
-        const whereClause: Prisma.PedidoAlmoxarifadoWhereInput = {};
-        if (status && status !== 'todos') {
-            whereClause.status = status as string;
-        }
-        if (q) {
-            whereClause.OR = [
-                { numero: { contains: q as string, mode: 'insensitive' } },
-                { contrato: { fornecedor: { nome: { contains: q as string, mode: 'insensitive' } } } }
-            ];
-        }
-
-        const pedidos = await prisma.pedidoAlmoxarifado.findMany({
-            where: whereClause,
-            include: {
-                contrato: { select: { fornecedor: { select: { nome: true } } } },
-                _count: { select: { itens: true } }
+        // 2. Itera sobre cada item da nota fiscal
+        for (const item of itens) {
+          // 2.1. Cria o registro do item da entrada
+          await tx.itemEntradaEstoque.create({
+            data: {
+              entradaId: novaEntrada.id,
+              insumoId: item.insumoId,
+              quantidade: Number(item.quantidade),
+              valorUnitario: item.valorUnitario
+                ? Number(item.valorUnitario)
+                : null,
             },
-            orderBy: { dataPedido: 'desc' }
+          });
+
+          // 2.2. Atualiza o Estoque Central (cria se não existir, ou soma se já existir)
+          const estoqueCentralItem = await tx.estoqueCentral.upsert({
+            where: { insumoId: item.insumoId },
+            update: {
+              quantidadeAtual: {
+                increment: Number(item.quantidade),
+              },
+            },
+            create: {
+              insumoId: item.insumoId,
+              quantidadeAtual: Number(item.quantidade),
+            },
+          });
+
+          // 2.3. Registra a movimentação de entrada no estoque central
+          await tx.movimentacaoEstoqueCentral.create({
+            data: {
+              estoqueId: estoqueCentralItem.id,
+              tipo: "entrada",
+              quantidade: Number(item.quantidade),
+              quantidadeAnterior:
+                estoqueCentralItem.quantidadeAtual - Number(item.quantidade),
+              quantidadeNova: estoqueCentralItem.quantidadeAtual,
+              responsavel,
+              entradaEstoqueId: novaEntrada.id, // Link para a nota fiscal
+              motivo: `Entrada via NF: ${notaFiscal}`,
+            },
+          });
+        }
+        return novaEntrada;
+      });
+
+      res
+        .status(201)
+        .json({
+          message: "Entrada de estoque registrada com sucesso!",
+          entrada: result,
         });
-        res.json(pedidos);
     } catch (error) {
-        res.status(500).json({ error: 'Não foi possível buscar os pedidos de almoxarifado.' });
+      console.error("Erro ao registrar entrada de estoque:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      res
+        .status(500)
+        .json({ error: `Falha ao registrar entrada: ${errorMessage}` });
     }
-});
-
-// NOVO: Rota para buscar os detalhes de um único pedido de almoxarifado
-app.get('/api/almoxarifado/pedidos/:id', authenticateToken, async (req: Request, res: Response) => {
-    const { id } = req.params;
-    try {
-        const pedido = await prisma.pedidoAlmoxarifado.findUnique({
-            where: { id },
-            include: {
-                contrato: { include: { fornecedor: true } },
-                itens: {
-                    include: {
-                        itemAlmoxarifado: { include: { unidadeMedida: true } },
-                        unidadeEducacional: true,
-                    },
-                    orderBy: { itemAlmoxarifado: { nome: 'asc' } }
-                }
-            }
-        });
-        if (!pedido) return res.status(404).json({ error: 'Pedido não encontrado.' });
-        res.json(pedido);
-    } catch (error) {
-        res.status(500).json({ error: 'Não foi possível buscar os detalhes do pedido.' });
-    }
-});
-
-// NOVO: Rota para criar um novo pedido de almoxarifado
-app.post('/api/almoxarifado/pedidos', authenticateToken, async (req: Request, res: Response) => {
-    const { contratoId, dataEntregaPrevista, valorTotal, itens } = req.body;
-    
-    // Gera um número de pedido único para almoxarifado
-    const numeroPedido = `PA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-
-    try {
-        const result = await prisma.$transaction(async (tx) => {
-            const novoPedido = await tx.pedidoAlmoxarifado.create({
-                data: {
-                    numero: numeroPedido,
-                    contratoId,
-                    dataPedido: new Date(),
-                    dataEntregaPrevista: new Date(dataEntregaPrevista),
-                    valorTotal,
-                    status: 'pendente',
-                }
-            });
-
-            for (const item of itens) {
-                // Cria o item do pedido
-                await tx.itemPedidoAlmoxarifado.create({
-                    data: {
-                        pedidoId: novoPedido.id,
-                        itemAlmoxarifadoId: item.itemAlmoxarifadoId,
-                        unidadeEducacionalId: item.unidadeEducacionalId,
-                        quantidade: item.quantidade,
-                    }
-                });
-
-                // Decrementa o saldo do insumo no contrato
-                await tx.itemAlmoxarifado.update({
-                    where: { id: item.itemAlmoxarifadoId },
-                    data: {
-                        saldo: {
-                            decrement: item.quantidade,
-                        }
-                    }
-                });
-            }
-            return novoPedido;
-        });
-        res.status(201).json(result);
-    } catch (error) {
-        console.error("Erro ao criar pedido de almoxarifado:", error);
-        res.status(500).json({ error: 'Não foi possível criar o pedido.' });
-    }
-});
+  }
+);
 
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
 

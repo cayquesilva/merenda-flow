@@ -34,6 +34,23 @@ export interface PedidoAlmoxarifadoPayload {
   itens: ItemPedidoAlmoxarifadoPayload[];
 }
 
+// NOVO: Interface para um item individual dentro do payload de entrada.
+export interface ItemEntradaPayload {
+  insumoId: string;
+  quantidade: number;
+  valorUnitario?: number;
+}
+
+// NOVO: Interface para o payload completo da requisição de entrada de estoque.
+export interface EntradaAlmoxarifadoPayload {
+  notaFiscal: string;
+  dataEntrada: string;
+  fornecedorId: string;
+  valorTotal?: number;
+  observacoes?: string;
+  itens: ItemEntradaPayload[];
+}
+
 class ApiService {
   private getAuthHeaders() {
     const token = localStorage.getItem("token");
@@ -224,7 +241,7 @@ class ApiService {
     return this.request("/api/contratos-ativos");
   }
 
-// --- MÉTODOS PARA ALMOXARIFADO - INSUMOS ---
+  // --- MÉTODOS PARA ALMOXARIFADO - INSUMOS ---
 
   // NOVO: Busca a lista de insumos com filtro de busca
   async getInsumos(search?: string) {
@@ -243,7 +260,8 @@ class ApiService {
   }
 
   // NOVO: Cria um novo insumo
-  async createInsumo(data: InsumoPayload) { // Tipar 'data' com uma interface apropriada
+  async createInsumo(data: InsumoPayload) {
+    // Tipar 'data' com uma interface apropriada
     return this.request("/api/almoxarifado/insumos", {
       method: "POST",
       body: JSON.stringify(data),
@@ -251,7 +269,8 @@ class ApiService {
   }
 
   // NOVO: Atualiza um insumo existente
-  async updateInsumo(id: string, data: Partial<InsumoPayload>) { // Tipar 'data' com uma interface apropriada
+  async updateInsumo(id: string, data: Partial<InsumoPayload>) {
+    // Tipar 'data' com uma interface apropriada
     return this.request(`/api/almoxarifado/insumos/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -265,7 +284,6 @@ class ApiService {
     });
   }
 
-
   // NOVO: Busca a lista de pedidos de almoxarifado com filtros
   async getPedidosAlmoxarifado(q: string, status: string) {
     const params = new URLSearchParams({ q, status });
@@ -278,18 +296,32 @@ class ApiService {
   }
 
   // NOVO: Cria um novo pedido de almoxarifado
-  async createPedidoAlmoxarifado(payload: PedidoAlmoxarifadoPayload) { // Idealmente, criar uma interface para o payload
-    return this.request('/api/almoxarifado/pedidos', {
-      method: 'POST',
-      body: JSON.stringify(payload)
+  async createPedidoAlmoxarifado(payload: PedidoAlmoxarifadoPayload) {
+    // Idealmente, criar uma interface para o payload
+    return this.request("/api/almoxarifado/pedidos", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   }
 
   // NOVO: Busca insumos de um contrato específico para o formulário de pedido
   async getInsumosPorContrato(contratoId: string) {
-      return this.request(`/api/almoxarifado/insumos?contratoId=${contratoId}`);
+    return this.request(`/api/almoxarifado/insumos?contratoId=${contratoId}`);
   }
 
+  // NOVO: Busca a lista simplificada de fornecedores ativos
+  async getFornecedoresLista() {
+    return this.request("/api/fornecedores/lista");
+  }
+
+  // NOVO: Registra uma nova entrada de estoque no almoxarifado
+  async createEntradaAlmoxarifado(payload: EntradaAlmoxarifadoPayload) {
+    // Idealmente, criar uma interface para este payload
+    return this.request("/api/almoxarifado/entradas", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 export const apiService = new ApiService();

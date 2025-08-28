@@ -15,6 +15,7 @@ import {
   Package,
   Calculator,
   Warehouse,
+  Box,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -122,6 +123,12 @@ export function AppSidebar() {
           title: "Pedidos Almox.", // Título diferenciado
           url: "/almoxarifado/pedidos",
           icon: ShoppingCart,
+          module: "almoxarifado",
+        },
+        {
+          title: "Registrar Entradas", // Link principal agora
+          url: "/almoxarifado/entradas",
+          icon: Box, // Ícone apropriado
           module: "almoxarifado",
         },
         // Adicionaremos os links de Recibos e Estoque aqui futuramente

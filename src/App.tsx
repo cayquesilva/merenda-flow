@@ -31,6 +31,8 @@ import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
 import Percapita from "./pages/Percapita";
 import Insumos from "./pages/Insumos"; // Crie este arquivo a seguir
 import PedidosAlmoxarifado from "./pages/PedidosAlmoxarifado"; // Crie este arquivo a seguir
+import EntradasAlmoxarifado from "./pages//EntradasAlmoxarifado"; // Importe a nova página
+
 
 const queryClient = new QueryClient();
 
@@ -268,6 +270,14 @@ function AppContent() {
           element={
             <ProtectedRoute module="almoxarifado">
               <PedidosAlmoxarifado />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/almoxarifado/entradas"
+          element={
+            <ProtectedRoute module="almoxarifado">
+              <EntradasAlmoxarifado />
             </ProtectedRoute>
           }
         />
