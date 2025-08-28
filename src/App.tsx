@@ -30,6 +30,7 @@ import ImprimirRecibo from "./components/recibos/ImprimirRecibo";
 import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
 import Percapita from "./pages/Percapita";
 import Insumos from "./pages/Insumos"; // Crie este arquivo a seguir
+import PedidosAlmoxarifado from "./pages/PedidosAlmoxarifado"; // Crie este arquivo a seguir
 
 const queryClient = new QueryClient();
 
@@ -259,6 +260,14 @@ function AppContent() {
           element={
             <ProtectedRoute module="almoxarifado">
               <Insumos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/almoxarifado/pedidos"
+          element={
+            <ProtectedRoute module="almoxarifado">
+              <PedidosAlmoxarifado />
             </ProtectedRoute>
           }
         />

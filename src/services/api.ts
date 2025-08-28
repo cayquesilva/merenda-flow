@@ -19,6 +19,21 @@ export interface InsumoPayload {
   saldo?: number; // O saldo é opcional, especialmente na criação.
 }
 
+// NOVO: Interface para um item individual dentro do payload do pedido.
+export interface ItemPedidoAlmoxarifadoPayload {
+  itemAlmoxarifadoId: string;
+  unidadeEducacionalId: string;
+  quantidade: number;
+}
+
+// NOVO: Interface para o payload completo do pedido de almoxarifado.
+export interface PedidoAlmoxarifadoPayload {
+  contratoId: string;
+  dataEntregaPrevista: string; // A data vem como string do input
+  valorTotal: number;
+  itens: ItemPedidoAlmoxarifadoPayload[];
+}
+
 class ApiService {
   private getAuthHeaders() {
     const token = localStorage.getItem("token");
@@ -248,6 +263,31 @@ class ApiService {
     return this.request(`/api/almoxarifado/insumos/${id}`, {
       method: "DELETE",
     });
+  }
+
+
+  // NOVO: Busca a lista de pedidos de almoxarifado com filtros
+  async getPedidosAlmoxarifado(q: string, status: string) {
+    const params = new URLSearchParams({ q, status });
+    return this.request(`/api/almoxarifado/pedidos?${params.toString()}`);
+  }
+
+  // NOVO: Busca os detalhes de um pedido de almoxarifado
+  async getPedidoAlmoxarifadoById(id: string) {
+    return this.request(`/api/almoxarifado/pedidos/${id}`);
+  }
+
+  // NOVO: Cria um novo pedido de almoxarifado
+  async createPedidoAlmoxarifado(payload: PedidoAlmoxarifadoPayload) { // Idealmente, criar uma interface para o payload
+    return this.request('/api/almoxarifado/pedidos', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  // NOVO: Busca insumos de um contrato específico para o formulário de pedido
+  async getInsumosPorContrato(contratoId: string) {
+      return this.request(`/api/almoxarifado/insumos?contratoId=${contratoId}`);
   }
 
 }

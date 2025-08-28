@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Package,
   Calculator,
+  Warehouse,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,6 +45,7 @@ export function AppSidebar() {
     "Principal",
     "Cadastros",
     "Operações",
+    "Almoxarifado",
   ]);
 
   const navigationItems = [
@@ -104,6 +106,25 @@ export function AppSidebar() {
           module: "confirmacao_relatorio",
         },
         { title: "Estoque", url: "/estoque", icon: Package, module: "estoque" },
+      ],
+    },
+    {
+      group: "Almoxarifado",
+      icon: Warehouse, // Ícone para o grupo
+      items: [
+        {
+          title: "Insumos",
+          url: "/almoxarifado/insumos",
+          icon: Package, // Ícone para o item
+          module: "almoxarifado", // Módulo de permissão
+        },
+        {
+          title: "Pedidos Almox.", // Título diferenciado
+          url: "/almoxarifado/pedidos",
+          icon: ShoppingCart,
+          module: "almoxarifado",
+        },
+        // Adicionaremos os links de Recibos e Estoque aqui futuramente
       ],
     },
     {

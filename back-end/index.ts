@@ -1165,6 +1165,113 @@ app.delete(
   }
 );
 
+// =======================================================
+// --- ROTAS DE ALMOXARIFADO - PEDIDOS ---
+// =======================================================
+
+// NOVO: Rota para listar todos os pedidos de almoxarifado com filtros
+app.get('/api/almoxarifado/pedidos', authenticateToken, async (req: Request, res: Response) => {
+    const { q, status } = req.query;
+    try {
+        const whereClause: Prisma.PedidoAlmoxarifadoWhereInput = {};
+        if (status && status !== 'todos') {
+            whereClause.status = status as string;
+        }
+        if (q) {
+            whereClause.OR = [
+                { numero: { contains: q as string, mode: 'insensitive' } },
+                { contrato: { fornecedor: { nome: { contains: q as string, mode: 'insensitive' } } } }
+            ];
+        }
+
+        const pedidos = await prisma.pedidoAlmoxarifado.findMany({
+            where: whereClause,
+            include: {
+                contrato: { select: { fornecedor: { select: { nome: true } } } },
+                _count: { select: { itens: true } }
+            },
+            orderBy: { dataPedido: 'desc' }
+        });
+        res.json(pedidos);
+    } catch (error) {
+        res.status(500).json({ error: 'Não foi possível buscar os pedidos de almoxarifado.' });
+    }
+});
+
+// NOVO: Rota para buscar os detalhes de um único pedido de almoxarifado
+app.get('/api/almoxarifado/pedidos/:id', authenticateToken, async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        const pedido = await prisma.pedidoAlmoxarifado.findUnique({
+            where: { id },
+            include: {
+                contrato: { include: { fornecedor: true } },
+                itens: {
+                    include: {
+                        itemAlmoxarifado: { include: { unidadeMedida: true } },
+                        unidadeEducacional: true,
+                    },
+                    orderBy: { itemAlmoxarifado: { nome: 'asc' } }
+                }
+            }
+        });
+        if (!pedido) return res.status(404).json({ error: 'Pedido não encontrado.' });
+        res.json(pedido);
+    } catch (error) {
+        res.status(500).json({ error: 'Não foi possível buscar os detalhes do pedido.' });
+    }
+});
+
+// NOVO: Rota para criar um novo pedido de almoxarifado
+app.post('/api/almoxarifado/pedidos', authenticateToken, async (req: Request, res: Response) => {
+    const { contratoId, dataEntregaPrevista, valorTotal, itens } = req.body;
+    
+    // Gera um número de pedido único para almoxarifado
+    const numeroPedido = `PA-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const novoPedido = await tx.pedidoAlmoxarifado.create({
+                data: {
+                    numero: numeroPedido,
+                    contratoId,
+                    dataPedido: new Date(),
+                    dataEntregaPrevista: new Date(dataEntregaPrevista),
+                    valorTotal,
+                    status: 'pendente',
+                }
+            });
+
+            for (const item of itens) {
+                // Cria o item do pedido
+                await tx.itemPedidoAlmoxarifado.create({
+                    data: {
+                        pedidoId: novoPedido.id,
+                        itemAlmoxarifadoId: item.itemAlmoxarifadoId,
+                        unidadeEducacionalId: item.unidadeEducacionalId,
+                        quantidade: item.quantidade,
+                    }
+                });
+
+                // Decrementa o saldo do insumo no contrato
+                await tx.itemAlmoxarifado.update({
+                    where: { id: item.itemAlmoxarifadoId },
+                    data: {
+                        saldo: {
+                            decrement: item.quantidade,
+                        }
+                    }
+                });
+            }
+            return novoPedido;
+        });
+        res.status(201).json(result);
+    } catch (error) {
+        console.error("Erro ao criar pedido de almoxarifado:", error);
+        res.status(500).json({ error: 'Não foi possível criar o pedido.' });
+    }
+});
+
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
 
 // COMENTÁRIO: Retorna uma lista simplificada de contratos ativos.

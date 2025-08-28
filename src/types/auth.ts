@@ -18,7 +18,8 @@ export type UserCategory =
   | "administracao_tecnica"
   | "gerencia_nutricao"
   | "comissao_recebimento"
-  | "nutricionistas_externas";
+  | "nutricionistas_externas"
+  | "gerencia_almoxarifado";
 
 export interface Permission {
   module: string;
@@ -41,7 +42,8 @@ export type ModuleName =
   | "estoque"
   | "relatorios"
   | "usuarios"
-  | "percapita";
+  | "percapita"
+  | "almoxarifado";
 
 export type ModuleAction = "create" | "update" | "read" | "write" | "delete"; // ou qualquer outro conjunto que você usa
 
@@ -106,6 +108,10 @@ export const USER_CATEGORIES: Partial<
         module: "percapita",
         actions: ["read", "create", "update", "delete"],
       },
+      almoxarifado: {
+        module: "almoxarifado",
+        actions: ["read", "create", "update", "delete"],
+      },
     },
   },
   gerencia_nutricao: {
@@ -136,6 +142,19 @@ export const USER_CATEGORIES: Partial<
       },
     },
   },
+  gerencia_almoxarifado: {
+    label: "Gerência de Almoxarifado",
+    permissions: {
+      dashboard: { module: "dashboard", actions: ["read"] },
+      almoxarifado: {
+        module: "almoxarifado",
+        actions: ["read", "create", "update", "delete"],
+      },
+      fornecedores: { module: "fornecedores", actions: ["read"] },
+      unidades: { module: "unidades", actions: ["read"] },
+      relatorios: { module: "relatorios", actions: ["read", "create"] },
+    },
+  },
   comissao_recebimento: {
     label: "Comissão de Recebimento",
     permissions: {
@@ -145,6 +164,7 @@ export const USER_CATEGORIES: Partial<
         module: "confirmacao_recebimento",
         actions: ["read", "create"],
       },
+      almoxarifado: { module: "almoxarifado", actions: ["read"] },
     },
   },
   // NOVO: Adicionada a categoria 'nutricionistas_externas' com suas permissões específicas.
