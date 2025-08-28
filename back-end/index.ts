@@ -1041,137 +1041,131 @@ app.post(
 // --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
 
 // =======================================================
-// --- ROTAS DE ALMOXARIFADO (FLUXO SIMPLIFICADO) ---
+// --- ROTAS DE ALMOXARIFADO (FLUXO SIMPLIFICADO E CORRETO) ---
 // =======================================================
 
-// Rota para listar ou buscar insumos do catálogo mestre
-app.get(
-  "/api/almoxarifado/insumos",
-  authenticateToken,
-  async (req: Request, res: Response) => {
+// --- CRUD PARA O CATÁLOGO DE INSUMOS ---
+// Usado para gerenciar a lista mestre de todos os insumos que o almoxarifado pode ter.
+app.get('/api/almoxarifado/insumos', authenticateToken, async (req: Request, res: Response) => {
     const { q } = req.query;
     try {
-      const insumos = await prisma.insumo.findMany({
-        where: q
-          ? { nome: { contains: q as string, mode: "insensitive" } }
-          : {},
-        include: { unidadeMedida: true },
-        orderBy: { nome: "asc" },
-      });
-      res.json(insumos);
+        const insumos = await prisma.insumo.findMany({
+            where: q ? { nome: { contains: q as string, mode: 'insensitive' } } : {},
+            include: { unidadeMedida: true },
+            orderBy: { nome: 'asc' },
+        });
+        res.json(insumos);
     } catch (error) {
-      res.status(500).json({ error: "Não foi possível buscar os insumos." });
+        res.status(500).json({ error: "Não foi possível buscar os insumos." });
     }
-  }
-);
+});
 
-// Rota para criar um novo insumo no catálogo mestre
-app.post(
-  "/api/almoxarifado/insumos",
-  authenticateToken,
-  async (req: Request, res: Response) => {
+app.post('/api/almoxarifado/insumos', authenticateToken, async (req: Request, res: Response) => {
     try {
-      const novoInsumo = await prisma.insumo.create({ data: req.body });
-      res.status(201).json(novoInsumo);
+        const novoInsumo = await prisma.insumo.create({ data: req.body });
+        res.status(201).json(novoInsumo);
     } catch (error) {
-      // ... (seu tratamento de erro para P2002 - nome único)
-      res.status(500).json({ error: "Não foi possível criar o insumo." });
+        res.status(500).json({ error: "Não foi possível criar o insumo." });
     }
-  }
-);
+});
 
-// --- ROTA PRINCIPAL PARA ENTRADA DE ESTOQUE ---
-
+// --- ROTAS PARA ENTRADA DE ESTOQUE ---
 // Rota para registrar uma nova entrada de estoque (via Nota Fiscal)
-app.post(
-  "/api/almoxarifado/entradas",
-  authenticateToken,
-  async (req: AuthenticatedRequest, res: Response) => {
-    const {
-      notaFiscal,
-      dataEntrada,
-      fornecedorId,
-      itens,
-      observacoes,
-      valorTotal,
-    } = req.body;
-    const responsavel = req.user?.nome || "Usuário do Sistema";
+app.post('/api/almoxarifado/entradas', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { notaFiscal, dataEntrada, fornecedorId, itens, observacoes, valorTotal } = req.body;
+    const responsavel = req.user?.nome || 'Usuário do Sistema';
 
     try {
-      const result = await prisma.$transaction(async (tx) => {
-        // 1. Cria o registro da Entrada (a "capa" da nota fiscal)
-        const novaEntrada = await tx.entradaEstoque.create({
-          data: {
-            notaFiscal,
-            dataEntrada: new Date(dataEntrada),
-            fornecedorId,
-            observacoes,
-            valorTotal: valorTotal ? Number(valorTotal) : null,
-          },
+        const result = await prisma.$transaction(async (tx) => {
+            const novaEntrada = await tx.entradaEstoque.create({
+                data: {
+                    notaFiscal, dataEntrada: new Date(dataEntrada), fornecedorId, observacoes,
+                    valorTotal: valorTotal ? Number(valorTotal) : null
+                }
+            });
+
+            for (const item of itens) {
+                // --- LÓGICA DE CRIAÇÃO INTELIGENTE DO INSUMO ---
+                // 1. Verifica se o insumo existe pelo nome. Se não, cria um novo.
+                const insumo = await tx.insumo.upsert({
+                    where: { nome: item.nome },
+                    update: {}, // Se já existe, não faz nada com ele.
+                    create: {   // Se não existe, cria com o nome e a unidade de medida fornecidos.
+                        nome: item.nome,
+                        unidadeMedidaId: item.unidadeMedidaId,
+                    }
+                });
+                
+                // 2. Continua o fluxo usando o ID do insumo (existente ou recém-criado)
+                await tx.itemEntradaEstoque.create({
+                    data: {
+                        entradaId: novaEntrada.id,
+                        insumoId: insumo.id, // Usa o ID do insumo
+                        quantidade: Number(item.quantidade),
+                        valorUnitario: item.valorUnitario ? Number(item.valorUnitario) : null,
+                    }
+                });
+
+                const estoqueCentralItem = await tx.estoqueCentral.upsert({
+                    where: { insumoId: insumo.id },
+                    update: { quantidadeAtual: { increment: Number(item.quantidade) } },
+                    create: { insumoId: insumo.id, quantidadeAtual: Number(item.quantidade) }
+                });
+                
+                await tx.movimentacaoEstoqueCentral.create({
+                    data: {
+                        estoqueId: estoqueCentralItem.id, tipo: 'entrada',
+                        quantidade: Number(item.quantidade),
+                        quantidadeAnterior: estoqueCentralItem.quantidadeAtual - Number(item.quantidade),
+                        quantidadeNova: estoqueCentralItem.quantidadeAtual,
+                        responsavel, entradaEstoqueId: novaEntrada.id,
+                        motivo: `Entrada via NF: ${notaFiscal}`,
+                    }
+                });
+            }
+            return novaEntrada;
         });
 
-        // 2. Itera sobre cada item da nota fiscal
-        for (const item of itens) {
-          // 2.1. Cria o registro do item da entrada
-          await tx.itemEntradaEstoque.create({
-            data: {
-              entradaId: novaEntrada.id,
-              insumoId: item.insumoId,
-              quantidade: Number(item.quantidade),
-              valorUnitario: item.valorUnitario
-                ? Number(item.valorUnitario)
-                : null,
-            },
-          });
+        res.status(201).json({ message: "Entrada de estoque registrada com sucesso!", entrada: result });
 
-          // 2.2. Atualiza o Estoque Central (cria se não existir, ou soma se já existir)
-          const estoqueCentralItem = await tx.estoqueCentral.upsert({
-            where: { insumoId: item.insumoId },
-            update: {
-              quantidadeAtual: {
-                increment: Number(item.quantidade),
-              },
-            },
-            create: {
-              insumoId: item.insumoId,
-              quantidadeAtual: Number(item.quantidade),
-            },
-          });
-
-          // 2.3. Registra a movimentação de entrada no estoque central
-          await tx.movimentacaoEstoqueCentral.create({
-            data: {
-              estoqueId: estoqueCentralItem.id,
-              tipo: "entrada",
-              quantidade: Number(item.quantidade),
-              quantidadeAnterior:
-                estoqueCentralItem.quantidadeAtual - Number(item.quantidade),
-              quantidadeNova: estoqueCentralItem.quantidadeAtual,
-              responsavel,
-              entradaEstoqueId: novaEntrada.id, // Link para a nota fiscal
-              motivo: `Entrada via NF: ${notaFiscal}`,
-            },
-          });
-        }
-        return novaEntrada;
-      });
-
-      res
-        .status(201)
-        .json({
-          message: "Entrada de estoque registrada com sucesso!",
-          entrada: result,
-        });
     } catch (error) {
-      console.error("Erro ao registrar entrada de estoque:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Erro desconhecido";
-      res
-        .status(500)
-        .json({ error: `Falha ao registrar entrada: ${errorMessage}` });
+        console.error("Erro ao registrar entrada de estoque:", error);
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+        res.status(500).json({ error: `Falha ao registrar entrada: ${errorMessage}` });
     }
-  }
-);
+});
+
+// NOVO: Rota para listar todas as entradas de estoque com busca
+app.get('/api/almoxarifado/entradas', authenticateToken, async (req: Request, res: Response) => {
+    const { q } = req.query;
+    try {
+        const whereClause: Prisma.EntradaEstoqueWhereInput = {};
+        if (q) {
+            whereClause.OR = [
+                { notaFiscal: { contains: q as string, mode: 'insensitive' } },
+                { fornecedor: { nome: { contains: q as string, mode: 'insensitive' } } }
+            ];
+        }
+
+        const entradas = await prisma.entradaEstoque.findMany({
+            where: whereClause,
+            include: {
+                fornecedor: {
+                    select: { nome: true }
+                },
+                _count: {
+                    select: { itens: true }
+                }
+            },
+            orderBy: {
+                dataEntrada: 'desc'
+            }
+        });
+        res.json(entradas);
+    } catch (error) {
+        res.status(500).json({ error: "Não foi possível buscar as entradas de estoque." });
+    }
+});
 
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
 

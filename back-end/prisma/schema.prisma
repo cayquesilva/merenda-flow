@@ -374,29 +374,26 @@ model FotoNaoConforme {
 }
 
 // =======================================================
-// --- NOVOS MODELOS PARA O ALMOXARIFADO (FLUXO SIMPLIFICADO) ---
+// --- MODELOS PARA O ALMOXARIFADO (FLUXO SIMPLIFICADO E CORRETO) ---
 // =======================================================
 
-// NOVO: Um catálogo mestre de todos os insumos possíveis.
+// Catálogo mestre de todos os insumos possíveis.
 model Insumo {
-  id              String        @id @default(uuid())
-  nome            String        @unique
+  id              String   @id @default(uuid())
+  nome            String   @unique
   descricao       String?
   unidadeMedida   UnidadeMedida @relation(fields: [unidadeMedidaId], references: [id])
   unidadeMedidaId String        @map("unidade_medida_id")
-
-  // Relações
-  entradasDeEstoque ItemEntradaEstoque[]
-  estoquesCentrais  EstoqueCentral[]
-  itensDeGuia       ItemGuiaDeRemessa[]
-
-  // NOVO: Relação com o estoque das unidades
-  estoquesUnidades    EstoqueUnidadeAlmoxarifado[]
+  
+  entradasDeEstoque   ItemEntradaEstoque[]
+  estoquesCentrais    EstoqueCentral[]
+  itensDeGuia         ItemGuiaDeRemessa[]
+  estoquesDasUnidades EstoqueUnidadeAlmoxarifado[] // Relação com o estoque das unidades
 
   @@map("almoxarifado_insumos")
 }
 
-// NOVO: Representa uma transação de entrada de estoque, vinculada a uma nota fiscal.
+// Representa uma transação de entrada de estoque, vinculada a uma nota fiscal.
 model EntradaEstoque {
   id           String     @id @default(uuid())
   notaFiscal   String     @map("nota_fiscal")
@@ -406,20 +403,19 @@ model EntradaEstoque {
   valorTotal   Float?     @map("valor_total")
   observacoes  String?
   createdAt    DateTime   @default(now()) @map("created_at")
-
-  // Relações
-  itens         ItemEntradaEstoque[]
+  
+  itens        ItemEntradaEstoque[]
   movimentacoes MovimentacaoEstoqueCentral[]
 
   @@map("almoxarifado_entradas_estoque")
 }
 
-// NOVO: O pivô entre uma Entrada e um Insumo, definindo a quantidade e valor.
+// O pivô entre uma Entrada e um Insumo.
 model ItemEntradaEstoque {
-  id            String @id @default(uuid())
-  quantidade    Float
-  valorUnitario Float? @map("valor_unitario")
-
+  id              String         @id @default(uuid())
+  quantidade      Float
+  valorUnitario   Float?         @map("valor_unitario")
+  
   entrada   EntradaEstoque @relation(fields: [entradaId], references: [id])
   entradaId String         @map("entrada_id")
 
@@ -429,54 +425,51 @@ model ItemEntradaEstoque {
   @@map("almoxarifado_itens_entrada_estoque")
 }
 
-// NOVO: O estoque principal, consolidado, do almoxarifado.
+// O estoque principal, consolidado, do almoxarifado.
 model EstoqueCentral {
-  id              String @id @default(uuid())
-  quantidadeAtual Float  @map("quantidade_atual")
-
+  id              String   @id @default(uuid())
+  quantidadeAtual Float    @map("quantidade_atual")
+  
   insumo   Insumo @relation(fields: [insumoId], references: [id])
-  insumoId String @unique @map("insumo_id") // Cada insumo só pode ter uma entrada no estoque central
+  insumoId String @unique @map("insumo_id")
 
   movimentacoes MovimentacaoEstoqueCentral[]
 
   @@map("almoxarifado_estoque_central")
 }
 
-// NOVO: A movimentação do estoque central.
+// Movimentação do estoque central.
 model MovimentacaoEstoqueCentral {
   id                 String   @id @default(uuid())
-  tipo               String // 'entrada', 'saida_para_unidade'
+  tipo               String   // 'entrada', 'saida_para_unidade'
   quantidade         Float
   quantidadeAnterior Float    @map("quantidade_anterior")
   quantidadeNova     Float    @map("quantidade_nova")
   responsavel        String
   motivo             String
   dataMovimentacao   DateTime @default(now()) @map("data_movimentacao")
-
+  
   estoque   EstoqueCentral @relation(fields: [estoqueId], references: [id])
   estoqueId String         @map("estoque_id")
-
-  // Relações para rastreabilidade
+  
   entradaEstoque   EntradaEstoque? @relation(fields: [entradaEstoqueId], references: [id])
   entradaEstoqueId String?         @map("entrada_estoque_id")
 
   guiaDeRemessa   GuiaDeRemessa? @relation(fields: [guiaDeRemessaId], references: [id])
   guiaDeRemessaId String?        @map("guia_de_remessa_id")
-
+  
   @@map("almoxarifado_movimentacoes_central")
 }
 
-// --- Modelos para a fase de Distribuição (serão usados nos próximos passos) ---
-
+// Guia de Remessa (o "Pedido/Recibo" para enviar itens às unidades)
 model GuiaDeRemessa {
-  id                   String             @id @default(uuid())
-  numero               String             @unique
-  dataEmissao          DateTime           @map("data_emissao")
-  status               String // 'pendente', 'entregue'
+  id                   String        @id @default(uuid())
+  numero               String        @unique
+  dataEmissao          DateTime      @map("data_emissao")
+  status               String        // 'pendente', 'entregue', 'confirmado'
   unidadeEducacional   UnidadeEducacional @relation(fields: [unidadeEducacionalId], references: [id])
-  unidadeEducacionalId String             @map("unidade_educacional_id")
-
-  // Relações
+  unidadeEducacionalId String        @map("unidade_educacional_id")
+  
   itens         ItemGuiaDeRemessa[]
   movimentacoes MovimentacaoEstoqueCentral[]
 
@@ -484,9 +477,9 @@ model GuiaDeRemessa {
 }
 
 model ItemGuiaDeRemessa {
-  id                String @id @default(uuid())
-  quantidadeEnviada Float  @map("quantidade_enviada")
-
+  id                 String        @id @default(uuid())
+  quantidadeEnviada  Float         @map("quantidade_enviada")
+  
   guiaDeRemessa   GuiaDeRemessa @relation(fields: [guiaDeRemessaId], references: [id])
   guiaDeRemessaId String        @map("guia_de_remessa_id")
 
@@ -496,19 +489,24 @@ model ItemGuiaDeRemessa {
   @@map("almoxarifado_itens_guia_remessa")
 }
 
+// Estoque de insumos em uma unidade educacional específica.
 model EstoqueUnidadeAlmoxarifado {
   id                   String                              @id @default(uuid())
   quantidadeAtual      Float                               @default(0) @map("quantidade_atual")
+  
   unidadeEducacional   UnidadeEducacional                  @relation(fields: [unidadeEducacionalId], references: [id])
   unidadeEducacionalId String                              @map("unidade_educacional_id")
+  
   insumo               Insumo                              @relation(fields: [insumoId], references: [id])
   insumoId             String                              @map("insumo_id")
+  
   movimentacoes        MovimentacaoUnidadeAlmoxarifado[]
 
   @@unique([unidadeEducacionalId, insumoId])
   @@map("almoxarifado_estoques_unidades")
 }
 
+// Movimentações de estoque que ocorrem dentro de uma unidade.
 model MovimentacaoUnidadeAlmoxarifado {
   id                 String                     @id @default(uuid())
   tipo               String                     // 'entrada_guia', 'saida_consumo', 'ajuste'
@@ -517,11 +515,13 @@ model MovimentacaoUnidadeAlmoxarifado {
   quantidadeNova     Float                      @map("quantidade_nova")
   responsavel        String
   dataMovimentacao   DateTime                   @default(now()) @map("data_movimentacao")
+  
   estoque            EstoqueUnidadeAlmoxarifado @relation(fields: [estoqueId], references: [id])
   estoqueId          String                     @map("estoque_id")
 
   @@map("almoxarifado_movimentacoes_unidades")
 }
+
 
 // ===================================
 // MODELO PARA METADADOS DO SISTEMA

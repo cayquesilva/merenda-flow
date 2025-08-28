@@ -1,5 +1,3 @@
-// src/components/almoxarifado/NovaEntradaDialog.tsx
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,20 +20,22 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiService } from "@/services/api";
+import { apiService, EntradaAlmoxarifadoPayload } from "@/services/api";
 
 // Interfaces para os dados
 interface Fornecedor {
   id: string;
   nome: string;
 }
-interface InsumoCatalogo {
+interface UnidadeMedida {
   id: string;
   nome: string;
-  unidadeMedida: { sigla: string };
+  sigla: string;
 }
+// ALTERAÇÃO: O formulário agora armazena o nome e a unidade de medida do insumo.
 interface ItemFormData {
-  insumoId: string;
+  nome: string;
+  unidadeMedidaId: string;
   quantidade: number;
   valorUnitario: number;
 }
@@ -47,33 +47,38 @@ export function NovaEntradaDialog({ onSuccess }: { onSuccess: () => void }) {
 
   // Estados para os dados dos selects
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
-  const [insumosCatalogo, setInsumosCatalogo] = useState<InsumoCatalogo[]>([]);
+  const [unidadesMedida, setUnidadesMedida] = useState<UnidadeMedida[]>([]);
 
   // Estados do formulário principal
   const [notaFiscal, setNotaFiscal] = useState("");
   const [dataEntrada, setDataEntrada] = useState("");
   const [fornecedorId, setFornecedorId] = useState<string | undefined>();
   const [itens, setItens] = useState<ItemFormData[]>([
-    { insumoId: "", quantidade: 0, valorUnitario: 0 },
+    { nome: "", unidadeMedidaId: "", quantidade: 0, valorUnitario: 0 },
   ]);
 
   // Busca dados para os selects quando o diálogo abre
   useEffect(() => {
     if (open) {
       apiService.getFornecedoresLista().then(setFornecedores);
-      apiService.getInsumos().then(setInsumosCatalogo);
+      apiService.getUnidadesMedida().then(setUnidadesMedida); // Busca unidades de medida
     } else {
       // Limpa o formulário ao fechar
       setNotaFiscal("");
       setDataEntrada("");
       setFornecedorId(undefined);
-      setItens([{ insumoId: "", quantidade: 0, valorUnitario: 0 }]);
+      setItens([
+        { nome: "", unidadeMedidaId: "", quantidade: 0, valorUnitario: 0 },
+      ]);
     }
   }, [open]);
 
   // Funções para manipular a lista de itens
   const handleAddItem = () =>
-    setItens([...itens, { insumoId: "", quantidade: 0, valorUnitario: 0 }]);
+    setItens([
+      ...itens,
+      { nome: "", unidadeMedidaId: "", quantidade: 0, valorUnitario: 0 },
+    ]);
   const handleRemoveItem = (index: number) =>
     setItens(itens.filter((_, i) => i !== index));
   const handleItemChange = (
@@ -87,15 +92,16 @@ export function NovaEntradaDialog({ onSuccess }: { onSuccess: () => void }) {
   };
 
   const handleSubmit = async () => {
+    // Validação atualizada
     if (
       !notaFiscal ||
       !dataEntrada ||
       !fornecedorId ||
-      itens.some((i) => !i.insumoId || i.quantidade <= 0)
+      itens.some((i) => !i.nome || !i.unidadeMedidaId || i.quantidade <= 0)
     ) {
       toast({
         title: "Erro de Validação",
-        description: "Preencha todos os campos da nota e dos itens.",
+        description: "Preencha todos os campos obrigatórios (*).",
         variant: "destructive",
       });
       return;
@@ -103,7 +109,8 @@ export function NovaEntradaDialog({ onSuccess }: { onSuccess: () => void }) {
 
     setIsSubmitting(true);
     try {
-      const payload = {
+      // Payload agora está alinhado com a nova estrutura
+      const payload: EntradaAlmoxarifadoPayload = {
         notaFiscal,
         dataEntrada,
         fornecedorId,
@@ -112,7 +119,8 @@ export function NovaEntradaDialog({ onSuccess }: { onSuccess: () => void }) {
           0
         ),
         itens: itens.map((item) => ({
-          ...item,
+          nome: item.nome,
+          unidadeMedidaId: item.unidadeMedidaId,
           quantidade: Number(item.quantidade),
           valorUnitario: Number(item.valorUnitario),
         })),
@@ -197,21 +205,31 @@ export function NovaEntradaDialog({ onSuccess }: { onSuccess: () => void }) {
               key={index}
               className="grid grid-cols-12 gap-2 items-end border-b pb-2"
             >
-              <div className="col-span-6">
-                <Label>Insumo</Label>
+              <div className="col-span-5">
+                <Label>Nome do Insumo *</Label>
+                <Input
+                  placeholder="Ex: Resma de papel A4"
+                  value={item.nome}
+                  onChange={(e) =>
+                    handleItemChange(index, "nome", e.target.value)
+                  }
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>Unidade *</Label>
                 <Select
-                  value={item.insumoId}
+                  value={item.unidadeMedidaId}
                   onValueChange={(value) =>
-                    handleItemChange(index, "insumoId", value)
+                    handleItemChange(index, "unidadeMedidaId", value)
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o insumo..." />
+                    <SelectValue placeholder="Ex: UN" />
                   </SelectTrigger>
                   <SelectContent>
-                    {insumosCatalogo.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.nome} ({i.unidadeMedida.sigla})
+                    {unidadesMedida.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.sigla}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -245,7 +263,7 @@ export function NovaEntradaDialog({ onSuccess }: { onSuccess: () => void }) {
                   }
                 />
               </div>
-              <div className="col-span-2 flex items-center justify-end">
+              <div className="col-span-1 flex items-center justify-end">
                 <Button
                   variant="destructive"
                   size="icon"

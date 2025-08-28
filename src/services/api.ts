@@ -34,14 +34,15 @@ export interface PedidoAlmoxarifadoPayload {
   itens: ItemPedidoAlmoxarifadoPayload[];
 }
 
-// NOVO: Interface para um item individual dentro do payload de entrada.
+// ALTERAÇÃO: A estrutura de cada item enviado agora inclui o nome e a unidade.
 export interface ItemEntradaPayload {
-  insumoId: string;
+  nome: string;
+  unidadeMedidaId: string;
   quantidade: number;
   valorUnitario?: number;
 }
 
-// NOVO: Interface para o payload completo da requisição de entrada de estoque.
+// A interface principal permanece a mesma, mas usará o novo ItemEntradaPayload
 export interface EntradaAlmoxarifadoPayload {
   notaFiscal: string;
   dataEntrada: string;
@@ -322,6 +323,16 @@ class ApiService {
       body: JSON.stringify(payload),
     });
   }
+
+// NOVO: Busca a lista de entradas de estoque com filtro de busca
+  async getEntradasAlmoxarifado(search?: string) {
+    const query = search ? `?q=${encodeURIComponent(search)}` : "";
+    return this.request(`/api/almoxarifado/entradas${query}`);
+  }
+  
+
+
+
 }
 
 export const apiService = new ApiService();

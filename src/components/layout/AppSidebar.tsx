@@ -16,6 +16,8 @@ import {
   Calculator,
   Warehouse,
   Box,
+  LogIn,
+  BookOpen,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -114,21 +116,15 @@ export function AppSidebar() {
       icon: Warehouse, // Ícone para o grupo
       items: [
         {
-          title: "Insumos",
-          url: "/almoxarifado/insumos",
-          icon: Package, // Ícone para o item
-          module: "almoxarifado", // Módulo de permissão
-        },
-        {
-          title: "Pedidos Almox.", // Título diferenciado
-          url: "/almoxarifado/pedidos",
-          icon: ShoppingCart,
+          title: "Registrar Entradas",
+          url: "/almoxarifado/entradas",
+          icon: LogIn, // Ícone de entrada
           module: "almoxarifado",
         },
         {
-          title: "Registrar Entradas", // Link principal agora
-          url: "/almoxarifado/entradas",
-          icon: Box, // Ícone apropriado
+          title: "Catálogo de Insumos",
+          url: "/almoxarifado/catalogo",
+          icon: BookOpen, // Ícone de catálogo
           module: "almoxarifado",
         },
         // Adicionaremos os links de Recibos e Estoque aqui futuramente

@@ -29,10 +29,8 @@ import RelatorioMovimentacaoResponsavel from "./components/relatorios/RelatorioM
 import ImprimirRecibo from "./components/recibos/ImprimirRecibo";
 import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
 import Percapita from "./pages/Percapita";
-import Insumos from "./pages/Insumos"; // Crie este arquivo a seguir
-import PedidosAlmoxarifado from "./pages/PedidosAlmoxarifado"; // Crie este arquivo a seguir
 import EntradasAlmoxarifado from "./pages//EntradasAlmoxarifado"; // Importe a nova página
-
+import CatalogoInsumos from "./pages/CatalogoInsumos";
 
 const queryClient = new QueryClient();
 
@@ -258,26 +256,18 @@ function AppContent() {
           }
         />
         <Route
-          path="/almoxarifado/insumos"
-          element={
-            <ProtectedRoute module="almoxarifado">
-              <Insumos />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/almoxarifado/pedidos"
-          element={
-            <ProtectedRoute module="almoxarifado">
-              <PedidosAlmoxarifado />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/almoxarifado/entradas"
           element={
             <ProtectedRoute module="almoxarifado">
               <EntradasAlmoxarifado />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/almoxarifado/catalogo"
+          element={
+            <ProtectedRoute module="almoxarifado">
+              <CatalogoInsumos />
             </ProtectedRoute>
           }
         />
