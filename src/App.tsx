@@ -30,7 +30,7 @@ import ImprimirRecibo from "./components/recibos/ImprimirRecibo";
 import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
 import Percapita from "./pages/Percapita";
 import EntradasAlmoxarifado from "./pages//EntradasAlmoxarifado"; // Importe a nova página
-import CatalogoInsumos from "./pages/CatalogoInsumos";
+import CatalogoInsumos from "./pages/EstoqueCentral";
 
 const queryClient = new QueryClient();
 

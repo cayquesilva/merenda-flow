@@ -1342,6 +1342,195 @@ app.post('/api/almoxarifado/entradas/:id/ajustar', authenticateToken, async (req
     }
 });
 
+// NOVO: Rota para buscar o estado atual do Estoque Central
+// UTILIZAÇÃO: Será a fonte de dados para a nova página principal do almoxarifado.
+app.get('/api/almoxarifado/estoque-central', authenticateToken, async (req: Request, res: Response) => {
+    const { q } = req.query;
+    try {
+        const estoque = await prisma.estoqueCentral.findMany({
+            where: {
+                // Apenas itens que realmente existem no estoque
+                quantidadeAtual: { gt: 0 },
+                // Filtro de busca opcional
+                insumo: q ? { nome: { contains: q as string, mode: 'insensitive' } } : {}
+            },
+            include: {
+                insumo: {
+                    include: {
+                        unidadeMedida: true
+                    }
+                }
+            },
+            orderBy: { insumo: { nome: 'asc' } }
+        });
+        res.json(estoque);
+    } catch (error) {
+        res.status(500).json({ error: "Não foi possível buscar o estoque central." });
+    }
+});
+
+// NOVO: Rota para criar uma Guia de Remessa (o "pedido/recibo" para uma unidade)
+// UTILIZAÇÃO: Chamada pelo novo diálogo de geração de guias.
+app.post('/api/almoxarifado/guias-remessa', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { unidadeEducacionalId, itens } = req.body;
+    const responsavel = req.user?.nome || 'Usuário do Sistema';
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const numeroGuia = `GR-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+            // 1. Cria a "capa" da Guia de Remessa
+            const novaGuia = await tx.guiaDeRemessa.create({
+                data: {
+                    numero: numeroGuia,
+                    unidadeEducacionalId,
+                    dataEmissao: new Date(),
+                    status: 'pendente', // Status inicial
+                }
+            });
+
+            // 2. Itera sobre os itens, valida o estoque, cria os itens da guia e movimenta o estoque
+            for (const item of itens) {
+                const estoqueCentral = await tx.estoqueCentral.findUnique({
+                    where: { insumoId: item.insumoId }
+                });
+
+                if (!estoqueCentral || estoqueCentral.quantidadeAtual < Number(item.quantidadeEnviada)) {
+                    throw new Error(`Estoque insuficiente para o item ID: ${item.insumoId}.`);
+                }
+
+                // Cria o item da guia
+                await tx.itemGuiaDeRemessa.create({
+                    data: {
+                        guiaDeRemessaId: novaGuia.id,
+                        insumoId: item.insumoId,
+                        quantidadeEnviada: Number(item.quantidadeEnviada),
+                    }
+                });
+
+                // Atualiza o estoque central
+                const estoqueAtualizado = await tx.estoqueCentral.update({
+                    where: { id: estoqueCentral.id },
+                    data: {
+                        quantidadeAtual: {
+                            decrement: Number(item.quantidadeEnviada),
+                        }
+                    }
+                });
+
+                // Registra a movimentação de saída
+                await tx.movimentacaoEstoqueCentral.create({
+                    data: {
+                        estoqueId: estoqueCentral.id,
+                        tipo: 'saida_para_unidade',
+                        quantidade: Number(item.quantidadeEnviada),
+                        quantidadeAnterior: estoqueCentral.quantidadeAtual,
+                        quantidadeNova: estoqueAtualizado.quantidadeAtual,
+                        responsavel,
+                        guiaDeRemessaId: novaGuia.id,
+                        motivo: `Envio para Unidade via Guia #${numeroGuia}`,
+                    }
+                });
+            }
+            return novaGuia;
+        });
+        res.status(201).json({ message: "Guia de Remessa gerada com sucesso!", guia: result });
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+        res.status(500).json({ error: `Falha ao gerar Guia de Remessa: ${errorMessage}` });
+    }
+});
+
+// NOVO: Rota para criar uma Guia de Remessa (o "pedido/recibo" para uma unidade)
+app.post('/api/almoxarifado/guias-remessa', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const { unidadeEducacionalId, itens } = req.body;
+    const responsavel = req.user?.nome || 'Usuário do Sistema';
+
+    // Validação de entrada
+    if (!unidadeEducacionalId || !itens || !Array.isArray(itens) || itens.length === 0) {
+        return res.status(400).json({ error: "Dados inválidos. Unidade de destino e itens são obrigatórios." });
+    }
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const numeroGuia = `GR-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+            // 1. Cria a "capa" da Guia de Remessa
+            const novaGuia = await tx.guiaDeRemessa.create({
+                data: {
+                    numero: numeroGuia,
+                    unidadeEducacionalId,
+                    dataEmissao: new Date(),
+                    status: 'pendente', // Status inicial
+                }
+            });
+
+            // 2. Itera sobre os itens, valida o estoque, cria os itens da guia e movimenta o estoque
+            for (const item of itens) {
+                if(!item.insumoId || !item.quantidadeEnviada || Number(item.quantidadeEnviada) <= 0) {
+                    throw new Error(`Item inválido no payload: ${JSON.stringify(item)}`);
+                }
+                
+                const quantidadeEnviadaNum = Number(item.quantidadeEnviada);
+
+                const estoqueCentral = await tx.estoqueCentral.findUnique({
+                    where: { insumoId: item.insumoId }
+                });
+
+                if (!estoqueCentral || estoqueCentral.quantidadeAtual < quantidadeEnviadaNum) {
+                    throw new Error(`Estoque insuficiente para o item ID: ${item.insumoId}. Disponível: ${estoqueCentral?.quantidadeAtual}, Solicitado: ${quantidadeEnviadaNum}`);
+                }
+
+                // 2.1. Cria o item da guia
+                await tx.itemGuiaDeRemessa.create({
+                    data: {
+                        guiaDeRemessaId: novaGuia.id,
+                        insumoId: item.insumoId,
+                        quantidadeEnviada: quantidadeEnviadaNum,
+                    }
+                });
+
+                // 2.2. Atualiza (debita) o estoque central
+                const estoqueAtualizado = await tx.estoqueCentral.update({
+                    where: { id: estoqueCentral.id },
+                    data: {
+                        quantidadeAtual: {
+                            decrement: quantidadeEnviadaNum,
+                        }
+                    }
+                });
+
+                // 2.3. Registra a movimentação de saída do estoque central
+                await tx.movimentacaoEstoqueCentral.create({
+                    data: {
+                        estoqueId: estoqueCentral.id,
+                        tipo: 'saida_para_unidade',
+                        quantidade: quantidadeEnviadaNum,
+                        quantidadeAnterior: estoqueCentral.quantidadeAtual,
+                        quantidadeNova: estoqueAtualizado.quantidadeAtual,
+                        responsavel,
+                        guiaDeRemessaId: novaGuia.id,
+                        motivo: `Envio para Unidade via Guia #${numeroGuia}`,
+                    }
+                });
+            }
+
+            // (Opcional, mas recomendado) Gerar QR Code e atualizar a Guia
+            const urlConfirmacao = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/confirmacao-guia/${novaGuia.id}`;
+            // ...lógica para gerar o QR Code (usaremos um placeholder por enquanto)
+
+            return novaGuia;
+        });
+
+        res.status(201).json({ message: "Guia de Remessa gerada com sucesso!", guia: result });
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+        res.status(400).json({ error: `Falha ao gerar Guia de Remessa: ${errorMessage}` });
+    }
+});
+
 
 // --- INÍCIO DAS ROTAS DE CONSULTA PARA PEDIDOS ---
 

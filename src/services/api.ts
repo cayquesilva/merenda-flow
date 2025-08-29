@@ -58,6 +58,14 @@ export interface InsumoCatalogoPayload {
   unidadeMedidaId: string;
 }
 
+export interface GuiaDeRemessaPayload {
+  unidadeEducacionalId: string;
+  itens: {
+    insumoId: string;
+    quantidadeEnviada: number;
+  }[];
+}
+
 class ApiService {
   private getAuthHeaders() {
     const token = localStorage.getItem("token");
@@ -346,6 +354,20 @@ class ApiService {
   async deleteInsumo(id: string) {
     return this.request(`/api/almoxarifado/insumos/${id}`, {
       method: "DELETE",
+    });
+  }
+
+   // NOVO: Busca o estado atual do Estoque Central
+  async getEstoqueCentral(search?: string) {
+    const query = search ? `?q=${encodeURIComponent(search)}` : "";
+    return this.request(`/api/almoxarifado/estoque-central${query}`);
+  }
+  
+  // NOVO: Cria uma nova Guia de Remessa
+  async createGuiaDeRemessa(payload: GuiaDeRemessaPayload) {
+    return this.request('/api/almoxarifado/guias-remessa', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     });
   }
 
