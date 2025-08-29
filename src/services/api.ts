@@ -52,6 +52,12 @@ export interface EntradaAlmoxarifadoPayload {
   itens: ItemEntradaPayload[];
 }
 
+export interface InsumoCatalogoPayload {
+  nome: string;
+  descricao?: string;
+  unidadeMedidaId: string;
+}
+
 class ApiService {
   private getAuthHeaders() {
     const token = localStorage.getItem("token");
@@ -260,31 +266,6 @@ class ApiService {
     return this.request("/api/unidades-medida");
   }
 
-  // NOVO: Cria um novo insumo
-  async createInsumo(data: InsumoPayload) {
-    // Tipar 'data' com uma interface apropriada
-    return this.request("/api/almoxarifado/insumos", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  // NOVO: Atualiza um insumo existente
-  async updateInsumo(id: string, data: Partial<InsumoPayload>) {
-    // Tipar 'data' com uma interface apropriada
-    return this.request(`/api/almoxarifado/insumos/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  }
-
-  // NOVO: Deleta um insumo
-  async deleteInsumo(id: string) {
-    return this.request(`/api/almoxarifado/insumos/${id}`, {
-      method: "DELETE",
-    });
-  }
-
   // NOVO: Busca a lista de pedidos de almoxarifado com filtros
   async getPedidosAlmoxarifado(q: string, status: string) {
     const params = new URLSearchParams({ q, status });
@@ -345,6 +326,29 @@ class ApiService {
       body: JSON.stringify(payload),
     });
   }
+  
+   async createInsumo(data: InsumoCatalogoPayload) {
+    return this.request("/api/almoxarifado/insumos", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // NOVO: Atualiza um insumo do catálogo
+  async updateInsumo(id: string, data: Partial<InsumoCatalogoPayload>) {
+    return this.request(`/api/almoxarifado/insumos/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // NOVO: Deleta um insumo do catálogo
+  async deleteInsumo(id: string) {
+    return this.request(`/api/almoxarifado/insumos/${id}`, {
+      method: "DELETE",
+    });
+  }
+
 }
 
 export const apiService = new ApiService();

@@ -1044,8 +1044,9 @@ app.post(
 // --- ROTAS DE ALMOXARIFADO (FLUXO SIMPLIFICADO E CORRETO) ---
 // =======================================================
 
-// --- CRUD PARA O CATÁLOGO DE INSUMOS ---
-// Usado para gerenciar a lista mestre de todos os insumos que o almoxarifado pode ter.
+// --- CRUD COMPLETO PARA O CATÁLOGO DE INSUMOS ---
+
+// Rota para listar ou buscar insumos do catálogo mestre
 app.get('/api/almoxarifado/insumos', authenticateToken, async (req: Request, res: Response) => {
     const { q } = req.query;
     try {
@@ -1060,12 +1061,53 @@ app.get('/api/almoxarifado/insumos', authenticateToken, async (req: Request, res
     }
 });
 
+// Rota para criar um novo insumo no catálogo mestre
 app.post('/api/almoxarifado/insumos', authenticateToken, async (req: Request, res: Response) => {
+    const { nome, descricao, unidadeMedidaId } = req.body;
     try {
-        const novoInsumo = await prisma.insumo.create({ data: req.body });
+        const novoInsumo = await prisma.insumo.create({ 
+            data: { nome, descricao, unidadeMedidaId }
+        });
         res.status(201).json(novoInsumo);
     } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            return res.status(409).json({ error: 'Um insumo com este nome já existe.' });
+        }
         res.status(500).json({ error: "Não foi possível criar o insumo." });
+    }
+});
+
+// NOVO: Rota para atualizar um insumo do catálogo
+app.put('/api/almoxarifado/insumos/:id', authenticateToken, async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { nome, descricao, unidadeMedidaId } = req.body;
+    try {
+        const insumoAtualizado = await prisma.insumo.update({
+            where: { id },
+            data: { nome, descricao, unidadeMedidaId }
+        });
+        res.json(insumoAtualizado);
+    } catch (error) {
+         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            return res.status(409).json({ error: 'Um insumo com este nome já existe.' });
+        }
+        res.status(500).json({ error: "Não foi possível atualizar o insumo." });
+    }
+});
+
+// NOVO: Rota para deletar um insumo do catálogo
+app.delete('/api/almoxarifado/insumos/:id', authenticateToken, async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        // Medida de segurança: verifica se o insumo já foi usado em alguma entrada.
+        const usoEmEntradas = await prisma.itemEntradaEstoque.count({ where: { insumoId: id } });
+        if (usoEmEntradas > 0) {
+            return res.status(400).json({ error: 'Não é possível deletar este insumo, pois ele já foi utilizado em registros de entrada.' });
+        }
+        await prisma.insumo.delete({ where: { id } });
+        res.status(204).send();
+    } catch (error) {
+        res.status(500).json({ error: "Não foi possível deletar o insumo." });
     }
 });
 
@@ -1196,6 +1238,7 @@ app.get('/api/almoxarifado/entradas/:id', authenticateToken, async (req: Request
         res.status(500).json({ error: 'Não foi possível buscar os detalhes da entrada.' });
     }
 });
+
 // NOVO: Rota para "ajustar" uma entrada de estoque, criando uma nova versão.
 app.post('/api/almoxarifado/entradas/:id/ajustar', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const { id: entradaOriginalId } = req.params;
