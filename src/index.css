@@ -8,102 +8,102 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Tema Claro - Tons Leves e Suaves */
-    --background: 0 0% 99%;
-    --foreground: 160 15% 15%;
+    /* Tema Claro - Moderno, Limpo e Alto Contraste */
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 160 20% 20%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 160 20% 20%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 160 35% 45%;
+    --primary: 158 64% 36%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 160 25% 92%;
-    --secondary-foreground: 160 30% 25%;
+    --secondary: 152 35% 93%;
+    --secondary-foreground: 158 64% 18%;
 
-    --muted: 160 15% 96%;
-    --muted-foreground: 160 20% 50%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 16% 45%;
 
-    --accent: 160 30% 85%;
-    --accent-foreground: 160 35% 30%;
+    --accent: 152 35% 90%;
+    --accent-foreground: 158 64% 18%;
 
-    --destructive: 0 45% 65%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 160 20% 88%;
-    --input: 160 15% 94%;
-    --ring: 160 35% 55%;
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 158 64% 36%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
 
-    /* Sidebar com tons mais suaves */
-    --sidebar-background: 160 25% 12%;
-    --sidebar-foreground: 160 10% 85%;
-    --sidebar-primary: 160 35% 45%;
+    /* Sidebar no Tema Claro - Dark Slate Premium com Alto Contraste */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 158 64% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 160 20% 20%;
-    --sidebar-accent-foreground: 160 10% 80%;
-    --sidebar-border: 160 15% 25%;
-    --sidebar-ring: 160 35% 55%;
+    --sidebar-accent: 217 33% 18%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 33% 18%;
+    --sidebar-ring: 158 64% 42%;
 
-    /* Custom colors for government theme - Tons Suaves */
-    --success: 140 30% 50%;
+    /* Cores de Status - Tema Claro */
+    --success: 142 71% 36%;
     --success-foreground: 0 0% 100%;
-    --warning: 45 40% 65%;
-    --warning-foreground: 45 30% 15%;
-    --info: 200 35% 60%;
+    --warning: 38 92% 46%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 54%;
     --info-foreground: 0 0% 100%;
   }
 
   .dark {
-    /* Tema Escuro - Tons Leves e Suaves */
-    --background: 160 15% 8%;
-    --foreground: 160 10% 88%;
+    /* Tema Escuro - Slate Profundo, Elegante e Nítido */
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
 
-    --card: 160 20% 12%;
-    --card-foreground: 160 8% 85%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 160 20% 12%;
-    --popover-foreground: 160 8% 85%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 160 35% 55%;
-    --primary-foreground: 160 20% 8%;
+    --primary: 158 64% 45%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 160 25% 18%;
-    --secondary-foreground: 160 30% 70%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
 
-    --muted: 160 20% 15%;
-    --muted-foreground: 160 15% 65%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 68%;
 
-    --accent: 160 25% 22%;
-    --accent-foreground: 160 30% 75%;
+    --accent: 217 33% 19%;
+    --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 45% 65%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 160 20% 20%;
-    --input: 160 20% 18%;
-    --ring: 160 35% 55%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 158 64% 45%;
 
-    /* Sidebar escuro suave */
-    --sidebar-background: 160 25% 12%;
-    --sidebar-foreground: 160 10% 85%;
-    --sidebar-primary: 160 35% 55%;
-    --sidebar-primary-foreground: 160 20% 8%;
-    --sidebar-accent: 160 20% 20%;
-    --sidebar-accent-foreground: 160 10% 80%;
-    --sidebar-border: 160 15% 25%;
-    --sidebar-ring: 160 35% 55%;
+    /* Sidebar no Tema Escuro */
+    --sidebar-background: 222 47% 9%;
+    --sidebar-foreground: 210 40% 94%;
+    --sidebar-primary: 158 64% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 16%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 16%;
+    --sidebar-ring: 158 64% 45%;
 
-    /* Custom colors for government theme - Tons Suaves */
-    --success: 140 30% 50%;
+    /* Cores de Status - Tema Escuro */
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
-    --warning: 45 40% 65%;
-    --warning-foreground: 45 30% 15%;
-    --info: 200 35% 60%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
   }
 }
@@ -114,20 +114,19 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
-/* Transições suaves para mudança de tema */
+/* Utilitários e Componentes */
 @layer components {
   .theme-transition {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* Melhorias visuais para elementos interativos */
   .btn-primary {
-    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shadow-primary/20;
     transition: all 0.2s ease;
   }
 
@@ -136,16 +135,29 @@ All colors MUST be HSL.
     transition: all 0.2s ease;
   }
 
-  /* Cards com sombras suaves */
   .card-soft {
-    @apply bg-card text-card-foreground border border-border;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    transition: box-shadow 0.2s ease;
+    @apply bg-card text-card-foreground border border-border/80;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
   }
 
   .card-soft:hover {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-      0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    @apply border-border;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
   }
 }
 

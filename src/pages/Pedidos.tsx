@@ -110,9 +110,9 @@ export default function Pedidos() {
   // COMENTÁRIO: Função de ajuda para renderizar o badge de status.
   const getStatusBadge = (status: string) => {
     const variants = {
-      pendente: "secondary",
-      confirmado: "default",
-      entregue: "default",
+      pendente: "warning",
+      confirmado: "info",
+      entregue: "success",
       cancelado: "destructive",
     } as const;
 
@@ -138,7 +138,7 @@ export default function Pedidos() {
             Pedidos
           </h2>
           <p className="text-muted-foreground">
-            Gerencie os pedidos de merenda escolar
+            Gerencie as solicitações de entrega de merenda
           </p>
         </div>
         <NovoPedidoDialog onSuccess={handleSuccess} />
@@ -164,8 +164,8 @@ export default function Pedidos() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <Package className="h-6 w-6 text-green-500" />
+              <div className="p-2 bg-success/10 rounded-lg">
+                <Package className="h-6 w-6 text-success" />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
@@ -179,8 +179,8 @@ export default function Pedidos() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-yellow-500/10 rounded-lg">
-                <Calendar className="h-6 w-6 text-yellow-500" />
+              <div className="p-2 bg-warning/10 rounded-lg">
+                <Calendar className="h-6 w-6 text-warning" />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">

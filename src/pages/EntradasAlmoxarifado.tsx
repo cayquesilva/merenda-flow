@@ -79,9 +79,9 @@ export default function EntradasAlmoxarifado() {
   // Função para renderizar o badge de status na tabela
   const getStatusBadge = (status: string) => {
     if (status === "ajustada") {
-      return <Badge variant="destructive">Ajustada</Badge>;
+      return <Badge variant="warning">Ajustada</Badge>;
     }
-    return <Badge variant="default">Ativa</Badge>;
+    return <Badge variant="success">Ativa</Badge>;
   };
 
   return (

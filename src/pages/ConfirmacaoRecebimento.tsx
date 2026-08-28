@@ -601,7 +601,7 @@ export default function ConfirmacaoRecebimento() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border border-gray-300 rounded-lg overflow-hidden relative">
+              <div className="border border-border rounded-xl overflow-hidden relative bg-white">
                 <SignatureCanvas
                   ref={sigCanvas}
                   penColor="black"
@@ -611,7 +611,7 @@ export default function ConfirmacaoRecebimento() {
                     className: "sigCanvas border-none",
                   }}
                   onEnd={handleSignatureEnd}
-                  backgroundColor="rgb(248, 250, 252)"
+                  backgroundColor="rgb(255, 255, 255)"
                 />
                 <Button
                   variant="outline"

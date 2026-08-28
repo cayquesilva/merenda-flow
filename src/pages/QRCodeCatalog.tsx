@@ -203,13 +203,15 @@ export default function QRCodeCatalog() {
                   <p className="text-sm text-muted-foreground mb-2">
                     ({item.itemContrato.unidadeMedida.sigla})
                   </p>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-                      `${window.location.origin}/saida-estoque-qrcode/${item.id}`
-                    )}`}
-                    alt={`QR Code para ${item.itemContrato.nome}`}
-                    className="w-36 h-36 border border-gray-200 rounded-sm"
-                  />
+                  <div className="p-2 bg-white rounded-lg border border-border/80 shadow-sm">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                        `${window.location.origin}/saida-estoque-qrcode/${item.id}`
+                      )}`}
+                      alt={`QR Code para ${item.itemContrato.nome}`}
+                      className="w-36 h-36 rounded-sm"
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     Unidade: {item.unidadeEducacional.nome}
                   </p>

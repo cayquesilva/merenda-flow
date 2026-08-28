@@ -166,21 +166,28 @@ export function AppSidebar() {
 
   const getNavClassName = (path: string) => {
     return isActive(path)
-      ? "bg-primary/10 text-primary font-medium border-r-2 border-primary focus:text-accent"
-      : "hover:bg-muted/50 text-muted-foreground hover:text-foreground";
+      ? "bg-primary text-primary-foreground font-semibold shadow-sm shadow-primary/20 rounded-lg transition-all"
+      : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium rounded-lg transition-all duration-150";
   };
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
-      <SidebarContent className="gap-0">
+    <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
+      <SidebarContent className="gap-1 px-2 py-3">
         {!collapsed && (
-          <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold text-sidebar-foreground tracking-tight">
-              Sistema Merenda
-            </h2>
-            <p className="text-sm text-sidebar-foreground/70">
-              Gestão de Contratos
-            </p>
+          <div className="px-3 py-3 mb-2 rounded-xl bg-sidebar-accent/40 border border-sidebar-border/50">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-base shadow-sm">
+                🥗
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-sidebar-foreground tracking-tight leading-tight truncate">
+                  Merenda Flow
+                </h2>
+                <p className="text-xs text-sidebar-foreground/70 font-medium truncate">
+                  Gestão de Alimentação Escolar
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -192,32 +199,32 @@ export function AppSidebar() {
           );
 
           return (
-            <SidebarGroup key={section.group}>
+            <SidebarGroup key={section.group} className="py-1">
               {!collapsed && (
                 <SidebarGroupLabel
-                  className="flex items-center justify-between cursor-pointer hover:bg-muted/50 px-2 py-1 rounded-md"
+                  className="flex items-center justify-between cursor-pointer hover:bg-sidebar-accent/50 px-2 py-1 rounded-md text-xs uppercase tracking-wider font-semibold text-sidebar-foreground/60 transition-colors"
                   onClick={() => toggleGroup(section.group)}
                 >
                   <span
                     className={
                       hasActiveItem
-                        ? "text-sidebar-foreground/90 font-medium"
-                        : ""
+                        ? "text-primary font-bold"
+                        : "text-sidebar-foreground/70"
                     }
                   >
                     {section.group}
                   </span>
                   {isExpanded ? (
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-3.5 w-3.5 text-sidebar-foreground/60" />
                   ) : (
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/60" />
                   )}
                 </SidebarGroupLabel>
               )}
 
               {(collapsed || isExpanded) && (
                 <SidebarGroupContent>
-                  <SidebarMenu>
+                  <SidebarMenu className="gap-1">
                     {section.items.map(
                       (item) =>
                         canAccessModule(item.module as ModuleName) && (
@@ -228,9 +235,15 @@ export function AppSidebar() {
                                 end
                                 className={getNavClassName(item.url)}
                               >
-                                <item.icon className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
+                                <item.icon
+                                  className={`h-4 w-4 shrink-0 ${
+                                    isActive(item.url)
+                                      ? "text-primary-foreground"
+                                      : "text-sidebar-foreground/70"
+                                  }`}
+                                />
                                 {!collapsed && (
-                                  <span className="text-sidebar-foreground/70">
+                                  <span className="truncate">
                                     {item.title}
                                   </span>
                                 )}
@@ -247,23 +260,23 @@ export function AppSidebar() {
         })}
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="p-3 border-t border-sidebar-border/60 gap-2">
         <ThemeToggle collapsed={collapsed} />
         <Button
           variant="ghost"
           size="sm"
           onClick={logout}
-          className="w-full justify-start hover:bg-destructive/10 hover:text-destructive transition-colors"
+          className="w-full justify-start text-sidebar-foreground/80 hover:bg-destructive/15 hover:text-destructive rounded-lg transition-colors font-medium"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           {!collapsed && <span className="ml-2">Sair</span>}
         </Button>
         {!collapsed && user && (
-          <div className="px-3 py-2 mb-2 rounded-lg bg-sidebar-accent/50 border border-sidebar-border">
-            <p className="font-medium text-sidebar-foreground text-sm">
+          <div className="px-3 py-2.5 rounded-xl bg-sidebar-accent/50 border border-sidebar-border/60">
+            <p className="font-semibold text-sidebar-foreground text-sm truncate">
               {user.nome}
             </p>
-            <p className="text-xs text-sidebar-foreground/70">{user.email}</p>
+            <p className="text-xs text-sidebar-foreground/70 truncate">{user.email}</p>
           </div>
         )}
       </SidebarFooter>

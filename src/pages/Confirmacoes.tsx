@@ -188,12 +188,12 @@ export default function Confirmacoes() {
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      pendente: "secondary",
-      confirmado: "default",
-      parcial: "outline",
+      pendente: "warning",
+      confirmado: "success",
+      parcial: "info",
       rejeitado: "destructive",
-      completo: "default",
-      ajustado: "outline",
+      completo: "success",
+      ajustado: "default",
       complementar: "secondary",
     } as const;
 

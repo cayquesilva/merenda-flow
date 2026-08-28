@@ -11,7 +11,4 @@ build
 *.log
 coverage
 .nyc_output
-back-end/node_modules
-back-end/dist
-back-end/prisma/migrations/*.sql
-!back-end/prisma/migrations/migration_lock.toml
+back-end

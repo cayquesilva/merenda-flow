@@ -187,36 +187,36 @@ export default function SaidaEstoqueQRCode() {
         </CardHeader>
         <CardContent className="p-8 space-y-6">
           {saidaConfirmada ? (
-            <div className="text-center text-green-600 dark:text-green-400">
+            <div className="text-center text-success">
               <CheckCircle className="h-20 w-20 mx-auto mb-4" />
-              <h3 className="text-3xl font-bold mb-2">Saída Registrada!</h3>
-              <p className="text-xl">
+              <h3 className="text-3xl font-bold mb-2 text-foreground">Saída Registrada!</h3>
+              <p className="text-lg text-muted-foreground">
                 O item foi baixado do estoque com sucesso.
               </p>
             </div>
           ) : (
             <>
-              <div className="space-y-3">
-                <h3 className="text-2xl font-semibold text-gray-800 dark:text-gray-200">
+              <div className="space-y-4">
+                <h3 className="text-2xl font-bold text-foreground">
                   Item: {itemEstoque.itemContrato.nome}
                 </h3>
-                <p className="text-lg text-muted-foreground flex items-center justify-center gap-2">
+                <p className="text-base text-muted-foreground flex items-center justify-center gap-2">
                   <Building2 className="h-5 w-5" />
-                  Unidade: {itemEstoque.unidadeEducacional.nome}
+                  Unidade: <span className="font-semibold text-foreground">{itemEstoque.unidadeEducacional.nome}</span>
                 </p>
-                <p className="text-lg text-muted-foreground">
-                  Estoque Atual:{" "}
-                  <span className="font-bold">
+                <div className="p-3 bg-muted/60 rounded-xl border border-border">
+                  <p className="text-sm text-muted-foreground">Estoque Disponível</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {itemEstoque.quantidadeAtual}{" "}
-                    {itemEstoque.itemContrato.unidadeMedida.sigla}
-                  </span>
-                </p>
+                    <span className="text-base font-normal text-muted-foreground">{itemEstoque.itemContrato.unidadeMedida.sigla}</span>
+                  </p>
+                </div>
 
                 {/* Campo de entrada para a quantidade de saída */}
-                <div>
+                <div className="pt-2">
                   <Label
                     htmlFor="quantidadeSaida"
-                    className="text-xl font-bold text-red-500 dark:text-red-400"
+                    className="text-base font-bold text-foreground"
                   >
                     Quantidade a ser baixada:
                   </Label>
@@ -227,18 +227,18 @@ export default function SaidaEstoqueQRCode() {
                     step="1"
                     value={quantidadeSaida}
                     onChange={(e) => setQuantidadeSaida(Number(e.target.value))}
-                    className="text-center text-2xl font-bold mt-2"
+                    className="text-center text-2xl font-bold mt-2 h-14 bg-background"
                     max={itemEstoque.quantidadeAtual}
                     disabled={isSubmitting}
                   />
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1.5">
                     Unidade de medida:{" "}
                     {itemEstoque.itemContrato.unidadeMedida.sigla}
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3 pt-2">
                 <Button
                   onClick={handleConfirmarSaida}
                   disabled={
@@ -246,26 +246,26 @@ export default function SaidaEstoqueQRCode() {
                     quantidadeSaida <= 0 ||
                     quantidadeSaida > itemEstoque.quantidadeAtual
                   }
-                  className="w-full py-3 text-xl font-bold bg-green-600 hover:bg-green-700 text-white rounded-md shadow-lg transition-colors duration-300"
+                  className="w-full h-12 text-lg font-bold shadow-md shadow-primary/20"
                 >
                   {isSubmitting ? (
-                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   ) : (
-                    <CheckCircle className="mr-2 h-6 w-6" />
+                    <CheckCircle className="mr-2 h-5 w-5" />
                   )}
                   Confirmar Saída
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => navigate("/estoque")}
-                  className="w-full py-3 text-xl font-bold border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 rounded-md shadow-md transition-colors duration-300"
+                  className="w-full h-12 text-base font-semibold"
                 >
-                  <XCircle className="mr-2 h-6 w-6" />
+                  <XCircle className="mr-2 h-5 w-5" />
                   Cancelar
                 </Button>
                 {(quantidadeSaida <= 0 ||
                   quantidadeSaida > itemEstoque.quantidadeAtual) && (
-                  <p className="text-red-500 text-sm mt-2 flex items-center justify-center gap-1">
+                  <p className="text-destructive text-sm mt-1 flex items-center justify-center gap-1 font-medium">
                     <AlertTriangle className="h-4 w-4" />
                     Quantidade inválida ou estoque insuficiente.
                   </p>

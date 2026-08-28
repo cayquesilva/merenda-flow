@@ -211,19 +211,16 @@ export default function Dashboard() {
                       className="space-y-2 p-3 rounded-lg bg-background/50 border border-warning/20"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{item.nome}</span>
-                        <Badge
-                          variant="outline"
-                          className="text-warning border-warning"
-                        >
+                        <span className="text-sm font-semibold">{item.nome}</span>
+                        <Badge variant="warning">
                           {percentual.toFixed(0)}%
                         </Badge>
                       </div>
                       <Progress
                         value={percentual}
-                        className="h-2 bg-warning/20"
+                        className="h-2 bg-muted"
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground font-medium">
                         {item.saldoAtual} de {item.quantidadeOriginal}{" "}
                         {item.unidadeMedida.sigla}
                       </p>
@@ -236,10 +233,10 @@ export default function Dashboard() {
         </Card>
 
         {/* Contratos Próximos do Vencimento */}
-        <Card className="border-destructive/30 bg-destructive/5 shadow-md hover:shadow-lg transition-all duration-300">
+        <Card className="border-destructive/30 bg-destructive/5 shadow-sm hover:shadow-md transition-all">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-warning" />
+              <Calendar className="h-5 w-5 text-destructive" />
               Contratos Vencendo
             </CardTitle>
             <CardDescription>
@@ -266,18 +263,15 @@ export default function Dashboard() {
                   return (
                     <div
                       key={contrato.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-destructive/20"
+                      className="flex items-center justify-between p-3 rounded-lg bg-background/70 border border-destructive/20"
                     >
                       <div>
-                        <p className="text-sm font-medium">{contrato.numero}</p>
+                        <p className="text-sm font-semibold">{contrato.numero}</p>
                         <p className="text-xs text-muted-foreground">
                           {contrato.fornecedor.nome}
                         </p>
                       </div>
-                      <Badge
-                        variant="outline"
-                        className="text-warning border-warning"
-                      >
+                      <Badge variant="destructive">
                         {diffDays} dias
                       </Badge>
                     </div>

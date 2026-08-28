@@ -552,11 +552,13 @@ function QRCodeDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-center p-4">
-          <img
-            src={qrCodeImageUrl}
-            alt={`QR Code para ${itemName}`}
-            className="w-48 h-48 border border-gray-300 rounded-lg"
-          />
+          <div className="p-3 bg-white rounded-xl border shadow-sm">
+            <img
+              src={qrCodeImageUrl}
+              alt={`QR Code para ${itemName}`}
+              className="w-48 h-48 rounded"
+            />
+          </div>
         </div>
         <DialogFooter className="flex-col gap-2">
           <p className="text-sm text-muted-foreground">
@@ -565,7 +567,7 @@ function QRCodeDialog({
               href={qrcodeDataUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 hover:underline break-all"
+              className="text-primary hover:underline break-all"
             >
               {qrcodeDataUrl}
             </a>
@@ -586,7 +588,7 @@ function FotoDescarte({ mov }) {
       {mov.tipo === "descarte" && mov.fotoDescarte?.url ? (
         <button
           onClick={() => setIsModalOpen(true)}
-          className="focus:outline-none"
+          className="focus:outline-none p-1.5 hover:bg-muted rounded-lg transition-colors"
           disabled={mov.tipo !== "descarte"}
         >
           <Camera className="h-4 w-4 text-primary hover:text-primary/80" />
@@ -594,26 +596,26 @@ function FotoDescarte({ mov }) {
       ) : (
         <button
           onClick={() => setIsModalOpen(true)}
-          className="focus:outline-none"
+          className="focus:outline-none p-1.5 opacity-40"
           disabled={mov.tipo !== "descarte"}
         >
-          <CameraOff className="h-4 w-4 text-secondary" />
+          <CameraOff className="h-4 w-4 text-muted-foreground" />
         </button>
       )}
 
       {isModalOpen && mov.fotoDescarte?.url && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-lg p-4 relative w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card text-card-foreground border border-border rounded-2xl shadow-2xl p-4 relative w-full max-w-md">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
             <img
               src={mov.fotoDescarte.url}
               alt="Foto do Descarte"
-              className="max-h-[70vh] w-full object-contain rounded-md"
+              className="max-h-[70vh] w-full object-contain rounded-xl border border-border"
             />
           </div>
         </div>
@@ -783,12 +785,12 @@ export default function Estoque() {
       estoque.quantidadeAtual < estoque.quantidadeMinima
     ) {
       return (
-        <Badge variant="outline" className="border-warning text-warning">
+        <Badge variant="warning">
           Abaixo do Mínimo
         </Badge>
       );
     }
-    return <Badge variant="default">Normal</Badge>;
+    return <Badge variant="success">Normal</Badge>;
   };
 
   const getTipoMovimentacaoBadge = (

@@ -200,9 +200,9 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   // ATUALIZAÇÃO: Cores e labels dos status melhoradas.
   const getStatusBadge = (status: string) => {
     const variants = {
-      pendente: "secondary",
-      confirmado: "default",
-      parcial: "outline",
+      pendente: "warning",
+      confirmado: "success",
+      parcial: "info",
       rejeitado: "destructive",
       ajustado: "default",
     } as const;

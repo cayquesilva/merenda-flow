@@ -184,7 +184,7 @@ export default function Contratos() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ativo":
-        return <Badge variant="default">Ativo</Badge>;
+        return <Badge variant="success">Ativo</Badge>;
       case "inativo":
         return <Badge variant="secondary">Inativo</Badge>;
       case "vencido":

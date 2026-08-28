@@ -25,13 +25,13 @@ export function MetricCard({
   const getCardStyles = () => {
     switch (variant) {
       case 'warning':
-        return 'border-warning/20 bg-warning/5';
+        return 'border-warning/30 bg-warning/5 hover:border-warning/50';
       case 'success':
-        return 'border-success/20 bg-success/5';
+        return 'border-success/30 bg-success/5 hover:border-success/50';
       case 'destructive':
-        return 'border-destructive/20 bg-destructive/5';
+        return 'border-destructive/30 bg-destructive/5 hover:border-destructive/50';
       default:
-        return 'border-border';
+        return 'border-border/80 bg-card hover:border-primary/40';
     }
   };
 
@@ -50,33 +50,33 @@ export function MetricCard({
 
   return (
     <Card className={cn(
-      "transition-all duration-300 hover:shadow-lg hover:scale-[1.02] border-2",
+      "transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border",
       getCardStyles()
     )}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-semibold text-muted-foreground">
           {title}
         </CardTitle>
         <div className={cn(
-          "p-2 rounded-lg transition-colors duration-300",
-          variant === 'warning' && "bg-warning/10",
-          variant === 'success' && "bg-success/10", 
-          variant === 'destructive' && "bg-destructive/10",
-          variant === 'default' && "bg-primary/10"
+          "p-2.5 rounded-xl transition-colors duration-200 border",
+          variant === 'warning' && "bg-warning/10 border-warning/20",
+          variant === 'success' && "bg-success/10 border-success/20", 
+          variant === 'destructive' && "bg-destructive/10 border-destructive/20",
+          variant === 'default' && "bg-primary/10 border-primary/20"
         )}>
           <Icon className={`h-5 w-5 ${getIconStyles()}`} />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold tracking-tight">{value}</div>
+        <div className="text-2xl font-bold tracking-tight text-foreground">{value}</div>
         {description && (
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-1 font-medium">
             {description}
           </p>
         )}
         {trend && (
-          <p className="text-xs text-muted-foreground mt-1">
-            <span className={trend.value > 0 ? 'text-success' : 'text-destructive'}>
+          <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+            <span className={trend.value > 0 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>
               {trend.value > 0 ? '+' : ''}{trend.value}%
             </span>{' '}
             {trend.label}
