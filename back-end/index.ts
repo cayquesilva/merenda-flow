@@ -600,6 +600,213 @@ app.delete("/api/fornecedores/:id", async (req: Request, res: Response) => {
   }
 });
 
+// --- IMPORTAÇÃO DE CONTRATOS (PDF) ---
+const { PDFParse } = require('pdf-parse');
+
+// Função auxiliar para processar um PDF
+async function processarPdfContrato(fileBuffer: Buffer, fileName: string, tx: any) {
+  const parser = new PDFParse({ data: fileBuffer });
+  const result = await parser.getText();
+  const text = result.text;
+  const lines = text.split('\n');
+
+  // --- FORNECEDOR ---
+  let cnpj = null;
+  const cnpjMatch1 = text.match(/Contratado \(CNPJ\):\s*([\d\.\-\/]+)/);
+  const cnpjMatch2 = text.match(/CNPJ N[oºº]*\s*([\d\.\-\/]+)/);
+  if (cnpjMatch1) cnpj = cnpjMatch1[1];
+  else if (cnpjMatch2) cnpj = cnpjMatch2[1];
+
+  if (!cnpj) {
+    throw new Error(`CNPJ não encontrado no arquivo ${fileName}`);
+  }
+
+  let nomeFornecedor = null;
+  const nomeMatch1 = text.match(/Contratado \(Nome\):\s*(.*)/);
+  const nomeMatch2 = text.match(/e [ao]\s+([A-Z0-9\s\.\-\&]+),\s*inscrita sob CNPJ/);
+  if (nomeMatch1) nomeFornecedor = nomeMatch1[1].trim();
+  else if (nomeMatch2) nomeFornecedor = nomeMatch2[1].trim();
+  
+  if (!nomeFornecedor) nomeFornecedor = `Fornecedor ${cnpj}`;
+
+  let email = null;
+  const emails = text.match(/[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+/g) || [];
+  const validEmails = emails.filter(e => !e.toLowerCase().includes('campinagrande.pb.gov.br') && !e.toLowerCase().includes('tst.jus.br'));
+  if (validEmails.length > 0) email = validEmails[0];
+  else email = `contato@${cnpj.replace(/\D/g, '')}.com.br`;
+
+  let telefone = null;
+  const phones = text.match(/\(\d{2}\)\s*\d{4,5}-\d{4}/g) || [];
+  const validPhones = phones.filter(p => !p.includes('3310-6927') && !p.includes('3690-1757'));
+  if (validPhones.length > 0) telefone = validPhones[0];
+  else telefone = '(83) 99999-9999';
+
+  let endereco = null;
+  const endMatch = text.match(/com sede [n]?[ao]?\s*(.*?)(?:, neste ato|, doravante|; neste ato)/i);
+  if (endMatch) endereco = endMatch[1].replace(/\n/g, ' ').trim();
+
+  // UPSERT FORNECEDOR
+  let fornecedor = await tx.fornecedor.findUnique({ where: { cnpj } });
+  if (fornecedor) {
+    fornecedor = await tx.fornecedor.update({
+      where: { cnpj },
+      data: { nome: nomeFornecedor, telefone, email, endereco }
+    });
+  } else {
+    fornecedor = await tx.fornecedor.create({
+      data: { cnpj, nome: nomeFornecedor, telefone, email, endereco, ativo: true }
+    });
+  }
+
+  // --- CONTRATO ---
+  let numero = null;
+  const filenameMatch = fileName.match(/CONTRATO_N_(\d_\d\d_\d\d\d_\d{4})/i);
+  if (filenameMatch) {
+    numero = filenameMatch[1].replace(/_/g, '.');
+  } else {
+    const numMatch = text.match(/CONTRATO N[ºO]*\s*([\d\.\/]+(?:-202[0-9])?)/i);
+    if (numMatch) numero = numMatch[1].replace(/[^0-9\.\/]/g, '');
+  }
+  if (!numero) numero = `CT-UNKNOWN-${Math.random().toString().substring(2,8)}`;
+
+  let dataInicio = new Date(new Date().getFullYear(), 0, 1);
+  const MONTHS: any = {
+    JANEIRO: 0, FEVEREIRO: 1, MARÇO: 2, MARCO: 2, ABRIL: 3, MAIO: 4, JUNHO: 5,
+    JULHO: 6, AGOSTO: 7, SETEMBRO: 8, OUTUBRO: 9, NOVEMBRO: 10, DEZEMBRO: 11
+  };
+  const dateMatch = text.match(/DATA DE ASSINATURA:\s*(\d{1,2})\s+DE\s+([A-ZÇ]+)\s+DE\s+(\d{4})/i);
+  if (dateMatch) {
+    const day = parseInt(dateMatch[1]);
+    const month = MONTHS[dateMatch[2].toUpperCase()] || 0;
+    const year = parseInt(dateMatch[3]);
+    dataInicio = new Date(year, month, day);
+  }
+
+  // --- ITENS ---
+  let startIndex = lines.findIndex((l: string) => l.includes('PLANILHA'));
+  if (startIndex === -1) throw new Error(`PLANILHA não encontrada no arquivo ${fileName}`);
+
+  const items = [];
+  let currentName = '';
+
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (!line || line.includes('ITEM DESCRIÇÃO')) continue;
+    if (line.match(/VALOR TOTAL\s*R\$/i)) break;
+
+    if (line.match(/-- \d+ of \d+ --/i) || line.includes('ESTADO DA PARAÍBA') || line.includes('SECRETARIA MUNICIPAL DE EDUCAÇÃO') || line.includes('Rua Paulino Raposo')) continue;
+
+    const match = line.match(/^(.*?)\s+([A-Z]+(?:\.)?)\s+([\d\.]+)\s+R\$\s*([\d,]+)\s+R\$\s*([\d\.,]+)/i);
+    if (match) {
+       let nomePart = match[1].trim();
+       let fullNome = (currentName + ' ' + nomePart).trim();
+       fullNome = fullNome.replace(/^\d+\s+/, '').trim();
+       
+       items.push({
+         nome: fullNome,
+         unidade: match[2].replace('.', ''),
+         quantidade: parseFloat(match[3].replace(/\./g, '').replace(',', '.')),
+         valorUnitario: parseFloat(match[4].replace(/\./g, '').replace(',', '.')),
+         valorTotal: parseFloat(match[5].replace(/\./g, '').replace(',', '.'))
+       });
+       currentName = '';
+    } else {
+       if (line.match(/^\d+\s+/)) currentName = line.trim();
+       else currentName += ' ' + line.trim();
+    }
+  }
+
+  if (items.length === 0) throw new Error(`Nenhum item processado no arquivo ${fileName}`);
+
+  let valorTotal = items.reduce((sum, item) => sum + item.valorTotal, 0);
+
+  // UPSERT CONTRATO
+  let contrato = await tx.contrato.findUnique({ where: { numero } });
+  if (contrato) {
+    contrato = await tx.contrato.update({
+      where: { numero },
+      data: {
+        dataInicio,
+        dataFim: new Date(dataInicio.getFullYear(), 11, 31, 23, 59, 59),
+        valorTotal,
+        fornecedorId: fornecedor.id
+      }
+    });
+  } else {
+    contrato = await tx.contrato.create({
+      data: {
+        numero,
+        tipo: 'nutricao',
+        dataInicio,
+        dataFim: new Date(dataInicio.getFullYear(), 11, 31, 23, 59, 59),
+        valorTotal,
+        status: 'ativo',
+        fornecedorId: fornecedor.id
+      }
+    });
+  }
+
+  // ITENS
+  for (const item of items) {
+    const sigla = item.unidade.toUpperCase();
+    let unidadeMedida = await tx.unidadeMedida.findUnique({ where: { sigla } });
+    if (!unidadeMedida) {
+      unidadeMedida = await tx.unidadeMedida.create({ data: { nome: sigla, sigla } });
+    }
+
+    const existingItems = await tx.itemContrato.findMany({
+      where: { contratoId: contrato.id, nome: item.nome }
+    });
+
+    if (existingItems.length > 0) {
+      await tx.itemContrato.update({
+        where: { id: existingItems[0].id },
+        data: {
+          valorUnitario: item.valorUnitario,
+          quantidadeOriginal: item.quantidade,
+          saldoAtual: item.quantidade,
+          quantidadeEscola: item.quantidade,
+          saldoEscola: item.quantidade,
+          unidadeMedidaId: unidadeMedida.id
+        }
+      });
+    } else {
+      await tx.itemContrato.create({
+        data: {
+          nome: item.nome,
+          valorUnitario: item.valorUnitario,
+          quantidadeOriginal: item.quantidade,
+          saldoAtual: item.quantidade,
+          quantidadeEscola: item.quantidade,
+          saldoEscola: item.quantidade,
+          contratoId: contrato.id,
+          unidadeMedidaId: unidadeMedida.id
+        }
+      });
+    }
+  }
+}
+
+app.post('/api/contratos/importar-pdf', authenticateToken, upload.array('files'), async (req: Request, res: Response) => {
+  const files = req.files as Express.Multer.File[];
+  if (!files || files.length === 0) {
+    return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const file of files) {
+        await processarPdfContrato(file.buffer, file.originalname, tx);
+      }
+    }, { timeout: 120000 }); // timeout extendido para arquivos grandes
+    
+    res.status(200).json({ message: 'Contratos importados com sucesso!' });
+  } catch (error) {
+    console.error('Erro ao importar contratos:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Falha na importação' });
+  }
+});
+
 // --- ROTAS DE UNIDADES DE MEDIDA ---
 
 // COMENTÁRIO: Retorna todas as unidades de medida cadastradas.

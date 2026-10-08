@@ -37,6 +37,7 @@ import {
   FileText, // Importar o ícone de Edit
 } from "lucide-react";
 import { ContratoDialog } from "@/components/contratos/ContratoDialog";
+import { ImportContratosDialog } from "@/components/contratos/ImportContratosDialog"; // NOVO IMPORT
 // Importar a interface Contrato do seu arquivo de tipos
 import { Contrato } from "@/types";
 
@@ -212,8 +213,11 @@ export default function Contratos() {
             Gerencie os contratos de fornecimento de merenda
           </p>
         </div>
-        {/* ContratoDialog para CRIAÇÃO (sem a prop 'contrato') */}
-        <ContratoDialog onSuccess={handleSuccess} />
+        <div className="flex items-center gap-2">
+          <ImportContratosDialog onSuccess={handleSuccess} />
+          {/* ContratoDialog para CRIAÇÃO (sem a prop 'contrato') */}
+          <ContratoDialog onSuccess={handleSuccess} />
+        </div>
       </div>
 
       <Card>
