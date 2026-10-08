@@ -941,10 +941,23 @@ app.post('/api/contratos/importar-dados', authenticateToken, upload.single('file
         // 3. Upsert ItemContrato
         if (!r.ItemNome) continue;
 
-        const sigla = String(r.ItemUnidadeSigla).toUpperCase();
+        let rawSigla = String(r.ItemUnidadeSigla).toUpperCase().trim();
+        let siglaMap: Record<string, string> = {
+          'KG': 'Kg', 'QUILOGRAMA': 'Kg', 'KILOGRAMA': 'Kg',
+          'L': 'L', 'LITRO': 'L',
+          'UN': 'Un', 'UND': 'Un', 'UNID': 'Un', 'UNIDADE': 'Un',
+          'CX': 'Cx', 'CAIXA': 'Cx',
+          'PCT': 'Pct', 'PACOTE': 'Pct',
+          'G': 'g', 'GRAMA': 'g'
+        };
+        const sigla = siglaMap[rawSigla] || rawSigla;
+
         let unidadeMedida = await tx.unidadeMedida.findUnique({ where: { sigla } });
         if (!unidadeMedida) {
-          unidadeMedida = await tx.unidadeMedida.create({ data: { nome: sigla, sigla } });
+          unidadeMedida = await tx.unidadeMedida.findFirst({ where: { sigla: { equals: sigla, mode: 'insensitive' } } });
+          if (!unidadeMedida) {
+            unidadeMedida = await tx.unidadeMedida.create({ data: { nome: sigla, sigla } });
+          }
         }
 
         const qtd = Number(r.ItemQuantidadeOriginal) || 0;
@@ -1342,8 +1355,7 @@ app.post(
     let unidadesCriadas = 0;
     let unidadesAtualizadas = 0;
 
-    // ALTERAÇÃO: Adicionamos o tipo explícito para o array de transações.
-    const transacoesPrisma: Prisma.PrismaPromise<UnidadeEducacional>[] = [];
+    const transacoesPrisma: any[] = [];
 
     try {
       const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
@@ -1441,21 +1453,19 @@ app.post(
         });
       }
 
-      // Executa todas as operações (creates e updates) em uma única transação
+      // Executa todas as operações em uma única transação sequencial
       if (transacoesPrisma.length > 0) {
-        // Agora o 'prisma.$transaction' aceita o array sem problemas de tipo
-        await prisma.$transaction(async (tx) => {
-          await Promise.all(transacoesPrisma);
-
-          await tx.metadado.upsert({
+        transacoesPrisma.push(
+          prisma.metadado.upsert({
             where: { chave: "ultima_importacao_unidades" },
             update: { valor: new Date().toISOString() },
             create: {
               chave: "ultima_importacao_unidades",
               valor: new Date().toISOString(),
             },
-          });
-        });
+          })
+        );
+        await prisma.$transaction(transacoesPrisma);
       }
 
       res.status(201).json({
