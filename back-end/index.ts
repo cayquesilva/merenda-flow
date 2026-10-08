@@ -1026,6 +1026,65 @@ app.get("/api/unidades", async (req: Request, res: Response) => {
   }
 });
 
+//Rota para buscar importações
+app.get(
+  "/api/unidades/data/ultima-importacao",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const metadado = await prisma.metadado.findUnique({
+        where: { chave: "ultima_importacao_unidades" },
+      });
+
+      if (metadado) {
+        res.json({ ultimaImportacao: metadado.valor });
+      } else {
+        res.json({ ultimaImportacao: null });
+      }
+    } catch (error) {
+      console.error("Erro ao buscar data de última importação:", error);
+      res
+        .status(500)
+        .json({ error: "Não foi possível obter a data de importação." });
+    }
+  }
+);
+
+// GET /api/unidades/exportar-dados
+app.get("/api/unidades/exportar-dados", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const unidades = await prisma.unidadeEducacional.findMany();
+    
+    const rows = unidades.map((u: any) => ({
+      codigo: u.codigo,
+      nome: u.nome,
+      email: u.email,
+      telefone: u.telefone || "",
+      endereco: u.endereco || "",
+      ativo: u.ativo ? "Sim" : "Não",
+      estudantesBercario: u.estudantesBercario,
+      estudantesMaternal: u.estudantesMaternal,
+      estudantesPreEscola: u.estudantesPreEscola,
+      estudantesRegular: u.estudantesRegular,
+      estudantesIntegral: u.estudantesIntegral,
+      estudantesEja: u.estudantesEja
+    }));
+
+    const worksheet = xlsx.utils.json_to_sheet(rows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Unidades');
+
+    const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=unidades_exportadas.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(excelBuffer);
+  } catch (error) {
+    console.error('Erro ao exportar unidades:', error);
+    res.status(500).json({ error: 'Falha ao exportar as unidades.' });
+  }
+});
+
 // ROTA 2: Buscar uma única Unidade pelo ID
 // GET /api/unidades/:id
 app.get("/api/unidades/:id", async (req: Request, res: Response) => {
@@ -1109,29 +1168,7 @@ app.delete("/api/unidades/:id", async (req: Request, res: Response) => {
   }
 });
 
-//Rota para buscar importações
-app.get(
-  "/api/unidades/data/ultima-importacao",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const metadado = await prisma.metadado.findUnique({
-        where: { chave: "ultima_importacao_unidades" },
-      });
 
-      if (metadado) {
-        res.json({ ultimaImportacao: metadado.valor });
-      } else {
-        res.json({ ultimaImportacao: null });
-      }
-    } catch (error) {
-      console.error("Erro ao buscar data de última importação:", error);
-      res
-        .status(500)
-        .json({ error: "Não foi possível obter a data de importação." });
-    }
-  }
-);
 
 // ROTA 6: Importar Unidades via Planilha (VERSÃO APRIMORADA: CRIA OU ATUALIZA)
 // POST /api/unidades/importar
@@ -1280,40 +1317,7 @@ app.post(
   }
 );
 
-// GET /api/unidades/exportar-dados
-app.get("/api/unidades/exportar-dados", authenticateToken, async (req: Request, res: Response) => {
-  try {
-    const unidades = await prisma.unidadeEducacional.findMany();
-    
-    const rows = unidades.map((u: any) => ({
-      codigo: u.codigo,
-      nome: u.nome,
-      email: u.email,
-      telefone: u.telefone || "",
-      endereco: u.endereco || "",
-      ativo: u.ativo ? "Sim" : "Não",
-      estudantesBercario: u.estudantesBercario,
-      estudantesMaternal: u.estudantesMaternal,
-      estudantesPreEscola: u.estudantesPreEscola,
-      estudantesRegular: u.estudantesRegular,
-      estudantesIntegral: u.estudantesIntegral,
-      estudantesEja: u.estudantesEja
-    }));
 
-    const worksheet = xlsx.utils.json_to_sheet(rows);
-    const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(workbook, worksheet, 'Unidades');
-
-    const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-
-    res.setHeader('Content-Disposition', 'attachment; filename=unidades_exportadas.xlsx');
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.send(excelBuffer);
-  } catch (error) {
-    console.error('Erro ao exportar unidades:', error);
-    res.status(500).json({ error: 'Falha ao exportar as unidades.' });
-  }
-});
 
 // --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
 
