@@ -631,13 +631,13 @@ async function processarPdfContrato(fileBuffer: Buffer, fileName: string, tx: an
 
   let email = null;
   const emails = text.match(/[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+/g) || [];
-  const validEmails = emails.filter(e => !e.toLowerCase().includes('campinagrande.pb.gov.br') && !e.toLowerCase().includes('tst.jus.br'));
+  const validEmails = emails.filter((e: string) => !e.toLowerCase().includes('campinagrande.pb.gov.br') && !e.toLowerCase().includes('tst.jus.br'));
   if (validEmails.length > 0) email = validEmails[0];
   else email = `contato@${cnpj.replace(/\D/g, '')}.com.br`;
 
   let telefone = null;
   const phones = text.match(/\(\d{2}\)\s*\d{4,5}-\d{4}/g) || [];
-  const validPhones = phones.filter(p => !p.includes('3310-6927') && !p.includes('3690-1757'));
+  const validPhones = phones.filter((p: string) => !p.includes('3310-6927') && !p.includes('3690-1757'));
   if (validPhones.length > 0) telefone = validPhones[0];
   else telefone = '(83) 99999-9999';
 
@@ -808,7 +808,6 @@ app.post('/api/contratos/importar-pdf', authenticateToken, upload.array('files')
 });
 
 // --- EXPORTAR / IMPORTAR CONTRATOS E ITENS (XLSX/CSV) ---
-const xlsx = require('xlsx');
 
 app.get('/api/contratos/exportar-dados', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -1477,6 +1476,41 @@ app.post(
     }
   }
 );
+
+// GET /api/unidades/exportar-dados
+app.get("/api/unidades/exportar-dados", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const unidades = await prisma.unidadeEducacional.findMany();
+    
+    const rows = unidades.map((u: any) => ({
+      codigo: u.codigo,
+      nome: u.nome,
+      email: u.email,
+      telefone: u.telefone || "",
+      endereco: u.endereco || "",
+      ativo: u.ativo ? "Sim" : "Não",
+      estudantesBercario: u.estudantesBercario,
+      estudantesMaternal: u.estudantesMaternal,
+      estudantesPreEscola: u.estudantesPreEscola,
+      estudantesRegular: u.estudantesRegular,
+      estudantesIntegral: u.estudantesIntegral,
+      estudantesEja: u.estudantesEja
+    }));
+
+    const worksheet = xlsx.utils.json_to_sheet(rows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Unidades');
+
+    const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=unidades_exportadas.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(excelBuffer);
+  } catch (error) {
+    console.error('Erro ao exportar unidades:', error);
+    res.status(500).json({ error: 'Falha ao exportar as unidades.' });
+  }
+});
 
 // --- FIM DAS ROTAS DE UNIDADES EDUCACIONAIS ---
 

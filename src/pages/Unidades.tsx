@@ -7,6 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -124,6 +125,21 @@ export default function Unidades() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={() => {
+            const token = localStorage.getItem("token");
+            const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/unidades/exportar-dados`;
+            fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+              .then(res => res.blob())
+              .then(blob => {
+                const a = document.createElement('a');
+                a.href = window.URL.createObjectURL(blob);
+                a.download = 'unidades_exportadas.xlsx';
+                a.click();
+              })
+              .catch(err => console.error("Erro ao exportar:", err));
+          }}>
+            Exportar Planilha
+          </Button>
           <ImportDialog onSuccess={handleSuccess} />
           <UnidadeDialog onSuccess={handleSuccess} />
         </div>
