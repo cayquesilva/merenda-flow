@@ -734,10 +734,23 @@ app.post('/api/contratos/importar-dados', authenticateToken, upload.single('file
         // 3. Upsert ItemContrato
         if (!r.ItemNome) continue;
 
-        const sigla = String(r.ItemUnidadeSigla).toUpperCase();
+        let rawSigla = String(r.ItemUnidadeSigla).toUpperCase().trim();
+        let siglaMap: Record<string, string> = {
+          'KG': 'Kg', 'QUILOGRAMA': 'Kg', 'KILOGRAMA': 'Kg',
+          'L': 'L', 'LITRO': 'L',
+          'UN': 'Un', 'UND': 'Un', 'UNID': 'Un', 'UNIDADE': 'Un',
+          'CX': 'Cx', 'CAIXA': 'Cx',
+          'PCT': 'Pct', 'PACOTE': 'Pct',
+          'G': 'g', 'GRAMA': 'g'
+        };
+        const sigla = siglaMap[rawSigla] || rawSigla;
+
         let unidadeMedida = await tx.unidadeMedida.findUnique({ where: { sigla } });
         if (!unidadeMedida) {
-          unidadeMedida = await tx.unidadeMedida.create({ data: { nome: sigla, sigla } });
+          unidadeMedida = await tx.unidadeMedida.findFirst({ where: { sigla: { equals: sigla, mode: 'insensitive' } } });
+          if (!unidadeMedida) {
+            unidadeMedida = await tx.unidadeMedida.create({ data: { nome: sigla, sigla } });
+          }
         }
 
         const qtd = Number(r.ItemQuantidadeOriginal) || 0;
@@ -1233,7 +1246,7 @@ app.post(
         });
       }
 
-      // Executa todas as operações (creates e updates) em uma única transação sequencial
+      // Executa todas as operações em uma única transação sequencial
       if (transacoesPrisma.length > 0) {
         transacoesPrisma.push(
           prisma.metadado.upsert({
@@ -1245,7 +1258,6 @@ app.post(
             },
           })
         );
-
         await prisma.$transaction(transacoesPrisma);
       }
 
