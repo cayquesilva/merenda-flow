@@ -807,6 +807,190 @@ app.post('/api/contratos/importar-pdf', authenticateToken, upload.array('files')
   }
 });
 
+// --- EXPORTAR / IMPORTAR CONTRATOS E ITENS (XLSX/CSV) ---
+const xlsx = require('xlsx');
+
+app.get('/api/contratos/exportar-dados', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const contratos = await prisma.contrato.findMany({
+      include: {
+        fornecedor: true,
+        itens: { include: { unidadeMedida: true } }
+      }
+    });
+
+    const rows = [];
+    for (const c of contratos) {
+      if (c.itens.length === 0) {
+        // Se contrato não tem itens, exporta mesmo assim com itens vazios
+        rows.push({
+          ContratoNumero: c.numero,
+          DataInicio: c.dataInicio ? c.dataInicio.toISOString().substring(0, 10) : '',
+          ValorTotalContrato: c.valorTotal,
+          FornecedorCNPJ: c.fornecedor.cnpj,
+          FornecedorNome: c.fornecedor.nome,
+          FornecedorEmail: c.fornecedor.email,
+          FornecedorTelefone: c.fornecedor.telefone,
+          FornecedorEndereco: c.fornecedor.endereco,
+          ItemNome: '',
+          ItemUnidadeSigla: '',
+          ItemQuantidadeOriginal: 0,
+          ItemValorUnitario: 0
+        });
+        continue;
+      }
+
+      for (const item of c.itens) {
+        rows.push({
+          ContratoNumero: c.numero,
+          DataInicio: c.dataInicio ? c.dataInicio.toISOString().substring(0, 10) : '',
+          ValorTotalContrato: c.valorTotal,
+          FornecedorCNPJ: c.fornecedor.cnpj,
+          FornecedorNome: c.fornecedor.nome,
+          FornecedorEmail: c.fornecedor.email,
+          FornecedorTelefone: c.fornecedor.telefone,
+          FornecedorEndereco: c.fornecedor.endereco,
+          ItemNome: item.nome,
+          ItemUnidadeSigla: item.unidadeMedida?.sigla || 'UN',
+          ItemQuantidadeOriginal: item.quantidadeOriginal,
+          ItemValorUnitario: item.valorUnitario
+        });
+      }
+    }
+
+    const worksheet = xlsx.utils.json_to_sheet(rows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Contratos_e_Itens');
+
+    const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=contratos_exportados.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(excelBuffer);
+  } catch (error) {
+    console.error('Erro ao exportar contratos:', error);
+    res.status(500).json({ error: 'Falha ao exportar os dados.' });
+  }
+});
+
+app.post('/api/contratos/importar-dados', authenticateToken, upload.single('file'), async (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado.' });
+
+  try {
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json(worksheet);
+
+    if (rows.length === 0) return res.status(400).json({ error: 'Planilha vazia.' });
+
+    await prisma.$transaction(async (tx) => {
+      for (const row of rows) {
+        const r = row as any;
+        if (!r.ContratoNumero || !r.FornecedorCNPJ) continue;
+
+        // 1. Upsert Fornecedor
+        let fornecedor = await tx.fornecedor.findUnique({ where: { cnpj: String(r.FornecedorCNPJ) } });
+        if (fornecedor) {
+          fornecedor = await tx.fornecedor.update({
+            where: { cnpj: String(r.FornecedorCNPJ) },
+            data: {
+              nome: r.FornecedorNome || fornecedor.nome,
+              email: r.FornecedorEmail || fornecedor.email,
+              telefone: r.FornecedorTelefone || fornecedor.telefone,
+              endereco: r.FornecedorEndereco || fornecedor.endereco
+            }
+          });
+        } else {
+          fornecedor = await tx.fornecedor.create({
+            data: {
+              cnpj: String(r.FornecedorCNPJ),
+              nome: r.FornecedorNome || `Fornecedor ${r.FornecedorCNPJ}`,
+              email: r.FornecedorEmail || '',
+              telefone: r.FornecedorTelefone || '',
+              endereco: r.FornecedorEndereco || '',
+              ativo: true
+            }
+          });
+        }
+
+        // 2. Upsert Contrato
+        let contrato = await tx.contrato.findUnique({ where: { numero: String(r.ContratoNumero) } });
+        const dInicio = r.DataInicio ? new Date(r.DataInicio) : new Date(new Date().getFullYear(), 0, 1);
+        if (contrato) {
+          contrato = await tx.contrato.update({
+            where: { numero: String(r.ContratoNumero) },
+            data: {
+              valorTotal: Number(r.ValorTotalContrato) || contrato.valorTotal,
+              fornecedorId: fornecedor.id
+            }
+          });
+        } else {
+          contrato = await tx.contrato.create({
+            data: {
+              numero: String(r.ContratoNumero),
+              tipo: 'nutricao',
+              dataInicio: dInicio,
+              dataFim: new Date(dInicio.getFullYear(), 11, 31, 23, 59, 59),
+              valorTotal: Number(r.ValorTotalContrato) || 0,
+              status: 'ativo',
+              fornecedorId: fornecedor.id
+            }
+          });
+        }
+
+        // 3. Upsert ItemContrato
+        if (!r.ItemNome) continue;
+
+        const sigla = String(r.ItemUnidadeSigla).toUpperCase();
+        let unidadeMedida = await tx.unidadeMedida.findUnique({ where: { sigla } });
+        if (!unidadeMedida) {
+          unidadeMedida = await tx.unidadeMedida.create({ data: { nome: sigla, sigla } });
+        }
+
+        const qtd = Number(r.ItemQuantidadeOriginal) || 0;
+        const val = Number(r.ItemValorUnitario) || 0;
+
+        const existingItem = await tx.itemContrato.findFirst({
+          where: { contratoId: contrato.id, nome: String(r.ItemNome) }
+        });
+
+        if (existingItem) {
+          await tx.itemContrato.update({
+            where: { id: existingItem.id },
+            data: {
+              valorUnitario: val,
+              quantidadeOriginal: qtd,
+              saldoAtual: qtd, // Reset saldo para importação completa
+              quantidadeEscola: qtd,
+              saldoEscola: qtd,
+              unidadeMedidaId: unidadeMedida.id
+            }
+          });
+        } else {
+          await tx.itemContrato.create({
+            data: {
+              nome: String(r.ItemNome),
+              valorUnitario: val,
+              quantidadeOriginal: qtd,
+              saldoAtual: qtd,
+              quantidadeEscola: qtd,
+              saldoEscola: qtd,
+              contratoId: contrato.id,
+              unidadeMedidaId: unidadeMedida.id
+            }
+          });
+        }
+      }
+    }, { timeout: 60000 }); // Permite transações grandes
+
+    res.status(200).json({ message: 'Dados importados com sucesso!' });
+  } catch (error) {
+    console.error('Erro ao processar a planilha:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Falha ao processar arquivo.' });
+  }
+});
+
 // --- ROTAS DE UNIDADES DE MEDIDA ---
 
 // COMENTÁRIO: Retorna todas as unidades de medida cadastradas.

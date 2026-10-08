@@ -37,7 +37,8 @@ import {
   FileText, // Importar o ícone de Edit
 } from "lucide-react";
 import { ContratoDialog } from "@/components/contratos/ContratoDialog";
-import { ImportContratosDialog } from "@/components/contratos/ImportContratosDialog"; // NOVO IMPORT
+import { ImportContratosDialog } from "@/components/contratos/ImportContratosDialog";
+import { ImportXlsxDialog } from "@/components/contratos/ImportXlsxDialog"; // NOVO IMPORT
 // Importar a interface Contrato do seu arquivo de tipos
 import { Contrato } from "@/types";
 
@@ -214,6 +215,22 @@ export default function Contratos() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => {
+            const token = localStorage.getItem("token");
+            const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/contratos/exportar-dados`;
+            fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+              .then(res => res.blob())
+              .then(blob => {
+                const a = document.createElement('a');
+                a.href = window.URL.createObjectURL(blob);
+                a.download = 'contratos_exportados.xlsx';
+                a.click();
+              })
+              .catch(err => console.error("Erro ao exportar:", err));
+          }}>
+            Exportar Planilha
+          </Button>
+          <ImportXlsxDialog onSuccess={handleSuccess} />
           <ImportContratosDialog onSuccess={handleSuccess} />
           {/* ContratoDialog para CRIAÇÃO (sem a prop 'contrato') */}
           <ContratoDialog onSuccess={handleSuccess} />
