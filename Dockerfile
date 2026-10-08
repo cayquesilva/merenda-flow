@@ -6,7 +6,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-COPY .env.production .env
+ARG VITE_API_URL=https://api.merenda.portaleducampina.com.br
+ENV VITE_API_URL=$VITE_API_URL
 
 COPY . .
 
