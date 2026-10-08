@@ -9,64 +9,58 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Loader2, X } from "lucide-react";
+import { Upload, Loader2, Table } from "lucide-react";
 
-interface ImportContratosDialogProps {
+interface ImportXlsxDialogProps {
   onSuccess: () => void;
 }
 
-export function ImportContratosDialog({ onSuccess }: ImportContratosDialogProps) {
+export function ImportXlsxDialog({ onSuccess }: ImportXlsxDialogProps) {
   const [open, setOpen] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
+  const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files).filter(
-        (file) => file.type === "application/pdf" || file.name.endsWith(".pdf")
-      );
-      if (selectedFiles.length === 0) {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      if (
+        !selectedFile.name.endsWith(".xlsx") &&
+        !selectedFile.name.endsWith(".csv")
+      ) {
         toast({
           title: "Arquivo Inválido",
-          description: "Por favor, selecione apenas arquivos PDF.",
+          description: "Selecione um arquivo .xlsx ou .csv.",
           variant: "destructive",
         });
         return;
       }
-      setFiles((prev) => [...prev, ...selectedFiles]);
+      setFile(selectedFile);
     }
   };
 
-  const removeFile = (indexToRemove: number) => {
-    setFiles(files.filter((_, index) => index !== indexToRemove));
-  };
-
   const handleUpload = async () => {
-    if (files.length === 0) return;
+    if (!file) return;
 
     setIsUploading(true);
     const formData = new FormData();
-    files.forEach((file) => {
-      formData.append("files", file);
-    });
+    formData.append("file", file);
 
     try {
       const token = localStorage.getItem("token");
-      const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/contratos/importar-pdf`;
+      const url = `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/contratos/importar-dados`;
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`, // Assumindo que usa token Bearer
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
 
       if (!response.ok) {
-        let errorMsg = "Erro ao importar os contratos.";
+        let errorMsg = "Erro ao importar a planilha.";
         try {
           const data = await response.json();
           if (data.error) errorMsg = data.error;
@@ -78,10 +72,10 @@ export function ImportContratosDialog({ onSuccess }: ImportContratosDialogProps)
 
       toast({
         title: "Sucesso!",
-        description: "Os contratos foram importados e salvos no banco com sucesso.",
+        description: "Os dados da planilha foram salvos com sucesso.",
       });
       setOpen(false);
-      setFiles([]);
+      setFile(null);
       onSuccess();
     } catch (error) {
       toast({
@@ -97,80 +91,51 @@ export function ImportContratosDialog({ onSuccess }: ImportContratosDialogProps)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="secondary">
+        <Button variant="outline">
           <Upload className="mr-2 h-4 w-4" />
-          Importar PDFs
+          Importar Planilha
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Importar Contratos (PDF)</DialogTitle>
+          <DialogTitle>Importar Contratos (XLSX/CSV)</DialogTitle>
           <DialogDescription>
-            Faça upload dos PDFs dos contratos para preencher automaticamente os dados do fornecedor, valores e itens.
+            Faça upload da planilha exportada pelo sistema (ou formatada corretamente) para popular o banco de dados.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
           <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50/50 hover:bg-gray-50 transition-colors">
-            <Upload className="h-8 w-8 text-gray-400 mb-2" />
+            <Table className="h-8 w-8 text-gray-400 mb-2" />
             <p className="text-sm text-gray-600 mb-4 text-center">
-              Arraste arquivos ou clique para selecionar
+              {file ? file.name : "Clique para selecionar a planilha"}
             </p>
             <Input
-              id="file-upload"
+              id="file-upload-xlsx"
               type="file"
-              accept=".pdf,application/pdf"
-              multiple
+              accept=".xlsx,.csv"
               className="hidden"
               ref={fileInputRef}
               onChange={handleFileSelect}
             />
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
             >
-              Selecionar PDFs
+              {file ? "Trocar Arquivo" : "Selecionar Arquivo"}
             </Button>
           </div>
-
-          {files.length > 0 && (
-            <div className="space-y-2">
-              <Label>Arquivos selecionados:</Label>
-              <div className="max-h-40 overflow-y-auto space-y-2">
-                {files.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between bg-secondary/20 p-2 rounded-md"
-                  >
-                    <div className="flex items-center truncate max-w-[80%]">
-                      <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
-                      <span className="text-sm truncate">{file.name}</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => removeFile(index)}
-                      disabled={isUploading}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           <Button
             className="w-full mt-2"
             onClick={handleUpload}
-            disabled={files.length === 0 || isUploading}
+            disabled={!file || isUploading}
           >
             {isUploading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processando... (Pode demorar)
+                Processando...
               </>
             ) : (
               "Importar"
