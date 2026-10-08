@@ -1342,8 +1342,7 @@ app.post(
     let unidadesCriadas = 0;
     let unidadesAtualizadas = 0;
 
-    // ALTERAÇÃO: Adicionamos o tipo explícito para o array de transações.
-    const transacoesPrisma: Prisma.PrismaPromise<UnidadeEducacional>[] = [];
+    const transacoesPrisma: any[] = [];
 
     try {
       const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
@@ -1441,21 +1440,20 @@ app.post(
         });
       }
 
-      // Executa todas as operações (creates e updates) em uma única transação
+      // Executa todas as operações (creates e updates) em uma única transação sequencial
       if (transacoesPrisma.length > 0) {
-        // Agora o 'prisma.$transaction' aceita o array sem problemas de tipo
-        await prisma.$transaction(async (tx) => {
-          await Promise.all(transacoesPrisma);
-
-          await tx.metadado.upsert({
+        transacoesPrisma.push(
+          prisma.metadado.upsert({
             where: { chave: "ultima_importacao_unidades" },
             update: { valor: new Date().toISOString() },
             create: {
               chave: "ultima_importacao_unidades",
               valor: new Date().toISOString(),
             },
-          });
-        });
+          })
+        );
+
+        await prisma.$transaction(transacoesPrisma);
       }
 
       res.status(201).json({
