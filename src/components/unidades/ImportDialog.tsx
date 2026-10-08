@@ -93,7 +93,7 @@ export function ImportDialog({ onSuccess }: ImportDialogProps) {
       const result = await response.json();
 
       if (!response.ok) {
-        if (result.details) {
+        if (result.details && Array.isArray(result.details)) {
           setImportErrors(result.details);
         }
         throw new Error(result.error || "Falha ao importar planilha.");
