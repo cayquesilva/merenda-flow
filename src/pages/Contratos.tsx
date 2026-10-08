@@ -37,7 +37,6 @@ import {
   FileText, // Importar o ícone de Edit
 } from "lucide-react";
 import { ContratoDialog } from "@/components/contratos/ContratoDialog";
-import { ImportContratosDialog } from "@/components/contratos/ImportContratosDialog";
 import { ImportXlsxDialog } from "@/components/contratos/ImportXlsxDialog"; // NOVO IMPORT
 // Importar a interface Contrato do seu arquivo de tipos
 import { Contrato } from "@/types";
@@ -231,7 +230,6 @@ export default function Contratos() {
             Exportar Planilha
           </Button>
           <ImportXlsxDialog onSuccess={handleSuccess} />
-          <ImportContratosDialog onSuccess={handleSuccess} />
           {/* ContratoDialog para CRIAÇÃO (sem a prop 'contrato') */}
           <ContratoDialog onSuccess={handleSuccess} />
         </div>
