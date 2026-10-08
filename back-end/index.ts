@@ -715,18 +715,67 @@ app.post("/api/contratos", async (req: Request, res: Response) => {
   }
 });
 
-// COMENTÁRIO: Atualiza os dados principais de um contrato.
+// COMENTÁRIO: Atualiza os dados principais de um contrato e seus itens.
 app.put("/api/contratos/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { itens, ...dadosContrato } = req.body;
+  const { itens, justificativa, ...dadosContrato } = req.body;
   try {
-    const contratoAtualizado = await prisma.contrato.update({
-      where: { id },
-      data: dadosContrato,
+    const contratoAtualizado = await prisma.$transaction(async (tx) => {
+      // 1. Atualiza o contrato base
+      const contrato = await tx.contrato.update({
+        where: { id },
+        data: dadosContrato,
+      });
+
+      // 2. Se houver itens, os atualiza ou cria
+      if (itens && Array.isArray(itens)) {
+        for (const item of itens) {
+          const { id: itemId, ...itemData } = item;
+          if (itemId) {
+            // Update existing item
+            await tx.itemContrato.update({
+              where: { id: itemId },
+              data: itemData,
+            });
+          } else {
+            // Create new item
+            await tx.itemContrato.create({
+              data: {
+                ...itemData,
+                contratoId: id,
+              },
+            });
+          }
+        }
+        
+        // Remove os itens que não vieram no payload
+        const itemIdsEnviados = itens.filter(i => i.id).map(i => i.id);
+        if (itemIdsEnviados.length > 0) {
+           await tx.itemContrato.deleteMany({
+             where: {
+               contratoId: id,
+               id: { notIn: itemIdsEnviados }
+             }
+           });
+        }
+      }
+
+      // Salva a justificativa em um arquivo de log
+      if (justificativa) {
+        const fs = require('fs');
+        const path = require('path');
+        const logLine = `[${new Date().toISOString()}] Contrato ID: ${id} | Justificativa: ${justificativa}\n`;
+        const logPath = path.join(__dirname, 'justificativas-contratos.log');
+        
+        fs.appendFileSync(logPath, logLine, 'utf8');
+        console.log(`Contrato ${id} editado. Justificativa salva no log.`);
+      }
+
+      return contrato;
     });
+
     res.json(contratoAtualizado);
   } catch (error) {
-    // ALTERAÇÃO: Removido ': any'
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
         return res

@@ -43,6 +43,8 @@ interface ContratoDialogProps {
   onOpenChange?: (open: boolean) => void; // Adicionado para controlar o diálogo externamente
 }
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export function ContratoDialog({
   contrato,
   onSuccess,
@@ -58,7 +60,10 @@ export function ContratoDialog({
   }, [propOpen]);
 
   const { toast } = useToast();
+  const { user } = useAuth();
   const isEdicao = !!contrato;
+  const isAdmin = user?.categoria === "administracao_tecnica";
+  const [justificativa, setJustificativa] = useState("");
 
   const [formData, setFormData] = useState({
     numero: "",
@@ -277,8 +282,16 @@ export function ContratoDialog({
     ) {
       toast({
         title: "Campos Obrigatórios",
-        description:
-          "Por favor, preencha o número do contrato, fornecedor e as datas.",
+        description: "Preencha todos os campos obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isEdicao && isAdmin && !justificativa.trim()) {
+      toast({
+        title: "Justificativa Obrigatória",
+        description: "É necessário informar uma justificativa para editar o contrato.",
         variant: "destructive",
       });
       return;
@@ -306,6 +319,7 @@ export function ContratoDialog({
 
     // O payload agora usará os campos de quantidade separados
     const itensPayload = itens.map((item) => ({
+      id: item.id, // Envia o ID para saber se é atualização ou novo item
       nome: item.nome,
       unidadeMedidaId: item.unidadeMedidaId,
       valorUnitario: Number(item.valorUnitario),
@@ -326,8 +340,8 @@ export function ContratoDialog({
       ...formData,
       dataInicio: new Date(formData.dataInicio).toISOString(),
       dataFim: new Date(formData.dataFim).toISOString(),
-      // Itens só são enviados na criação
-      ...(!isEdicao && { itens: itensPayload }),
+      justificativa,
+      itens: itensPayload,
     };
 
     try {
@@ -504,7 +518,7 @@ export function ContratoDialog({
                   <Button
                     onClick={adicionarItem}
                     size="sm"
-                    disabled={isSubmitting || isEdicao}
+                    disabled={isSubmitting || (isEdicao && !isAdmin)}
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Adicionar Item
@@ -532,7 +546,7 @@ export function ContratoDialog({
                                 atualizarItem(index, "nome", e.target.value)
                               }
                               placeholder="Ex: Arroz integral"
-                              disabled={isSubmitting || isEdicao}
+                              disabled={isSubmitting || (isEdicao && !isAdmin)}
                             />
                           </div>
                           <div>
@@ -542,7 +556,7 @@ export function ContratoDialog({
                               onValueChange={(value) =>
                                 atualizarItem(index, "unidadeMedidaId", value)
                               }
-                              disabled={isSubmitting || isEdicao}
+                              disabled={isSubmitting || (isEdicao && !isAdmin)}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Selecionar" />
@@ -575,7 +589,7 @@ export function ContratoDialog({
                                   )
                                 }
                                 placeholder="Ex: 500"
-                                disabled={isEdicao}
+                                disabled={isEdicao && !isAdmin}
                               />
                             </div>
                           )}
@@ -594,7 +608,7 @@ export function ContratoDialog({
                                 )
                               }
                               placeholder="0"
-                              disabled={isEdicao}
+                              disabled={isEdicao && !isAdmin}
                             />
                           </div>
                           <div>
@@ -610,7 +624,7 @@ export function ContratoDialog({
                                 )
                               }
                               placeholder="0"
-                              disabled={isEdicao}
+                              disabled={isEdicao && !isAdmin}
                             />
                           </div>
                           <div>
@@ -627,7 +641,7 @@ export function ContratoDialog({
                                 )
                               }
                               placeholder="0,00"
-                              disabled={isEdicao}
+                              disabled={isEdicao && !isAdmin}
                             />
                           </div>
                           <div className="flex items-center gap-2">
@@ -637,7 +651,7 @@ export function ContratoDialog({
                                 size="sm"
                                 onClick={() => removerItem(index)}
                                 className="text-destructive"
-                                disabled={isEdicao}
+                                disabled={isEdicao && !isAdmin}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -699,6 +713,19 @@ export function ContratoDialog({
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+        {isEdicao && isAdmin && !isLoading && (
+          <div className="space-y-2 px-2 pb-4">
+             <Label htmlFor="justificativa">Justificativa da Edição *</Label>
+             <textarea
+                id="justificativa"
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Informe o motivo da alteração dos itens deste contrato..."
+                value={justificativa}
+                onChange={(e) => setJustificativa(e.target.value)}
+                disabled={isSubmitting}
+             />
           </div>
         )}
         <DialogFooter>
