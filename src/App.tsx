@@ -3,8 +3,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { BrandingProvider } from "./contexts/BrandingContext";
+import Configuracoes from "./pages/Configuracoes";
+import Assistente from "./pages/Assistente";
+import Auditoria from "./pages/Auditoria";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginForm } from "./components/auth/LoginForm";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
@@ -31,6 +36,8 @@ import ImprimirRecibosPedido from "./components/recibos/ImprimirRecibosPedido";
 import Percapita from "./pages/Percapita";
 import EntradasAlmoxarifado from "./pages//EntradasAlmoxarifado"; // Importe a nova página
 import CatalogoInsumos from "./pages/EstoqueCentral";
+import { navigationItems } from "./components/layout/navigation";
+import { ModuleName } from "./types/auth";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +105,31 @@ function DatabaseConnectionTest() {
   );
 }
 
+// Perfis sem acesso ao Dashboard são levados ao primeiro módulo que podem usar.
+function HomePage() {
+  const { canAccessModule } = useAuth();
+
+  if (canAccessModule("dashboard")) {
+    return (
+      <ProtectedRoute module="dashboard">
+        <Dashboard />
+      </ProtectedRoute>
+    );
+  }
+
+  const primeiro = navigationItems
+    .flatMap((section) => section.items)
+    .find((item) => canAccessModule(item.module as ModuleName));
+
+  return primeiro ? (
+    <Navigate to={primeiro.url} replace />
+  ) : (
+    <ProtectedRoute module="dashboard">
+      <Dashboard />
+    </ProtectedRoute>
+  );
+}
+
 function AppContent() {
   const { user, isLoading } = useAuth();
 
@@ -119,14 +151,7 @@ function AppContent() {
   return (
     <AppLayout>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute module="dashboard">
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<HomePage />} />
         <Route
           path="/contratos"
           element={
@@ -271,6 +296,30 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/auditoria"
+          element={
+            <ProtectedRoute module="auditoria">
+              <Auditoria />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assistente"
+          element={
+            <ProtectedRoute module="assistente">
+              <Assistente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/configuracoes"
+          element={
+            <ProtectedRoute module="configuracoes">
+              <Configuracoes />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <DatabaseConnectionTest />
@@ -286,15 +335,19 @@ const App = () => (
       enableSystem
       disableTransitionOnChange
     >
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
+      <BrandingProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AuthProvider>
+      </BrandingProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

@@ -662,7 +662,7 @@ export default function Percapita() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">
             Per cápita de Estudantes
@@ -671,7 +671,7 @@ export default function Percapita() {
             Configure a gramagem e frequência de consumo por tipo de preparação
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ImportPercapitaDialog onSuccess={handleSuccess} />
           <PercapitaCreateDialog onSuccess={handleSuccess} />
         </div>

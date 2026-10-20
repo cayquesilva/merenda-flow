@@ -2,18 +2,64 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const Table = React.forwardRef<
-  HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
-      {...props}
-    />
-  </div>
-))
+// No mobile a tabela vira uma lista de cartões (ver .table-stack em index.css).
+// Cada célula recebe data-label com o texto do cabeçalho da sua coluna.
+function useStackLabels(tableRef: React.RefObject<HTMLTableElement>, enabled: boolean) {
+  React.useEffect(() => {
+    const table = tableRef.current
+    if (!enabled || !table) return
+
+    const applyLabels = () => {
+      const heads = Array.from(table.querySelectorAll("thead th")).map(
+        (th) => th.textContent?.trim() ?? ""
+      )
+      table.querySelectorAll("tbody tr").forEach((tr) => {
+        let col = 0
+        Array.from(tr.children).forEach((cell) => {
+          const span = (cell as HTMLTableCellElement).colSpan || 1
+          if (span === 1 && heads[col]) {
+            cell.setAttribute("data-label", heads[col])
+          } else {
+            cell.removeAttribute("data-label")
+          }
+          col += span
+        })
+      })
+    }
+
+    applyLabels()
+    const observer = new MutationObserver(applyLabels)
+    observer.observe(table, { childList: true, subtree: true, characterData: true })
+    return () => observer.disconnect()
+  }, [tableRef, enabled])
+}
+
+interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  // Use false em tabelas de impressão, que precisam manter o layout tabular.
+  stackOnMobile?: boolean
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, stackOnMobile = true, ...props }, ref) => {
+    const innerRef = React.useRef<HTMLTableElement>(null)
+    React.useImperativeHandle(ref, () => innerRef.current as HTMLTableElement)
+    useStackLabels(innerRef, stackOnMobile)
+
+    return (
+      <div className="relative w-full overflow-auto">
+        <table
+          ref={innerRef}
+          className={cn(
+            "w-full caption-bottom text-sm",
+            stackOnMobile && "table-stack",
+            className
+          )}
+          {...props}
+        />
+      </div>
+    )
+  }
+)
 Table.displayName = "Table"
 
 const TableHeader = React.forwardRef<

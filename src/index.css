@@ -184,3 +184,78 @@ html.dark {
     --radius: 0.375rem;
   }
 }
+
+/* Tabelas viram lista de cartões no mobile: sem rolagem horizontal. */
+@media (max-width: 767px) {
+  .table-stack thead {
+    display: none;
+  }
+  .table-stack,
+  .table-stack tbody,
+  .table-stack tfoot,
+  .table-stack tr,
+  .table-stack td {
+    display: block;
+    width: 100%;
+  }
+  .table-stack tr {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    background: hsl(var(--card));
+  }
+  .table-stack td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    height: auto;
+    padding: 0.375rem 0;
+    border: 0;
+    text-align: right;
+  }
+  .table-stack td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    max-width: 45%;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500;
+    text-align: left;
+    color: hsl(var(--muted-foreground));
+  }
+  .table-stack td > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /* Linhas sem rótulo (estado vazio, carregando, colSpan) */
+  .table-stack td:not([data-label]) {
+    justify-content: center;
+    text-align: center;
+  }
+  /* Coluna de ações: botões ocupam a largura toda, sem rótulo */
+  .table-stack td[data-label="Ações"]::before {
+    display: none;
+  }
+  .table-stack td[data-label="Ações"] > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: 100%;
+  }
+}
+
+/* Barras da onda sonora do assistente de voz (enquanto grava). */
+@keyframes voz-onda {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.voz-onda {
+  animation: voz-onda 0.9s ease-in-out infinite;
+  transform-origin: center;
+}

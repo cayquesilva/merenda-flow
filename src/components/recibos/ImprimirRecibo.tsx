@@ -314,7 +314,7 @@ export default function ImprimirRecibo() {
             <h3 className="font-semibold text-lg mb-3 print:text-base print:mb-2">
               Itens do Pedido
             </h3>
-            <Table className="mb-6 print:mb-4 print:text-xs">
+            <Table stackOnMobile={false} className="mb-6 print:mb-4 print:text-xs">
               <TableHeader>
                 <TableRow>
                   <TableHead className="print:py-1 font-medium">Item</TableHead>

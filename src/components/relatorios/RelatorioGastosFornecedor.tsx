@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -36,6 +37,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+import { BotaoExportar, OpcaoCsv } from "./BotaoExportar";
+import { dataBr } from "@/lib/csv";
 // Interface para o objeto de gastos por fornecedor (reflete o que o backend retorna)
 interface GastoFornecedor {
   fornecedorId: string;
@@ -205,6 +208,25 @@ export function RelatorioGastosFornecedor() {
     }
   };
 
+  // Exportação em CSV (usa o relatório já carregado na tela)
+  const opcoesCsv = (): OpcaoCsv[] => [
+    {
+      rotulo: "Gastos",
+      gerar: () => {
+        const total = dados?.estatisticas.gastoTotal ?? 0;
+        return {
+          nome: "gastos-por-fornecedor",
+          cabecalho: ["Posição", "Fornecedor", "Total gasto", "Total de pedidos", "Ticket médio", "% do total"],
+          linhas: (dados?.gastosPorFornecedor ?? []).map((f, i) => [
+            i + 1, f.fornecedorNome, f.totalGasto, f.totalPedidos,
+            f.totalPedidos > 0 ? f.totalGasto / f.totalPedidos : 0,
+            total > 0 ? Math.round((f.totalGasto / total) * 1000) / 10 : 0,
+          ]),
+        };
+      },
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -221,20 +243,18 @@ export function RelatorioGastosFornecedor() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
-              <Input
+              <DatePicker
                 id="dataInicio"
-                type="date"
                 value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
+                onChange={(v) => setDataInicio(v)}
               />
             </div>
             <div>
               <Label htmlFor="dataFim">Data Fim</Label>
-              <Input
+              <DatePicker
                 id="dataFim"
-                type="date"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={(v) => setDataFim(v)}
               />
             </div>
             <div>
@@ -256,20 +276,18 @@ export function RelatorioGastosFornecedor() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-wrap items-end gap-2 md:col-span-full">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
-                  {isGeneratingPdf && (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  )}
-                  {!isGeneratingPdf && <Download className="h-4 w-4" />}
-                  Exportar PDF
-                </Button>
+                <BotaoExportar
+                  onPdf={exportarPDF}
+                  gerandoPdf={isGeneratingPdf}
+                  opcoesCsv={opcoesCsv()}
+                />
               )}
             </div>
           </div>

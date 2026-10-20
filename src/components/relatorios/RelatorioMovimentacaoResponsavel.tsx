@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -52,6 +53,8 @@ import {
 } from "@/types";
 import { Progress } from "../ui/progress";
 
+import { BotaoExportar, OpcaoCsv } from "./BotaoExportar";
+import { dataBr, quantidadeComSinal, rotuloTipoMovimentacao } from "@/lib/csv";
 // Interfaces detalhadas para corresponder ao retorno da API
 interface ItemContratoRelatorio extends ItemContrato {
   unidadeMedida: UnidadeMedida;
@@ -289,6 +292,23 @@ export default function RelatorioMovimentacaoResponsavel() {
     );
   };
 
+  // Exportação em CSV (usa o relatório já carregado na tela)
+  const opcoesCsv = (): OpcaoCsv[] => [
+    {
+      rotulo: "Movimentações",
+      gerar: () => ({
+        nome: "movimentacao-por-responsavel",
+        cabecalho: ["Data", "Tipo", "Item", "Contrato", "Unidade", "Unidade de destino", "Quantidade", "Medida", "Saldo anterior", "Saldo novo", "Responsável", "Motivo"],
+        linhas: (dados?.movimentacoes ?? []).map((m) => [
+          dataBr(m.dataMovimentacao), rotuloTipoMovimentacao(m.tipo), m.estoque.itemContrato.nome,
+          m.estoque.itemContrato.contrato.numero, m.estoque.unidadeEducacional.nome, m.unidadeDestino?.nome,
+          quantidadeComSinal(m), m.estoque.itemContrato.unidadeMedida.sigla, m.quantidadeAnterior,
+          m.quantidadeNova, m.responsavel, m.motivo,
+        ]),
+      }),
+    },
+  ];
+
   return (
     <div className="space-y-6 p-4">
       <Card>
@@ -306,20 +326,18 @@ export default function RelatorioMovimentacaoResponsavel() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
-              <Input
+              <DatePicker
                 id="dataInicio"
-                type="date"
                 value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
+                onChange={(v) => setDataInicio(v)}
               />
             </div>
             <div>
               <Label htmlFor="dataFim">Data Fim</Label>
-              <Input
+              <DatePicker
                 id="dataFim"
-                type="date"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={(v) => setDataFim(v)}
               />
             </div>
             <div>
@@ -384,20 +402,18 @@ export default function RelatorioMovimentacaoResponsavel() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-wrap items-end gap-2 md:col-span-full">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
-                  {isGeneratingPdf && (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  )}
-                  {!isGeneratingPdf && <Download className="h-4 w-4" />}
-                  Exportar PDF
-                </Button>
+                <BotaoExportar
+                  onPdf={exportarPDF}
+                  gerandoPdf={isGeneratingPdf}
+                  opcoesCsv={opcoesCsv()}
+                />
               )}
             </div>
           </div>

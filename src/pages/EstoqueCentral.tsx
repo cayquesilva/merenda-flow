@@ -72,7 +72,7 @@ export default function EstoqueCentral() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">
             Estoque Central
@@ -81,7 +81,7 @@ export default function EstoqueCentral() {
             Visualize o estoque e envie insumos para as unidades.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline">
             <QrCode className="mr-2 h-4 w-4" />
             Gerar Catálogo QR Code
