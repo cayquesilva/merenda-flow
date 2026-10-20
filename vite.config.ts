@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // Modo hot reload em Docker: o navegador precisa conectar na porta publicada.
+    hmr: { clientPort: Number(process.env.VITE_HMR_CLIENT_PORT) || undefined },
   },
   plugins: [
     react(),

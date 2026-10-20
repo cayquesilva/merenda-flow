@@ -1,0 +1,92 @@
+# Ambiente local (Docker Desktop) com hot reload.
+# Uso: docker compose -f docker-compose.local.yml up --build
+#   Front-end: http://localhost:8081   API: http://localhost:3001   Postgres: localhost:5432
+# Login padrão: admin@sistema.gov.br / admin123
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: merenda
+      POSTGRES_USER: ${POSTGRES_USER:-merenda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-merenda}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_merenda_local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-merenda} -d merenda"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./back-end
+      dockerfile: Dockerfile.dev
+    # O Docker Desktop (Windows) às vezes perde o compartilhamento da pasta do projeto
+    # (ENODEV em /app) e o vigia de arquivos derruba o servidor; o restart o recoloca no ar.
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-merenda}:${POSTGRES_PASSWORD:-merenda}@db:5432/merenda
+      JWT_SECRET: ${JWT_SECRET:-dev-local-secret}
+      FRONTEND_URL: http://localhost:${FRONTEND_PORT:-8081}
+      BACKEND_URL: http://localhost:3001
+      SEED_DEV_USERS: "true"
+      # Opcional: provedor compatível com a API da OpenAI (vazio = api.openai.com)
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+    command: >
+      sh -c "npm install &&
+             npx prisma generate &&
+             npx prisma migrate deploy &&
+             npx prisma db seed &&
+             node prisma/seed-dev-users.js &&
+             node prisma/seed-dev-estoque.js &&
+             npx ts-node-dev --respawn --transpile-only --poll index.ts"
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./back-end:/app
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:20-alpine
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      VITE_API_URL: http://localhost:3001
+      CHOKIDAR_USEPOLLING: "true"
+      # VITE_HMR=true liga o hot reload (servidor de desenvolvimento do Vite). Por padrão o
+      # front-end é servido já compilado, e recompila sozinho a cada alteração (basta recarregar a
+      # página). Sem a conexão de hot reload, o navegador não recarrega a página sozinho ao voltar
+      # para a aba, o que deixa os testes estáveis. Se uma recompilação falhar, a versão anterior
+      # continua no ar (a pasta dist não é esvaziada); o erro fica em /tmp/build.log do container.
+      VITE_HMR: ${VITE_HMR:-false}
+      VITE_HMR_CLIENT_PORT: ${FRONTEND_PORT:-8081}
+    command: >
+      sh -c 'npm install &&
+      if [ "$$VITE_HMR" = "true" ]; then
+        exec npx vite --host 0.0.0.0 --port 8080;
+      else
+        rm -rf dist &&
+        npx vite build &&
+        (npx vite build --watch --no-emptyOutDir > /tmp/build.log 2>&1 &) &&
+        exec npx vite preview --host 0.0.0.0 --port 8080 --strictPort;
+      fi'
+    ports:
+      - "${FRONTEND_PORT:-8081}:8080"
+    volumes:
+      - .:/app
+      - frontend_node_modules:/app/node_modules
+      - /app/back-end
+    depends_on:
+      - backend
+
+volumes:
+  postgres_merenda_local:
+  backend_node_modules:
+  frontend_node_modules:
