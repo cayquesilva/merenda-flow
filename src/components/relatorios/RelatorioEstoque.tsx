@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -52,6 +53,8 @@ import {
   Recibo,
 } from "@/types";
 
+import { BotaoExportar, OpcaoCsv } from "./BotaoExportar";
+import { dataBr, quantidadeComSinal, rotuloTipoMovimentacao } from "@/lib/csv";
 // Interfaces detalhadas para corresponder ao retorno da API
 interface ItemContratoDetalhado extends ItemContrato {
   contrato: Contrato & {
@@ -303,6 +306,36 @@ export function RelatorioEstoque() {
     );
   };
 
+  // Exportação em CSV (usa o relatório já carregado na tela)
+  const opcoesCsv = (): OpcaoCsv[] => [
+    {
+      rotulo: "Posição do estoque",
+      gerar: () => ({
+        nome: "estoque-posicao",
+        cabecalho: ["Item", "Contrato", "Unidade", "Fornecedor", "Tipo de estoque", "Quantidade", "Mínimo", "Medida", "Situação", "Valor unitário", "Valor total"],
+        linhas: (dados?.estoque ?? []).map((e) => [
+          e.itemContrato.nome, e.itemContrato.contrato.numero, e.unidadeEducacional.nome,
+          e.itemContrato.contrato.fornecedor.nome, e.tipoEstoque, e.quantidadeAtual, e.quantidadeMinima,
+          e.itemContrato.unidadeMedida.sigla,
+          e.quantidadeAtual === 0 ? "Sem Estoque" : e.quantidadeMinima > 0 && e.quantidadeAtual < e.quantidadeMinima ? "Abaixo do Mínimo" : "Normal",
+          e.itemContrato.valorUnitario, e.quantidadeAtual * e.itemContrato.valorUnitario,
+        ]),
+      }),
+    },
+    {
+      rotulo: "Movimentações no período",
+      gerar: () => ({
+        nome: "estoque-movimentacoes",
+        cabecalho: ["Data", "Tipo", "Item", "Recibo", "Unidade", "Quantidade", "Medida", "Saldo anterior", "Saldo novo", "Responsável", "Motivo"],
+        linhas: (dados?.movimentacoes ?? []).map((m) => [
+          dataBr(m.dataMovimentacao), rotuloTipoMovimentacao(m.tipo), m.estoque.itemContrato.nome, m.recibo?.numero,
+          m.estoque.unidadeEducacional.nome, quantidadeComSinal(m), m.estoque.itemContrato.unidadeMedida.sigla,
+          m.quantidadeAnterior, m.quantidadeNova, m.responsavel, m.motivo,
+        ]),
+      }),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -319,20 +352,18 @@ export function RelatorioEstoque() {
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
-              <Input
+              <DatePicker
                 id="dataInicio"
-                type="date"
                 value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
+                onChange={(v) => setDataInicio(v)}
               />
             </div>
             <div>
               <Label htmlFor="dataFim">Data Fim</Label>
-              <Input
+              <DatePicker
                 id="dataFim"
-                type="date"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={(v) => setDataFim(v)}
               />
             </div>
             <div>
@@ -373,20 +404,18 @@ export function RelatorioEstoque() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-wrap items-end gap-2 md:col-span-full">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
-                  {isGeneratingPdf && (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  )}
-                  {!isGeneratingPdf && <Download className=" h-4 w-4" />}
-                  Exportar PDF
-                </Button>
+                <BotaoExportar
+                  onPdf={exportarPDF}
+                  gerandoPdf={isGeneratingPdf}
+                  opcoesCsv={opcoesCsv()}
+                />
               )}
             </div>
           </div>

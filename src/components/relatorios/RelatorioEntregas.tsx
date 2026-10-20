@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -54,6 +55,8 @@ import {
   UnidadeMedida,
 } from "@/types";
 
+import { BotaoExportar, OpcaoCsv } from "./BotaoExportar";
+import { dataBr } from "@/lib/csv";
 // Interface para um recibo específico no relatório de entregas
 // Esta interface reflete o `include` da rota /api/relatorios/entregas no backend
 interface ReciboRelatorioEntregas
@@ -261,6 +264,26 @@ export function RelatorioEntregas() {
     );
   };
 
+  // Exportação em CSV (usa o relatório já carregado na tela)
+  const ROTULO_STATUS: Record<string, string> = {
+    pendente: "Pendente", confirmado: "Confirmado", parcial: "Parcial",
+    rejeitado: "Rejeitado", ajustado: "Ajustado", complementar: "Complementar",
+  };
+  const opcoesCsv = (): OpcaoCsv[] => [
+    {
+      rotulo: "Entregas",
+      gerar: () => ({
+        nome: "relatorio-entregas",
+        cabecalho: ["Recibo", "Pedido", "Unidade", "Fornecedor", "Data da entrega", "Status", "Responsável pela entrega", "Responsável pelo recebimento", "Itens"],
+        linhas: (dados?.recibos ?? []).map((r) => [
+          r.numero, r.pedido?.numero, r.unidadeEducacional.nome, r.pedido?.contrato?.fornecedor?.nome,
+          dataBr(r.dataEntrega), ROTULO_STATUS[r.status] ?? r.status, r.responsavelEntrega,
+          r.responsavelRecebimento, r.itens.length,
+        ]),
+      }),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -277,20 +300,18 @@ export function RelatorioEntregas() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
-              <Input
+              <DatePicker
                 id="dataInicio"
-                type="date"
                 value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
+                onChange={(v) => setDataInicio(v)}
               />
             </div>
             <div>
               <Label htmlFor="dataFim">Data Fim</Label>
-              <Input
+              <DatePicker
                 id="dataFim"
-                type="date"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={(v) => setDataFim(v)}
               />
             </div>
             <div>
@@ -313,7 +334,7 @@ export function RelatorioEntregas() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-wrap items-end gap-2 md:col-span-full">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -323,17 +344,11 @@ export function RelatorioEntregas() {
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button
-                  onClick={exportarPDF}
-                  disabled={isGeneratingPdf}
-                >
-                  {isGeneratingPdf ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  Exportar PDF
-                </Button>
+                <BotaoExportar
+                  onPdf={exportarPDF}
+                  gerandoPdf={isGeneratingPdf}
+                  opcoesCsv={opcoesCsv()}
+                />
               )}
             </div>
           </div>

@@ -12,6 +12,8 @@ export interface User {
   ativo: boolean;
   createdAt: string;
   unidadesEducacionais?: UnidadeEducacional[];
+  // ID do administrador quando a sessão atual é uma impersonação.
+  impersonatedBy?: string | null;
 }
 
 export type UserCategory =
@@ -43,7 +45,10 @@ export type ModuleName =
   | "relatorios"
   | "usuarios"
   | "percapita"
-  | "almoxarifado";
+  | "almoxarifado"
+  | "configuracoes"
+  | "assistente"
+  | "auditoria";
 
 export type ModuleAction = "create" | "update" | "read" | "write" | "delete"; // ou qualquer outro conjunto que você usa
 
@@ -112,6 +117,12 @@ export const USER_CATEGORIES: Partial<
         module: "almoxarifado",
         actions: ["read", "create", "update", "delete"],
       },
+      configuracoes: {
+        module: "configuracoes",
+        actions: ["read", "update"],
+      },
+      assistente: { module: "assistente", actions: ["read", "create"] },
+      auditoria: { module: "auditoria", actions: ["read"] },
     },
   },
   gerencia_nutricao: {
@@ -135,6 +146,7 @@ export const USER_CATEGORIES: Partial<
         actions: ["read", "create", "update"],
       },
       estoque: { module: "estoque", actions: ["read", "update"] },
+      assistente: { module: "assistente", actions: ["read", "create"] },
       relatorios: { module: "relatorios", actions: ["read", "create"] },
       percapita: {
         module: "percapita",
@@ -165,6 +177,7 @@ export const USER_CATEGORIES: Partial<
         actions: ["read", "create"],
       },
       almoxarifado: { module: "almoxarifado", actions: ["read"] },
+      assistente: { module: "assistente", actions: ["read", "create"] },
     },
   },
   // NOVO: Adicionada a categoria 'nutricionistas_externas' com suas permissões específicas.
@@ -173,6 +186,7 @@ export const USER_CATEGORIES: Partial<
     permissions: {
       recibos: { module: "recibos", actions: ["read"] },
       estoque: { module: "estoque", actions: ["read", "create", "update"] }, // create/update para movimentações
+      assistente: { module: "assistente", actions: ["read", "create"] },
       relatorios: { module: "relatorios", actions: ["read"] },
     },
   },

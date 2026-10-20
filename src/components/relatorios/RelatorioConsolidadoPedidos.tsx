@@ -46,6 +46,8 @@ import {
 } from "@/types"; // Adicionado ItemPedido aqui
 import { useToast } from "../ui/use-toast";
 
+import { BotaoExportar, OpcaoCsv } from "./BotaoExportar";
+import { dataBr } from "@/lib/csv";
 // Interfaces para os dados retornados pela API
 interface ItemContratoConsolidado extends ItemContrato {
   unidadeMedida: UnidadeMedida;
@@ -229,6 +231,40 @@ export function RelatorioConsolidadoPedidos() {
     }
   };
 
+  // Exportação em CSV (usa o relatório já carregado na tela)
+  const opcoesCsv = (): OpcaoCsv[] => {
+    const c = consolidacao;
+    if (!c) return [];
+    const base = [c.contrato.numero, c.contrato.fornecedor?.nome];
+    return [
+      {
+        rotulo: "Consolidado por item",
+        gerar: () => ({
+          nome: `consolidado-pedidos-${c.contrato.numero}`,
+          cabecalho: ["Contrato", "Fornecedor", "Item", "Medida", "Valor unitário", "Qtd. contratada", "Qtd. pedida", "Saldo restante", "% consumido", "Valor consumido"],
+          linhas: c.itensPorContrato.map((i) => [
+            ...base, i.nome, i.unidadeMedida.sigla, i.valorUnitario, i.quantidadeOriginal,
+            i.quantidadePedida, i.saldoRestante, Math.round(i.percentualConsumido * 10) / 10, i.valorConsumido,
+          ]),
+        }),
+      },
+      {
+        rotulo: "Pedidos e itens",
+        gerar: () => ({
+          nome: `pedidos-${c.contrato.numero}`,
+          cabecalho: ["Contrato", "Fornecedor", "Pedido", "Data do pedido", "Entrega prevista", "Status", "Unidade", "Item", "Medida", "Quantidade", "Valor unitário", "Valor do item"],
+          linhas: c.pedidos.flatMap((p) =>
+            p.itens.map((it) => [
+              ...base, p.numero, dataBr(p.dataPedido), dataBr(p.dataEntregaPrevista), p.status,
+              it.unidadeEducacional?.nome, it.itemContrato.nome, it.itemContrato.unidadeMedida?.sigla,
+              it.quantidade, it.itemContrato.valorUnitario, it.quantidade * it.itemContrato.valorUnitario,
+            ])
+          ),
+        }),
+      },
+    ];
+  };
+
   return (
     <div className="space-y-6 p-4">
       <Card>
@@ -269,15 +305,12 @@ export function RelatorioConsolidadoPedidos() {
               </Select>
             </div>
             {consolidacao && (
-              <Button onClick={gerarRelatorio} disabled={isGeneratingPdf}>
-                {isGeneratingPdf ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                Exportar PDF
-              </Button>
-            )}
+                <BotaoExportar
+                  onPdf={gerarRelatorio}
+                  gerandoPdf={isGeneratingPdf}
+                  opcoesCsv={opcoesCsv()}
+                />
+              )}
           </div>
         </CardContent>
       </Card>

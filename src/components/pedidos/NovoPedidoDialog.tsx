@@ -19,6 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -545,11 +546,10 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
               </div>
               <div>
                 <Label htmlFor="dataEntrega">Prazo de Entrega *</Label>
-                <Input
+                <DatePicker
                   id="dataEntrega"
-                  type="date"
                   value={dataEntrega}
-                  onChange={(e) => setDataEntrega(e.target.value)}
+                  onChange={(v) => setDataEntrega(v)}
                   min={new Date().toISOString().split("T")[0]}
                 />
               </div>

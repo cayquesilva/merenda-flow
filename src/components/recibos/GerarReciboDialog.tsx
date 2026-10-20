@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { QrCode, Package, Truck, Calendar, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -232,11 +233,10 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
               </div>
               <div>
                 <Label htmlFor="dataEntrega">Prazo de Entrega *</Label>
-                <Input
+                <DatePicker
                   id="dataEntrega"
-                  type="date"
                   value={dataEntrega}
-                  onChange={(e) => setDataEntrega(e.target.value)}
+                  onChange={(v) => setDataEntrega(v)}
                   min={new Date().toISOString().split("T")[0]}
                 />
               </div>

@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response, NextFunction, RequestHandler } from "express";
 import cors from "cors";
 import {
   PrismaClient,
@@ -12,6 +12,8 @@ import dotenv from "dotenv";
 import puppeteer from "puppeteer";
 import multer from "multer";
 import xlsx from "xlsx";
+import { registrarAssistente } from "./assistente";
+import { registrarAuditoria, auditoriaDoRequest, intervaloDatas } from "./auditoria";
 
 dotenv.config();
 
@@ -27,6 +29,39 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+
+// Estilo comum dos PDFs de relatório: fonte compacta, tabelas que quebram o texto dentro da
+// página (nada passa da margem), cabeçalho da tabela repetido a cada página e linhas que
+// não são cortadas no meio. As margens da página vêm das opções do PDF (abaixo).
+const CSS_PDF_RELATORIO = `
+  * { box-sizing: border-box; }
+  body { font-family: sans-serif; font-size: 11px; color: #222; margin: 0; padding: 0; }
+  h1 { color: #333; font-size: 18px; margin: 0 0 12px; }
+  h2 { font-size: 14px; margin: 0 0 6px; }
+  h3 { font-size: 12px; margin: 0 0 6px; }
+  p { margin: 3px 0; }
+  .section { margin-bottom: 14px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+  .subsection { margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: left; vertical-align: top;
+           font-size: 10px; word-break: normal; overflow-wrap: break-word; }
+  th { background-color: #f2f2f2; }
+`;
+
+// Opções do PDF: margens reais, fundo impresso e rodapé com número de página.
+// Paisagem para relatórios com tabela larga.
+const opcoesPdfRelatorio = (paisagem = false) => ({
+  format: "A4" as const,
+  landscape: paisagem,
+  printBackground: true,
+  margin: { top: "12mm", right: "10mm", bottom: "16mm", left: "10mm" },
+  displayHeaderFooter: true,
+  headerTemplate: "<span></span>",
+  footerTemplate:
+    '<div style="width:100%;font-size:8px;color:#888;text-align:center;font-family:sans-serif;">Página <span class="pageNumber"></span> de <span class="totalPages"></span></div>',
+});
 
 interface PlanilhaUnidadeRow {
   nome?: string;
@@ -52,6 +87,8 @@ interface AuthenticatedRequest extends Request {
     nome: string;
   };
   unidadesPermitidas?: string[];
+  // Preenchido quando um administrador está navegando como outro usuário.
+  impersonatedBy?: string;
 }
 
 // Define a tipagem esperada do payload JWT
@@ -59,7 +96,24 @@ interface JwtPayload {
   userId: string;
   categoria: string;
   nome: string;
+  impersonatedBy?: string;
 }
+
+const CATEGORIA_ADMIN = "administracao_tecnica";
+
+// Restringe a rota a determinadas categorias. Deve vir depois de authenticateToken.
+const requireCategoria =
+  (...categorias: string[]) =>
+  (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user || !categorias.includes(req.user.categoria)) {
+      return res
+        .status(403)
+        .json({ error: "Você não tem permissão para realizar esta ação." });
+    }
+    next();
+  };
+
+const requireAdmin = requireCategoria(CATEGORIA_ADMIN);
 
 // ALTERAÇÃO: O middleware de autenticação agora busca as unidades vinculadas ao usuário, se aplicável.
 const authenticateToken = async (
@@ -80,9 +134,10 @@ const authenticateToken = async (
       return res.status(403).json({ error: "Token inválido" });
     }
 
-    const { userId, categoria, nome } = decoded;
+    const { userId, categoria, nome, impersonatedBy } = decoded;
     req.userId = userId;
     req.user = { id: userId, categoria, nome };
+    req.impersonatedBy = impersonatedBy;
 
     // COMENTÁRIO: Se o usuário pertence a uma categoria com acesso restrito,
     // busca os IDs das unidades educacionais às quais ele está vinculado.
@@ -233,10 +288,299 @@ app.get(
         return res.status(404).json({ error: "Usuário não encontrado" });
       }
 
-      res.json(usuario);
+      res.json({ ...usuario, impersonatedBy: req.impersonatedBy ?? null });
     } catch (error) {
       console.error("Erro ao buscar usuário:", error);
       res.status(500).json({ error: "Erro interno do servidor" });
+    }
+  }
+);
+
+// Impersonação: o administrador acessa o sistema como outro usuário.
+// O token emitido carrega a categoria e as unidades do alvo (as regras de acesso
+// continuam valendo normalmente) e a claim impersonatedBy para auditoria.
+app.post(
+  "/api/auth/impersonate/:userId",
+  authenticateToken,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { userId } = req.params;
+
+    if (req.impersonatedBy) {
+      return res
+        .status(403)
+        .json({ error: "Encerre a sessão atual antes de acessar como outro usuário." });
+    }
+    if (userId === req.userId) {
+      return res.status(400).json({ error: "Você já está logado com este usuário." });
+    }
+
+    try {
+      const alvo = await prisma.usuario.findUnique({
+        where: { id: userId },
+        include: {
+          unidadesEducacionais: {
+            select: { id: true, nome: true },
+            orderBy: { nome: "asc" },
+          },
+        },
+      });
+
+      if (!alvo || !alvo.ativo) {
+        return res.status(404).json({ error: "Usuário não encontrado ou inativo." });
+      }
+
+      await prisma.impersonacaoLog.create({
+        data: {
+          adminId: req.userId!,
+          alvoId: alvo.id,
+          ip: req.ip,
+          userAgent: req.headers["user-agent"]?.slice(0, 255),
+        },
+      });
+      console.log(
+        `[IMPERSONACAO] ${req.user!.nome} (${req.userId}) acessou como ${alvo.nome} (${alvo.id}) - ${alvo.categoria}`
+      );
+
+      const token = jwt.sign(
+        {
+          userId: alvo.id,
+          email: alvo.email,
+          categoria: alvo.categoria,
+          nome: alvo.nome,
+          impersonatedBy: req.userId,
+        },
+        JWT_SECRET,
+        { expiresIn: "2h" }
+      );
+
+      const { senha: _senha, ...usuario } = alvo;
+      res.json({ token, usuario: { ...usuario, impersonatedBy: req.userId } });
+    } catch (error) {
+      console.error("Erro ao impersonar usuário:", error);
+      res.status(500).json({ error: "Não foi possível acessar como este usuário." });
+    }
+  }
+);
+
+// Auditoria das impersonações. Com ?format=csv devolve o arquivo para download.
+app.get(
+  "/api/auth/impersonacoes",
+  authenticateToken,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (req.impersonatedBy) {
+      return res.status(403).json({ error: "Ação indisponível durante a impersonação." });
+    }
+
+    try {
+      const { inicio, fim, format } = req.query;
+      const createdAt = intervaloDatas(inicio, fim);
+
+      const registros = await prisma.impersonacaoLog.findMany({
+        where: createdAt.gte || createdAt.lte ? { createdAt } : {},
+        include: {
+          admin: { select: { nome: true, email: true } },
+          alvo: { select: { nome: true, email: true, categoria: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5000,
+      });
+
+      if (format === "csv") {
+        const escapar = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const linhas = [
+          ["Data/Hora", "Administrador", "Email admin", "Usuário acessado", "Email alvo", "Perfil alvo", "IP", "Navegador"],
+          ...registros.map((r) => [
+            r.createdAt.toISOString(),
+            r.admin.nome,
+            r.admin.email,
+            r.alvo.nome,
+            r.alvo.email,
+            r.alvo.categoria,
+            r.ip,
+            r.userAgent,
+          ]),
+        ].map((l) => l.map(escapar).join(";"));
+
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="auditoria-impersonacao-${new Date().toISOString().slice(0, 10)}.csv"`
+        );
+        // BOM para o Excel abrir os acentos corretamente
+        return res.send("﻿" + linhas.join("\r\n"));
+      }
+
+      res.json(registros);
+    } catch (error) {
+      console.error("Erro ao listar auditoria de impersonação:", error);
+      res.status(500).json({ error: "Não foi possível buscar a auditoria." });
+    }
+  }
+);
+
+// --- PERSONALIZAÇÃO DA MARCA ---
+
+const BRANDING_PADRAO = {
+  nomePlataforma: "Merenda Flow",
+  subtitulo: "Gestão de Alimentação Escolar",
+  organizacao: null as string | null,
+  textoAjuda: null as string | null,
+  corPrimaria: null as string | null,
+  corMenu: null as string | null,
+  logo: null as string | null,
+  favicon: null as string | null,
+};
+
+const REGEX_COR_HEX = /^#[0-9a-fA-F]{6}$/;
+const REGEX_IMAGEM_DATA_URL =
+  /^data:image\/(png|jpeg|webp|gif|svg\+xml|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/=]+$/;
+const LIMITE_IMAGEM_BYTES = 700 * 1024;
+
+// Valida os campos recebidos e devolve apenas os que foram enviados (ou um erro).
+function validarBranding(body: Record<string, unknown>) {
+  const dados: Record<string, string | null> = {};
+
+  for (const campo of ["nomePlataforma", "subtitulo"] as const) {
+    if (body[campo] === undefined) continue;
+    const valor = typeof body[campo] === "string" ? (body[campo] as string).trim() : "";
+    const max = campo === "nomePlataforma" ? 60 : 120;
+    if (!valor || valor.length > max) {
+      return { erro: `${campo === "nomePlataforma" ? "Nome da plataforma" : "Subtítulo"} deve ter entre 1 e ${max} caracteres.` };
+    }
+    dados[campo] = valor;
+  }
+
+  // Textos opcionais do rodapé do login; vazio remove.
+  for (const [campo, max] of [["organizacao", 120], ["textoAjuda", 160]] as const) {
+    if (body[campo] === undefined) continue;
+    const valor = typeof body[campo] === "string" ? (body[campo] as string).trim() : "";
+    if (valor.length > max) {
+      return { erro: `${campo === "organizacao" ? "Órgão" : "Texto de ajuda"} deve ter até ${max} caracteres.` };
+    }
+    dados[campo] = valor || null;
+  }
+
+  for (const campo of ["corPrimaria", "corMenu"] as const) {
+    if (body[campo] === undefined) continue;
+    const valor = body[campo];
+    if (valor === null || valor === "") {
+      dados[campo] = null;
+    } else if (typeof valor === "string" && REGEX_COR_HEX.test(valor)) {
+      dados[campo] = valor.toLowerCase();
+    } else {
+      return { erro: "As cores devem estar no formato hexadecimal, ex.: #1e9e6a." };
+    }
+  }
+
+  for (const campo of ["logo", "favicon"] as const) {
+    if (body[campo] === undefined) continue;
+    const valor = body[campo];
+    if (valor === null || valor === "") {
+      dados[campo] = null;
+    } else if (typeof valor === "string" && REGEX_IMAGEM_DATA_URL.test(valor)) {
+      // tamanho aproximado do conteúdo decodificado
+      if ((valor.length * 3) / 4 > LIMITE_IMAGEM_BYTES) {
+        return { erro: `A imagem de ${campo} excede o limite de 700 KB.` };
+      }
+      dados[campo] = valor;
+    } else {
+      return { erro: `Formato de imagem inválido para ${campo}. Use PNG, JPG, WEBP, GIF, SVG ou ICO.` };
+    }
+  }
+
+  return { dados };
+}
+
+// Pública: a tela de login precisa da marca antes de qualquer autenticação.
+app.get("/api/configuracoes/branding", async (_req: Request, res: Response) => {
+  try {
+    const config = await prisma.configuracao.findUnique({ where: { id: "default" } });
+    res.json(
+      config
+        ? {
+            nomePlataforma: config.nomePlataforma,
+            subtitulo: config.subtitulo,
+            organizacao: config.organizacao,
+            textoAjuda: config.textoAjuda,
+            corPrimaria: config.corPrimaria,
+            corMenu: config.corMenu,
+            logo: config.logo,
+            favicon: config.favicon,
+            updatedAt: config.updatedAt,
+          }
+        : BRANDING_PADRAO
+    );
+  } catch (error) {
+    console.error("Erro ao buscar configurações:", error);
+    // Falha na leitura não deve impedir o sistema de abrir com a marca padrão.
+    res.json(BRANDING_PADRAO);
+  }
+});
+
+app.put(
+  "/api/configuracoes/branding",
+  authenticateToken,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { dados, erro } = validarBranding(req.body ?? {});
+    if (erro || !dados) {
+      return res.status(400).json({ error: erro });
+    }
+
+    try {
+      const config = await prisma.configuracao.upsert({
+        where: { id: "default" },
+        update: dados,
+        create: { id: "default", ...dados },
+      });
+      console.log(`[CONFIGURACAO] Marca atualizada por ${req.user!.nome} (${req.userId})`);
+      // Nunca devolver o registro inteiro: ele inclui a chave da OpenAI (cifrada).
+      res.json({
+        nomePlataforma: config.nomePlataforma,
+        subtitulo: config.subtitulo,
+        organizacao: config.organizacao,
+        textoAjuda: config.textoAjuda,
+        corPrimaria: config.corPrimaria,
+        corMenu: config.corMenu,
+        logo: config.logo,
+        favicon: config.favicon,
+        updatedAt: config.updatedAt,
+      });
+    } catch (error) {
+      console.error("Erro ao salvar configurações:", error);
+      res.status(500).json({ error: "Não foi possível salvar as configurações." });
+    }
+  }
+);
+
+// Restaura a marca padrão.
+app.delete(
+  "/api/configuracoes/branding",
+  authenticateToken,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      // Só os campos de marca: a linha também guarda a chave do assistente de voz.
+      await prisma.configuracao.updateMany({
+        where: { id: "default" },
+        data: {
+          nomePlataforma: BRANDING_PADRAO.nomePlataforma,
+          subtitulo: BRANDING_PADRAO.subtitulo,
+          organizacao: null,
+          textoAjuda: null,
+          corPrimaria: null,
+          corMenu: null,
+          logo: null,
+          favicon: null,
+        },
+      });
+      console.log(`[CONFIGURACAO] Marca restaurada ao padrão por ${req.user!.nome} (${req.userId})`);
+      res.json(BRANDING_PADRAO);
+    } catch (error) {
+      console.error("Erro ao restaurar configurações:", error);
+      res.status(500).json({ error: "Não foi possível restaurar as configurações." });
     }
   }
 );
@@ -247,6 +591,7 @@ app.get(
 app.get(
   "/api/usuarios",
   authenticateToken,
+  requireAdmin,
   async (req: Request, res: Response) => {
     const { q } = req.query;
     try {
@@ -284,6 +629,7 @@ app.get(
 app.get(
   "/api/usuarios/:id",
   authenticateToken,
+  requireAdmin,
   async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
@@ -322,6 +668,7 @@ app.get(
 app.post(
   "/api/usuarios",
   authenticateToken,
+  requireAdmin,
   async (req: Request, res: Response) => {
     const { nome, email, senha, categoria, ativo } = req.body;
 
@@ -363,6 +710,7 @@ app.post(
 app.put(
   "/api/usuarios/:id",
   authenticateToken,
+  requireAdmin,
   async (req: Request, res: Response) => {
     const { id } = req.params;
     const { nome, email, senha, categoria, ativo } = req.body;
@@ -409,6 +757,7 @@ app.put(
 app.delete(
   "/api/usuarios/:id",
   authenticateToken,
+  requireAdmin,
   async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
@@ -427,6 +776,7 @@ app.delete(
 app.post(
   "/api/usuarios/:userId/unidades",
   authenticateToken,
+  requireAdmin,
   async (req, res) => {
     const { userId } = req.params;
     const { unidadeId } = req.body;
@@ -456,6 +806,7 @@ app.post(
 app.delete(
   "/api/usuarios/:userId/unidades/:unidadeId",
   authenticateToken,
+  requireAdmin,
   async (req, res) => {
     const { userId, unidadeId } = req.params;
 
@@ -1436,7 +1787,7 @@ app.post('/api/almoxarifado/entradas', authenticateToken, async (req: Authentica
                 });
                 
                 await tx.movimentacaoEstoqueCentral.create({
-                    data: {
+                    data: { ...auditoriaDoRequest(req),
                         estoqueId: estoqueCentralItem.id, tipo: 'entrada',
                         quantidade: Number(item.quantidade),
                         quantidadeAnterior: estoqueCentralItem.quantidadeAtual - Number(item.quantidade),
@@ -1552,7 +1903,7 @@ app.post('/api/almoxarifado/entradas/:id/ajustar', authenticateToken, async (req
 
                 // Registra uma movimentação de "estorno"
                 await tx.movimentacaoEstoqueCentral.create({
-                    data: {
+                    data: { ...auditoriaDoRequest(req),
                         estoqueId: estoqueCentralItem.id,
                         tipo: 'ajuste_estorno',
                         quantidade: Number(itemOriginal.quantidade),
@@ -1602,7 +1953,7 @@ app.post('/api/almoxarifado/entradas/:id/ajustar', authenticateToken, async (req
                 });
 
                 await tx.movimentacaoEstoqueCentral.create({
-                    data: {
+                    data: { ...auditoriaDoRequest(req),
                         estoqueId: estoqueCentralItem.id, tipo: 'entrada',
                         quantidade: Number(item.quantidade),
                         quantidadeAnterior: estoqueCentralItem.quantidadeAtual - Number(item.quantidade),
@@ -1701,7 +2052,7 @@ app.post('/api/almoxarifado/guias-remessa', authenticateToken, async (req: Authe
 
                 // Registra a movimentação de saída
                 await tx.movimentacaoEstoqueCentral.create({
-                    data: {
+                    data: { ...auditoriaDoRequest(req),
                         estoqueId: estoqueCentral.id,
                         tipo: 'saida_para_unidade',
                         quantidade: Number(item.quantidadeEnviada),
@@ -1784,7 +2135,7 @@ app.post('/api/almoxarifado/guias-remessa', authenticateToken, async (req: Authe
 
                 // 2.3. Registra a movimentação de saída do estoque central
                 await tx.movimentacaoEstoqueCentral.create({
-                    data: {
+                    data: { ...auditoriaDoRequest(req),
                         estoqueId: estoqueCentral.id,
                         tipo: 'saida_para_unidade',
                         quantidade: quantidadeEnviadaNum,
@@ -2632,6 +2983,8 @@ app.post(
                 reciboId: id,
                 responsavel: responsavel,
                 dataMovimentacao: new Date(),
+                origem: "recibo",
+                ...auditoriaDoRequest(req),
               },
             });
           }
@@ -3455,6 +3808,8 @@ app.post(
         // 4. Cria o registro de movimentação de SAÍDA (na origem)
         const movimentacaoSaida = await tx.movimentacaoEstoque.create({
           data: {
+            origem: "manual",
+            ...auditoriaDoRequest(req),
             estoqueId,
             tipo: tipoMovimentacao,
             quantidade: Math.abs(quantidadeNum),
@@ -3547,6 +3902,8 @@ app.post(
           await tx.movimentacaoEstoque.create({
             data: {
               estoqueId: estoqueDestino.id,
+              origem: "manual",
+              ...auditoriaDoRequest(req),
               tipo: "remanejamento",
               quantidade: quantidadeNum,
               quantidadeAnterior: quantidadeAnteriorDestino,
@@ -3670,6 +4027,8 @@ app.post(
 
         const movimentacao = await tx.movimentacaoEstoque.create({
           data: {
+            origem: "qrcode",
+            ...auditoriaDoRequest(req),
             estoqueId,
             tipo: "saida",
             quantidade: quantidadeSaida,
@@ -3773,10 +4132,8 @@ app.get(
       }
 
       if (dataInicio && dataFim) {
-        whereClause.dataMovimentacao = {
-          gte: new Date(dataInicio as string),
-          lte: new Date(dataFim as string),
-        };
+        // Dia inicial e final inclusos por inteiro, no horário de Brasília.
+        whereClause.dataMovimentacao = intervaloDatas(dataInicio, dataFim);
       }
 
       const movimentacoes = await prisma.movimentacaoEstoque.findMany({
@@ -5048,16 +5405,7 @@ app.post(
         <html>
         <head>
             <title>Relatório Consolidado de Pedidos</title>
-            <style>
-                body { font-family: sans-serif; padding: 20px; }
-                h1 { color: #333; }
-                .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
-                .subsection { margin-bottom: 15px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-                h2, h3 { margin-top: 0; }
-            </style>
+            <style>${CSS_PDF_RELATORIO}</style>
         </head>
         <body>
             <h1>Relatório Consolidado de Pedidos</h1>
@@ -5076,7 +5424,7 @@ app.post(
     `;
 
       await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-      const pdfBuffer = await page.pdf({ format: "A4" });
+      const pdfBuffer = await page.pdf(opcoesPdfRelatorio(false));
 
       await browser.close();
 
@@ -5182,15 +5530,7 @@ app.post(
         <html>
         <head>
             <title>Relatório de Entregas</title>
-            <style>
-                body { font-family: sans-serif; padding: 20px; }
-                h1 { color: #333; }
-                .section { margin-bottom: 20px; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-                h2 { margin-top: 0; }
-            </style>
+            <style>${CSS_PDF_RELATORIO}</style>
         </head>
         <body>
             <h1>Relatório de Entregas por Período</h1>
@@ -5231,7 +5571,7 @@ app.post(
     `;
 
       await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-      const pdfBuffer = await page.pdf({ format: "A4" });
+      const pdfBuffer = await page.pdf(opcoesPdfRelatorio(false));
 
       await browser.close();
 
@@ -5329,15 +5669,7 @@ app.post(
       <html>
       <head>
           <title>Relatório de Conformidade</title>
-          <style>
-              body { font-family: sans-serif; padding: 20px; }
-              h1 { color: #333; }
-              .section { margin-bottom: 20px; }
-              table { width: 100%; border-collapse: collapse; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-              th { background-color: #f2f2f2; }
-              h2 { margin-top: 0; }
-          </style>
+          <style>${CSS_PDF_RELATORIO}</style>
       </head>
       <body>
           <h1>Relatório de Conformidade das Entregas</h1>
@@ -5382,7 +5714,7 @@ app.post(
     `;
 
       await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-      const pdfBuffer = await page.pdf({ format: "A4" });
+      const pdfBuffer = await page.pdf(opcoesPdfRelatorio(false));
 
       await browser.close();
 
@@ -5479,15 +5811,7 @@ app.post(
       <html>
       <head>
           <title>Relatório de Gastos por Fornecedor</title>
-          <style>
-              body { font-family: sans-serif; padding: 20px; }
-              h1 { color: #333; }
-              .section { margin-bottom: 20px; }
-              table { width: 100%; border-collapse: collapse; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-              th { background-color: #f2f2f2; }
-              h2 { margin-top: 0; }
-          </style>
+          <style>${CSS_PDF_RELATORIO}</style>
       </head>
       <body>
           <h1>Relatório de Gastos por Fornecedor</h1>
@@ -5526,7 +5850,7 @@ app.post(
     `;
 
       await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-      const pdfBuffer = await page.pdf({ format: "A4" });
+      const pdfBuffer = await page.pdf(opcoesPdfRelatorio(false));
 
       await browser.close();
 
@@ -5547,6 +5871,7 @@ app.post(
 
 app.post(
   "/api/relatorios/estoque-unidade-pdf",
+  authenticateToken,
   async (req: Request, res: Response) => {
     const { dataInicio, dataFim, unidadeId } = req.body;
 
@@ -5610,8 +5935,10 @@ app.post(
       });
       const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
 
+      // A rota de dados exige login: repassa o token de quem pediu o PDF.
       const reportDataResponse = await fetch(
-        `${backendUrl}/api/relatorios/estoque-unidade?${params}`
+        `${backendUrl}/api/relatorios/estoque-unidade?${params}`,
+        { headers: { Authorization: req.headers.authorization ?? "" } }
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -5666,15 +5993,7 @@ app.post(
         <html>
         <head>
             <title>Relatório de Estoque</title>
-            <style>
-                body { font-family: sans-serif; padding: 20px; }
-                h1 { color: #333; }
-                .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-                h2 { margin-top: 0; }
-            </style>
+            <style>${CSS_PDF_RELATORIO}</style>
         </head>
         <body>
             <h1>Relatório de Estoque por Unidade</h1>
@@ -5740,7 +6059,7 @@ app.post(
     `;
 
       await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-      const pdfBuffer = await page.pdf({ format: "A4" });
+      const pdfBuffer = await page.pdf(opcoesPdfRelatorio(true));
 
       await browser.close();
 
@@ -5761,6 +6080,7 @@ app.post(
 
 app.post(
   "/api/relatorios/movimentacao-responsavel-pdf",
+  authenticateToken,
   async (req: Request, res: Response) => {
     const { dataInicio, dataFim, responsavel, unidadeId, tipoMovimentacao } =
       req.body;
@@ -5819,8 +6139,11 @@ app.post(
       });
 
       const backendUrl = process.env.BACKEND_URL || "http://localhost:3001";
+      // A rota de dados exige login: repassa o token de quem pediu o PDF (assim o filtro por
+      // unidade dos usuários restritos também vale aqui).
       const reportDataResponse = await fetch(
-        `${backendUrl}/api/relatorios/movimentacao-responsavel?${params}`
+        `${backendUrl}/api/relatorios/movimentacao-responsavel?${params}`,
+        { headers: { Authorization: req.headers.authorization ?? "" } }
       );
       if (!reportDataResponse.ok) {
         throw new Error("Falha ao buscar dados do relatório.");
@@ -5875,15 +6198,7 @@ app.post(
         <html>
         <head>
             <title>Relatório de Movimentação por Responsável</title>
-            <style>
-                body { font-family: sans-serif; padding: 20px; }
-                h1 { color: #333; }
-                .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-                h2 { margin-top: 0; }
-            </style>
+            <style>${CSS_PDF_RELATORIO}</style>
         </head>
         <body>
             <h1>Relatório de Movimentação por Responsável</h1>
@@ -5922,7 +6237,7 @@ app.post(
     `;
 
       await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-      const pdfBuffer = await page.pdf({ format: "A4" });
+      const pdfBuffer = await page.pdf(opcoesPdfRelatorio(true));
 
       await browser.close();
 
@@ -6142,6 +6457,23 @@ app.get("/api/test-db", async (req: Request, res: Response) => {
       detalhes: errorMessage,
     });
   }
+});
+
+// Assistente de voz (entradas e saídas de estoque) e configuração da chave da OpenAI.
+registrarAssistente({
+  app,
+  prisma,
+  authenticateToken: authenticateToken as unknown as RequestHandler,
+  requireAdmin: requireAdmin as unknown as RequestHandler,
+  requireCategoria: requireCategoria as unknown as (...c: string[]) => RequestHandler,
+});
+
+// Auditoria de entradas e saídas de estoque (somente administrador).
+registrarAuditoria({
+  app,
+  prisma,
+  authenticateToken: authenticateToken as unknown as RequestHandler,
+  requireAdmin: requireAdmin as unknown as RequestHandler,
 });
 
 const server = app.listen(3001, () =>

@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -39,6 +40,8 @@ import {
   SelectValue,
 } from "../ui/select";
 
+import { BotaoExportar, OpcaoCsv } from "./BotaoExportar";
+import { dataBr } from "@/lib/csv";
 // Interface para os itens do relatório de conformidade, estendendo Recibo
 interface ReciboConformidadeDetalhado extends Recibo {
   totalItens: number;
@@ -211,6 +214,22 @@ export function RelatorioConformidade() {
     }
   };
 
+  // Exportação em CSV (usa o relatório já carregado na tela)
+  const opcoesCsv = (): OpcaoCsv[] => [
+    {
+      rotulo: "Conformidade",
+      gerar: () => ({
+        nome: "relatorio-conformidade",
+        cabecalho: ["Recibo", "Unidade", "Fornecedor", "Data da entrega", "Itens conformes", "Total de itens", "% de conformidade", "Situação"],
+        linhas: (dados?.analiseConformidade ?? []).map((r) => [
+          r.numero, r.unidadeEducacional.nome, r.pedido.contrato.fornecedor.nome, dataBr(r.dataEntrega),
+          r.itensConformes, r.totalItens, Math.round(r.percentualConformidade * 10) / 10,
+          r.percentualConformidade === 100 ? "100% Conforme" : r.percentualConformidade >= 80 ? "Parcialmente Conforme" : "Não Conforme",
+        ]),
+      }),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -227,20 +246,18 @@ export function RelatorioConformidade() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
-              <Input
+              <DatePicker
                 id="dataInicio"
-                type="date"
                 value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
+                onChange={(v) => setDataInicio(v)}
               />
             </div>
             <div>
               <Label htmlFor="dataFim">Data Fim</Label>
-              <Input
+              <DatePicker
                 id="dataFim"
-                type="date"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={(v) => setDataFim(v)}
               />
             </div>
             <div>
@@ -263,20 +280,18 @@ export function RelatorioConformidade() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-wrap items-end gap-2 md:col-span-full">
               <Button onClick={gerarRelatorio} disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {!isLoading && <Filter className="h-4 w-4" />}
                 Gerar Relatório
               </Button>
               {dados && (
-                <Button onClick={exportarPDF} disabled={isGeneratingPdf}>
-                  {isGeneratingPdf && (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  )}
-                  {!isGeneratingPdf && <Download className="h-4 w-4" />}
-                  Exportar PDF
-                </Button>
+                <BotaoExportar
+                  onPdf={exportarPDF}
+                  gerandoPdf={isGeneratingPdf}
+                  opcoesCsv={opcoesCsv()}
+                />
               )}
             </div>
           </div>

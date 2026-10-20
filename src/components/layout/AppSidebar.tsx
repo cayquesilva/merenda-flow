@@ -1,24 +1,5 @@
 import { useState } from "react";
-import {
-  LayoutDashboard,
-  FileText,
-  Users,
-  Building2,
-  ShoppingCart,
-  Receipt,
-  CheckCircle,
-  BarChart3,
-  Shield,
-  LogOut,
-  ChevronDown,
-  ChevronRight,
-  Package,
-  Calculator,
-  Warehouse,
-  Box,
-  LogIn,
-  BookOpen,
-} from "lucide-react";
+import { LogOut, ChevronDown, ChevronRight } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -37,131 +18,25 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ModuleName } from "@/types/auth";
+import { navigationItems } from "./navigation";
+import { BrandLogo } from "./BrandLogo";
+import { useBranding } from "@/contexts/BrandingContext";
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const { user, canAccessModule, logout } = useAuth();
+  const { branding } = useBranding();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([
-    "Principal",
-    "Cadastros",
-    "Operações",
-    "Almoxarifado",
-  ]);
-
-  const navigationItems = [
-    {
-      group: "Principal",
-      items: [
-        {
-          title: "Dashboard",
-          url: "/",
-          icon: LayoutDashboard,
-          module: "dashboard",
-        },
-      ],
-    },
-    {
-      group: "Cadastros",
-      items: [
-        {
-          title: "Fornecedores",
-          url: "/fornecedores",
-          icon: Users,
-          module: "fornecedores",
-        },
-        {
-          title: "Unidades",
-          url: "/unidades",
-          icon: Building2,
-          module: "unidades",
-        },
-        {
-          title: "Contratos",
-          url: "/contratos",
-          icon: FileText,
-          module: "contratos",
-        },
-        {
-          title: "Per cápita",
-          url: "/percapita",
-          icon: Calculator,
-          module: "percapita",
-        },
-      ],
-    },
-    {
-      group: "Operações",
-      items: [
-        {
-          title: "Pedidos",
-          url: "/pedidos",
-          icon: ShoppingCart,
-          module: "pedidos",
-        },
-        { title: "Recibos", url: "/recibos", icon: Receipt, module: "recibos" },
-        {
-          title: "Confirmações",
-          url: "/confirmacoes",
-          icon: CheckCircle,
-          module: "confirmacao_relatorio",
-        },
-        { title: "Estoque", url: "/estoque", icon: Package, module: "estoque" },
-      ],
-    },
-    {
-      group: "Almoxarifado",
-      icon: Warehouse, // Ícone para o grupo
-      items: [
-        {
-          title: "Registrar Entradas",
-          url: "/almoxarifado/entradas",
-          icon: LogIn, // Ícone de entrada
-          module: "almoxarifado",
-        },
-        {
-          title: "Catálogo de Insumos",
-          url: "/almoxarifado/catalogo",
-          icon: BookOpen, // Ícone de catálogo
-          module: "almoxarifado",
-        },
-        // Adicionaremos os links de Recibos e Estoque aqui futuramente
-      ],
-    },
-    {
-      group: "Relatórios",
-      items: [
-        {
-          title: "Relatórios",
-          url: "/relatorios",
-          icon: BarChart3,
-          module: "relatorios",
-        },
-      ],
-    },
-    {
-      group: "Administração",
-      items: [
-        {
-          title: "Usuários",
-          url: "/usuarios",
-          icon: Shield,
-          module: "usuarios",
-        },
-      ],
-    },
-  ];
+  // Sanfona: o menu nasce fechado e só um grupo fica aberto por vez, o que evita a barra de
+  // rolagem. O grupo continua aberto ao navegar; ao recarregar a página volta tudo fechado.
+  const [grupoAberto, setGrupoAberto] = useState<string | null>(null);
 
   const isActive = (path: string) => currentPath === path;
 
   const toggleGroup = (groupName: string) => {
-    setExpandedGroups((prev) =>
-      prev.includes(groupName)
-        ? prev.filter((g) => g !== groupName)
-        : [...prev, groupName]
-    );
+    setGrupoAberto((atual) => (atual === groupName ? null : groupName));
   };
 
   const getNavClassName = (path: string) => {
@@ -176,23 +51,26 @@ export function AppSidebar() {
         {!collapsed && (
           <div className="px-3 py-3 mb-2 rounded-xl bg-sidebar-accent/40 border border-sidebar-border/50">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-base shadow-sm">
-                🥗
-              </div>
+              <BrandLogo className="h-8 w-8 shrink-0 rounded-lg font-bold text-base shadow-sm" />
               <div className="min-w-0">
                 <h2 className="text-sm font-bold text-sidebar-foreground tracking-tight leading-tight truncate">
-                  Merenda Flow
+                  {branding.nomePlataforma}
                 </h2>
                 <p className="text-xs text-sidebar-foreground/70 font-medium truncate">
-                  Gestão de Alimentação Escolar
+                  {branding.subtitulo}
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {navigationItems.map((section) => {
-          const isExpanded = expandedGroups.includes(section.group);
+        {/* Grupos sem nenhum item acessível ao perfil não aparecem. */}
+        {navigationItems
+          .filter((section) =>
+            section.items.some((item) => canAccessModule(item.module as ModuleName))
+          )
+          .map((section) => {
+          const isExpanded = grupoAberto === section.group;
           const hasActiveItem = section.items.some(
             (item) =>
               isActive(item.url) && canAccessModule(item.module as ModuleName)

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -207,11 +208,10 @@ export function AjustarEntradaDialog({
           </div>
           <div>
             <Label htmlFor="dataEntrada">Data da Entrada *</Label>
-            <Input
+            <DatePicker
               id="dataEntrada"
-              type="date"
               value={dataEntrada}
-              onChange={(e) => setDataEntrada(e.target.value)}
+              onChange={(v) => setDataEntrada(v)}
             />
           </div>
           <div>

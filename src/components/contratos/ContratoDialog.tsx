@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -466,24 +467,22 @@ export function ContratoDialog({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="dataInicio">Data de Início *</Label>
-                <Input
+                <DatePicker
                   id="dataInicio"
-                  type="date"
                   value={formData.dataInicio}
-                  onChange={(e) =>
-                    setFormData({ ...formData, dataInicio: e.target.value })
+                  onChange={(v) =>
+                    setFormData({ ...formData, dataInicio: v })
                   }
                   disabled={isSubmitting}
                 />
               </div>
               <div>
                 <Label htmlFor="dataFim">Data de Fim *</Label>
-                <Input
+                <DatePicker
                   id="dataFim"
-                  type="date"
                   value={formData.dataFim}
-                  onChange={(e) =>
-                    setFormData({ ...formData, dataFim: e.target.value })
+                  onChange={(v) =>
+                    setFormData({ ...formData, dataFim: v })
                   }
                   disabled={isSubmitting}
                 />

@@ -28,7 +28,27 @@ model Usuario {
   // Isso permite que um usuário seja vinculado a várias unidades e vice-versa.
   unidadesEducacionais UnidadeEducacional[] @relation("UsuarioUnidades")
 
+  // Auditoria de impersonação: sessões iniciadas por este usuário (admin) e sessões em que ele foi o alvo.
+  impersonacoesRealizadas ImpersonacaoLog[] @relation("ImpersonacaoAdmin")
+  impersonacoesRecebidas  ImpersonacaoLog[] @relation("ImpersonacaoAlvo")
+
   @@map("usuarios")
+}
+
+// Registro de auditoria: quando um administrador acessa o sistema como outro usuário.
+model ImpersonacaoLog {
+  id        String   @id @default(uuid())
+  adminId   String   @map("admin_id")
+  alvoId    String   @map("alvo_id")
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  admin Usuario @relation("ImpersonacaoAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  alvo  Usuario @relation("ImpersonacaoAlvo", fields: [alvoId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("impersonacao_logs")
 }
 
 // ===================================
@@ -351,6 +371,16 @@ model MovimentacaoEstoque {
   // NOVO: Relação para Descarte com foto
   fotoDescarte   FotoDescarte? @relation(fields: [fotoDescarteId], references: [id])
   fotoDescarteId String?       @unique @map("foto_descarte_id")
+
+  // Auditoria: canal do registro ('manual', 'assistente_voz', 'recibo', 'qrcode'; nulo = legado,
+  // deduzido na leitura), conta autenticada que registrou, conta do administrador quando o acesso
+  // foi feito "como outro usuário" e, no caso da voz, a frase falada.
+  origem          String?
+  usuarioId       String? @map("usuario_id")
+  impersonadoPorId String? @map("impersonado_por_id")
+  transcricao     String? @db.Text
+
+  @@index([dataMovimentacao])
 }
 
 model FotoDescarte {
@@ -463,7 +493,12 @@ model MovimentacaoEstoqueCentral {
 
   guiaDeRemessa   GuiaDeRemessa? @relation(fields: [guiaDeRemessaId], references: [id])
   guiaDeRemessaId String?        @map("guia_de_remessa_id")
-  
+
+  // Auditoria: conta autenticada e, se houve, o administrador que acessou como ela.
+  usuarioId        String? @map("usuario_id")
+  impersonadoPorId String? @map("impersonado_por_id")
+
+  @@index([dataMovimentacao])
   @@map("almoxarifado_movimentacoes_central")
 }
 
@@ -539,4 +574,25 @@ model Metadado {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("metadados")
+}
+
+// Personalização da marca (registro único, id = "default").
+// Campos nulos usam o padrão do sistema. logo e favicon são guardados como data URL.
+model Configuracao {
+  id            String   @id @default("default")
+  nomePlataforma String  @default("Merenda Flow") @map("nome_plataforma")
+  subtitulo     String   @default("Gestão de Alimentação Escolar")
+  organizacao   String?
+  textoAjuda    String?  @map("texto_ajuda")
+  corPrimaria   String?  @map("cor_primaria")
+  corMenu       String?  @map("cor_menu")
+  logo          String?
+  favicon       String?
+  // Assistente de voz: a chave da OpenAI é guardada cifrada e nunca volta pela API (só o final).
+  openaiKeyEnc     String? @map("openai_key_enc")
+  openaiKeyFinal   String? @map("openai_key_final")
+  assistenteModelo String  @default("gpt-4o-mini") @map("assistente_modelo")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("configuracoes")
 }

@@ -108,8 +108,175 @@ class ApiService {
     });
   }
 
+  // Marca da plataforma (pública: usada também na tela de login).
+  async getBranding() {
+    return this.request("/api/configuracoes/branding");
+  }
+
+  async updateBranding(data: Record<string, string | null>) {
+    return this.request("/api/configuracoes/branding", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async resetBranding() {
+    return this.request("/api/configuracoes/branding", { method: "DELETE" });
+  }
+
+  // --- Assistente de voz (entradas e saídas de estoque) ---
+
+  async getAssistenteStatus() {
+    return this.request("/api/assistente/status");
+  }
+
+  // Envia o áudio gravado. Multipart: o fetch define o Content-Type sozinho.
+  async assistenteVoz(audio: Blob, extensao: string, historico: unknown[], pendente: unknown) {
+    const form = new FormData();
+    form.append("audio", audio, `audio.${extensao}`);
+    form.append("historico", JSON.stringify(historico));
+    if (pendente) form.append("pendente", JSON.stringify(pendente));
+
+    const response = await fetch(`${API_BASE_URL}/api/assistente/voz`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: form,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Erro de rede" }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async assistenteTexto(texto: string, historico: unknown[], pendente: unknown) {
+    return this.request("/api/assistente/texto", {
+      method: "POST",
+      body: JSON.stringify({ texto, historico, pendente }),
+    });
+  }
+
+  async assistenteConfirmar(data: {
+    estoqueId: string;
+    tipo: string;
+    quantidade: number;
+    transcricao?: string;
+  }) {
+    return this.request("/api/assistente/confirmar", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Voz da resposta (mp3). Devolve o áudio para o chamador tocar.
+  async assistenteFalar(texto: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/api/assistente/falar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({ texto }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.blob();
+  }
+
+  // Configuração da chave da OpenAI (administrador). A chave nunca volta: só o final.
+  async getConfigAssistente() {
+    return this.request("/api/configuracoes/assistente");
+  }
+
+  async updateConfigAssistente(data: {
+    openaiApiKey?: string;
+    removerChave?: boolean;
+    modelo?: string;
+  }) {
+    return this.request("/api/configuracoes/assistente", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async testarConfigAssistente(openaiApiKey?: string) {
+    return this.request("/api/configuracoes/assistente/testar", {
+      method: "POST",
+      body: JSON.stringify({ openaiApiKey }),
+    });
+  }
+
+  // --- Auditoria (administrador) ---
+
+  private paraQuery(params: Record<string, string | number | undefined>) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== "") qs.set(k, String(v));
+    });
+    const texto = qs.toString();
+    return texto ? `?${texto}` : "";
+  }
+
+  async getAuditoriaMovimentacoes(params: Record<string, string | number | undefined>) {
+    return this.request(`/api/auditoria/movimentacoes${this.paraQuery(params)}`);
+  }
+
+  async getAcessosComoOutroUsuario(inicio?: string, fim?: string) {
+    return this.request(`/api/auth/impersonacoes${this.paraQuery({ inicio, fim })}`);
+  }
+
+  // Baixa a auditoria de movimentações (CSV ou Excel) com os filtros atuais.
+  // Devolve o total quando o servidor limitou a exportação.
+  async downloadAuditoriaMovimentacoes(
+    params: Record<string, string | number | undefined>,
+    formato: "csv" | "xlsx"
+  ): Promise<{ truncadoEm: number | null }> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/auditoria/movimentacoes/exportar${this.paraQuery({ ...params, formato })}`,
+      { headers: this.getAuthHeaders() }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Erro de rede" }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    const url = URL.createObjectURL(await response.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `auditoria-estoque-${new Date().toISOString().slice(0, 10)}.${formato}`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const truncado = response.headers.get("X-Auditoria-Truncada");
+    return { truncadoEm: truncado ? Number(truncado) : null };
+  }
+
   async getProfile() {
     return this.request("/api/auth/me");
+  }
+
+  // Admin: acessa o sistema como outro usuário.
+  async impersonate(userId: string) {
+    return this.request(`/api/auth/impersonate/${userId}`, { method: "POST" });
+  }
+
+  // Admin: baixa a auditoria de impersonações em CSV.
+  async downloadAuditoriaImpersonacao(inicio?: string, fim?: string) {
+    const params = new URLSearchParams({ format: "csv" });
+    if (inicio) params.set("inicio", inicio);
+    if (fim) params.set("fim", fim);
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/auth/impersonacoes?${params}`,
+      { headers: this.getAuthHeaders() }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Erro de rede" }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    const url = URL.createObjectURL(await response.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `auditoria-impersonacao-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // User endpoints

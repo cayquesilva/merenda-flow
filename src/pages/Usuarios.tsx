@@ -58,6 +58,8 @@ import {
   ChevronsUpDown,
   Home,
   X,
+  Eye,
+  Download,
 } from "lucide-react";
 // ALTERAÇÃO: A interface User agora inclui as unidades educacionais vinculadas.
 import {
@@ -68,6 +70,7 @@ import {
 } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface UserDialogProps {
   user?: User & {
@@ -484,6 +487,33 @@ export default function Usuarios() {
   >([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { user: usuarioLogado, impersonate, isImpersonating } = useAuth();
+  const podeImpersonar =
+    usuarioLogado?.categoria === "administracao_tecnica" && !isImpersonating;
+
+  const handleImpersonate = async (id: string, nome: string) => {
+    try {
+      await impersonate(id);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: error.message || `Não foi possível acessar como ${nome}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadAuditoria = async () => {
+    try {
+      await apiService.downloadAuditoriaImpersonacao();
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível baixar a auditoria",
+        variant: "destructive",
+      });
+    }
+  };
 
   const loadUsuarios = useCallback(async () => {
     try {
@@ -541,7 +571,7 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary">
             Gerenciamento de Usuários
@@ -550,7 +580,15 @@ export default function Usuarios() {
             Gerencie os usuários e suas permissões no sistema
           </p>
         </div>
-        <UserDialog onSuccess={handleSuccess} />
+        <div className="flex flex-wrap items-center gap-2">
+          {podeImpersonar && (
+            <Button variant="outline" onClick={handleDownloadAuditoria}>
+              <Download className="mr-2 h-4 w-4" />
+              Auditoria de acessos
+            </Button>
+          )}
+          <UserDialog onSuccess={handleSuccess} />
+        </div>
       </div>
 
       <Card>
@@ -643,6 +681,16 @@ export default function Usuarios() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        {podeImpersonar && user.ativo && user.id !== usuarioLogado?.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleImpersonate(user.id, user.nome)}
+                          >
+                            <Eye className="mr-1 h-3 w-3" />
+                            Entrar como
+                          </Button>
+                        )}
                         <UserDialog user={user} onSuccess={handleSuccess} />
                         <Button
                           variant="outline"
