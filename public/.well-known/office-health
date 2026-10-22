@@ -1,0 +1,15 @@
+{
+  "protocol": "office-health/1",
+  "name": "Merenda Flow Frontend",
+  "kind": "web",
+  "endpoints": {
+    "liveness": "/healthz",
+    "version": "/version.json"
+  },
+  "performance": [
+    { "path": "/" }
+  ],
+  "related": [
+    "https://api.merenda.portaleducampina.com.br"
+  ]
+}

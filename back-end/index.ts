@@ -14,11 +14,17 @@ import multer from "multer";
 import xlsx from "xlsx";
 import { registrarAssistente } from "./assistente";
 import { registrarAuditoria, auditoriaDoRequest, intervaloDatas } from "./auditoria";
+import { registrarOfficeHealth } from "./health";
 
 dotenv.config();
 
 const prisma = new PrismaClient();
 const app = express();
+
+app.set("trust proxy", 1);
+
+// Registra rotas do protocolo office-health/1 (manifesto, liveness, deep e versão)
+registrarOfficeHealth({ app, prisma });
 
 app.use(cors());
 // NOVO: Aumenta o limite de tamanho do corpo da requisição para 10MB

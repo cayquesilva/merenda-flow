@@ -1,6 +1,9 @@
 # --- Estágio de Build ---
 FROM node:20-alpine AS builder
 
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 WORKDIR /app
 
 COPY package*.json ./
@@ -15,6 +18,9 @@ RUN npm run build
 
 # --- Estágio de Produção ---
 FROM node:20-alpine
+
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 
 # Instala dependências do Chromium para Puppeteer funcionar
 RUN apk add --no-cache \
