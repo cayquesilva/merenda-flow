@@ -13,18 +13,18 @@ COPY . .
 
 RUN npm run build
 
-# Etapa de execução usando `serve`
+# Etapa de execução
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Copia os arquivos estáticos do build
-COPY --from=build /app/dist ./dist
+ARG APP_VERSION=2.0.0
+ENV APP_VERSION=$APP_VERSION
 
-# Instala servidor HTTP leve
-RUN npm install -g serve
+# Copia os arquivos estáticos do build e o servidor
+COPY --from=build /app/dist ./dist
+COPY server.mjs ./
 
 EXPOSE 3000
 
-# Serve a pasta /dist com fallback para index.html (SPA)
-CMD ["serve", "-s", "dist", "-l", "3000"]
+CMD ["node", "server.mjs"]
