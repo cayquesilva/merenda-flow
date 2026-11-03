@@ -16,15 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { QrCode, Package, Truck, Calendar, Loader2 } from "lucide-react";
+import { QrCode, Package, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Pedido } from "@/types"; // Usaremos o tipo Pedido para os detalhes
+import { Pedido } from "@/types";
 
-// ALTERAÇÃO: Criado um tipo específico para a lista de pedidos que vem da API de consulta.
 interface PedidoParaRecibo {
   id: string;
   numero: string;
@@ -41,11 +47,9 @@ interface GerarReciboDialogProps {
 
 export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
   const [open, setOpen] = useState(false);
-  // ALTERAÇÃO: O estado da lista agora usa o tipo específico 'PedidoParaRecibo'.
   const [pedidosDisponiveis, setPedidosDisponiveis] = useState<
     PedidoParaRecibo[]
   >([]);
-  // ALTERAÇÃO: O estado do pedido selecionado continua a usar o tipo 'Pedido' completo, pois ele será preenchido com os detalhes da API.
   const [pedidoSelecionado, setPedidoSelecionado] = useState<Pedido | null>(
     null
   );
@@ -83,7 +87,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
       };
       fetchPedidos();
     } else {
-      // Limpa o formulário ao fechar
       setPedidoSelecionado(null);
       setSelectedPedidoId(undefined);
       setDataEntrega("");
@@ -98,7 +101,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
     }
     setIsLoading(true);
     try {
-      // Busca os detalhes completos do pedido selecionado
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:3001"
@@ -139,13 +141,6 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
     }
 
     return true;
-  };
-
-  const gerarQRCode = (reciboId: string) => {
-    const url = `${window.location.origin}/confirmacao-recebimento/${reciboId}`;
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-      url
-    )}`;
   };
 
   const handleGerar = async () => {
@@ -196,8 +191,8 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
           Gerar Recibo
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="h-5 w-5" />
             Gerar Recibo de Entrega
@@ -206,13 +201,14 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
             Selecione um pedido confirmado e gere o recibo com QR Code
           </DialogDescription>
         </DialogHeader>
+
         {isLoading && !pedidoSelecionado ? (
           <div className="flex justify-center p-20">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden py-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
               <div>
                 <Label htmlFor="pedido">Pedido *</Label>
                 <Select
@@ -241,112 +237,78 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
                 />
               </div>
             </div>
+
             {pedidoSelecionado && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    Detalhes do Pedido {pedidoSelecionado.numero}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">Contrato:</span>
-                        <p>{pedidoSelecionado.contrato.numero}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium">Fornecedor:</span>
-                        <p>{pedidoSelecionado.contrato.fornecedor.nome}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium">Data do Pedido:</span>
-                        <p>
-                          {new Date(
-                            pedidoSelecionado.dataPedido
-                          ).toLocaleDateString("pt-BR")}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="font-medium">Valor Total:</span>
-                        <p className="font-semibold">
-                          R$ {pedidoSelecionado.valorTotal.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium mb-3">Itens do Pedido:</h4>
-                      <div className="space-y-2">
-                        {pedidoSelecionado.itens.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex justify-between items-center p-3 bg-muted rounded-lg"
-                          >
-                            <div>
-                              <span className="font-medium">
-                                {item.itemContrato.nome}
-                              </span>
-                              <p className="text-sm text-muted-foreground">
-                                {item.unidadeEducacional.nome}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-medium">
-                                {item.quantidade}{" "}
-                                {item.itemContrato.unidadeMedida.sigla}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                R${" "}
-                                {(
-                                  item.quantidade *
-                                  item.itemContrato.valorUnitario
-                                ).toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-primary/5 p-4 rounded-lg">
-                      <div className="flex items-center gap-2 text-primary mb-2">
-                        <QrCode className="h-4 w-4" />
-                        <span className="font-medium">
-                          Fluxo de Entrega e Confirmação
-                        </span>
-                      </div>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p>
-                          1. <strong>Recibo será gerado</strong> com QR Code
-                          único
-                        </p>
-                        <p>
-                          2. <strong>Entrega realizada</strong> pelo responsável
-                          informado
-                        </p>
-                        <p>
-                          3. <strong>QR Code escaneado</strong> no local de
-                          entrega
-                        </p>
-                        <p>
-                          4. <strong>Confirmação de recebimento</strong> via
-                          smartphone
-                        </p>
-                        <p>
-                          5. <strong>Saldos atualizados</strong> automaticamente
-                          no sistema
-                        </p>
-                      </div>
+              <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <CardHeader className="py-3 px-4 shrink-0 border-b">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Package className="h-4 w-4" />
+                      Detalhes do Pedido {pedidoSelecionado.numero} (
+                      {pedidoSelecionado.itens.length} itens)
+                    </CardTitle>
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                      <span>
+                        <strong>Contrato:</strong>{" "}
+                        {pedidoSelecionado.contrato.numero}
+                      </span>
+                      <span>
+                        <strong>Fornecedor:</strong>{" "}
+                        {pedidoSelecionado.contrato.fornecedor.nome}
+                      </span>
+                      <span>
+                        <strong>Data:</strong>{" "}
+                        {new Date(
+                          pedidoSelecionado.dataPedido
+                        ).toLocaleDateString("pt-BR")}
+                      </span>
+                      <span className="text-foreground font-semibold">
+                        Total: R$ {pedidoSelecionado.valorTotal.toFixed(2)}
+                      </span>
                     </div>
                   </div>
+                </CardHeader>
+
+                <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-card z-10">
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Unidade Educacional</TableHead>
+                        <TableHead className="text-right">Quantidade</TableHead>
+                        <TableHead className="text-right">Subtotal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pedidoSelecionado.itens.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">
+                            {item.itemContrato.nome}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {item.unidadeEducacional.nome}
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {item.quantidade}{" "}
+                            {item.itemContrato.unidadeMedida.sigla}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            R${" "}
+                            {(
+                              item.quantidade * item.itemContrato.valorUnitario
+                            ).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             )}
           </div>
         )}
-        <DialogFooter>
+
+        <DialogFooter className="shrink-0 pt-3 border-t">
           <Button
             variant="outline"
             onClick={() => setOpen(false)}
@@ -358,7 +320,11 @@ export function GerarReciboDialog({ onSuccess }: GerarReciboDialogProps) {
             onClick={handleGerar}
             disabled={isLoading || !pedidoSelecionado}
           >
-            <QrCode className="mr-2 h-4 w-4" />
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <QrCode className="mr-2 h-4 w-4" />
+            )}
             Gerar Recibo
           </Button>
         </DialogFooter>

@@ -29,20 +29,25 @@ import {
   XCircle,
   CheckCheck,
   PackageCheck,
+  Building2,
 } from "lucide-react";
 import { GerarReciboDialog } from "@/components/recibos/GerarReciboDialog";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
 import { useNavigate } from "react-router-dom";
 import { apiService } from "@/services/api";
-import { useAuth } from "@/contexts/AuthContext"; // 1. Importe o hook useAuth
+import { useAuth } from "@/contexts/AuthContext";
+import { TablePagination } from "@/components/ui/table-pagination";
 
-// ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
-// Isto resolve o erro de tipagem.
 interface ReciboDaLista {
   id: string;
   numero: string;
   dataEntrega: string;
   status: string;
+  unidadeEducacional?: {
+    id: string;
+    nome: string;
+    codigo: string;
+  };
   pedido: {
     numero: string;
     contrato: {
@@ -69,7 +74,7 @@ function useDebounce(value: string, delay: number) {
 export default function Recibos() {
   const [busca, setBusca] = useState("");
   const navigate = useNavigate();
-  const { hasPermission } = useAuth(); // 2. Obtenha a função de permissão
+  const { hasPermission } = useAuth();
 
   const debouncedBusca = useDebounce(busca, 300);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
@@ -77,6 +82,8 @@ export default function Recibos() {
 
   const [recibos, setRecibos] = useState<ReciboDaLista[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [itensPorPagina, setItensPorPagina] = useState(10);
   const [stats, setStats] = useState({
     total: 0,
     pendentes: 0,
@@ -87,10 +94,13 @@ export default function Recibos() {
   });
 
   useEffect(() => {
+    setPaginaAtual(1);
+  }, [debouncedBusca, statusFilter]);
+
+  useEffect(() => {
     const fetchRecibosEStats = async () => {
       setIsLoading(true);
       try {
-        // Agora usando a apiService, que envia o token de autenticação
         const [recibosData, statsData] = await Promise.all([
           apiService.getRecibos(debouncedBusca, statusFilter),
           apiService.getRecibosStats(),
@@ -104,14 +114,17 @@ export default function Recibos() {
           errorMessage = error.message;
         }
         console.error("Erro:", errorMessage);
-        // Opcional: Adicionar um toast de erro para o usuário
-        // toast({ title: "Erro", description: errorMessage, variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     };
     fetchRecibosEStats();
-  }, [debouncedBusca, statusFilter, refreshKey]); // Remova o 'toast' se não for usá-lo aqui
+  }, [debouncedBusca, statusFilter, refreshKey]);
+
+  const recibosPaginados = recibos.slice(
+    (paginaAtual - 1) * itensPorPagina,
+    paginaAtual * itensPorPagina
+  );
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -273,7 +286,7 @@ export default function Recibos() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por número do recibo, pedido ou fornecedor..."
+                  placeholder="Buscar por número do recibo, pedido, unidade ou fornecedor..."
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   className="pl-10"
@@ -353,62 +366,84 @@ export default function Recibos() {
               </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Número</TableHead>
-                  <TableHead>Pedido</TableHead>
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead>Data do Pedido</TableHead>
-                  <TableHead>Data de Entrega</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Itens</TableHead>
-                  <TableHead className="text-center">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recibos.map((recibo) => (
-                  <TableRow key={recibo.id}>
-                    <TableCell className="font-mono">{recibo.numero}</TableCell>
-                    <TableCell className="font-mono">
-                      {recibo.pedido.numero}
-                    </TableCell>
-                    <TableCell>
-                      {recibo.pedido.contrato.fornecedor.nome}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(recibo.pedido.dataPedido).toLocaleDateString(
-                        "pt-BR"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(recibo.status)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-center px-2">
-                        {recibo._count.itens}{" "}
-                        {recibo._count.itens === 1 ? "item" : "itens"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => abrirConfirmacao(recibo.id)}
-                          disabled={!hasPermission("recibos", "update")}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Confirmar
-                        </Button>
-                        <ReciboDetailDialog reciboId={recibo.id} />
-                      </div>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Número</TableHead>
+                    <TableHead>Pedido</TableHead>
+                    <TableHead>Unidade Educacional</TableHead>
+                    <TableHead>Fornecedor</TableHead>
+                    <TableHead>Data do Pedido</TableHead>
+                    <TableHead>Data de Entrega</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Itens</TableHead>
+                    <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {recibosPaginados.map((recibo) => (
+                    <TableRow key={recibo.id}>
+                      <TableCell className="font-mono">{recibo.numero}</TableCell>
+                      <TableCell className="font-mono">
+                        {recibo.pedido.numero}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="font-medium">
+                            {recibo.unidadeEducacional?.nome || "-"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {recibo.pedido.contrato.fornecedor.nome}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(recibo.pedido.dataPedido).toLocaleDateString(
+                          "pt-BR"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(recibo.status)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-center px-2">
+                          {recibo._count.itens}{" "}
+                          {recibo._count.itens === 1 ? "item" : "itens"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => abrirConfirmacao(recibo.id)}
+                            disabled={!hasPermission("recibos", "update")}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Confirmar
+                          </Button>
+                          <ReciboDetailDialog reciboId={recibo.id} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                currentPage={paginaAtual}
+                totalItems={recibos.length}
+                pageSize={itensPorPagina}
+                onPageChange={setPaginaAtual}
+                onPageSizeChange={(size) => {
+                  setItensPorPagina(size);
+                  setPaginaAtual(1);
+                }}
+                itemLabel="recibos"
+              />
+            </>
           )}
         </CardContent>
       </Card>

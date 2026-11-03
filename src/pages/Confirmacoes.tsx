@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom"; // Importar useNavigate
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { ConsolidacaoPedido, Recibo } from "@/types";
 import { ReciboDetailDialog } from "@/components/recibos/ReciboDetailDialog";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface ConfirmacaoDetalhada extends Recibo {
   percentualConformidade: number;
@@ -61,6 +62,11 @@ export default function Confirmacoes() {
   const [statusFilterRecibo, setStatusFilterRecibo] = useState<string>("todos");
   const [activeTab, setActiveTab] = useState("consolidacoes");
 
+  const [paginaConsolidacao, setPaginaConsolidacao] = useState(1);
+  const [porPaginaConsolidacao, setPorPaginaConsolidacao] = useState(10);
+  const [paginaRecibo, setPaginaRecibo] = useState(1);
+  const [porPaginaRecibo, setPorPaginaRecibo] = useState(10);
+
   const [isLoading, setIsLoading] = useState(true);
   const [consolidacoes, setConsolidacoes] = useState<ConsolidacaoPedido[]>([]);
   const [confirmacoes, setConfirmacoes] = useState<ConfirmacaoDetalhada[]>([]);
@@ -79,7 +85,15 @@ export default function Confirmacoes() {
     mediaConformidadePedidos: 0,
   });
 
-  const navigate = useNavigate(); // Inicializa o hook de navegação
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setPaginaConsolidacao(1);
+  }, [buscaConsolidacao, statusFilterConsolidacao]);
+
+  useEffect(() => {
+    setPaginaRecibo(1);
+  }, [buscaRecibo, statusFilterRecibo]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -95,7 +109,6 @@ export default function Confirmacoes() {
         setConsolidacoes(data.consolidacoes);
         setConfirmacoes(data.confirmacoesDetalhadas);
 
-        // --- Cálculo das Estatísticas ---
         const totalRecibos = data.confirmacoesDetalhadas.length;
         const recibosPendentes = data.confirmacoesDetalhadas.filter(
           (c) => c.status === "pendente"
@@ -120,7 +133,6 @@ export default function Confirmacoes() {
               ) / totalRecibos
             : 0;
 
-        // ATUALIZAÇÃO: Cálculo das novas estatísticas de pedidos
         const totalPedidos = data.consolidacoes.length;
         const pedidosCompletos = data.consolidacoes.filter(
           (c) => c.statusConsolidacao === "completo"
@@ -160,31 +172,38 @@ export default function Confirmacoes() {
     fetchData();
   }, []);
 
-  // ATUALIZAÇÃO: Lógica de filtragem para RECIBOS usando seus próprios estados
   const confirmacoesFiltradas = confirmacoes.filter((c) => {
+    const termo = buscaRecibo.toLowerCase();
     const matchBusca =
-      c.numero.toLowerCase().includes(buscaRecibo.toLowerCase()) ||
-      c.pedido.numero.toLowerCase().includes(buscaRecibo.toLowerCase()) ||
-      c.pedido.contrato.fornecedor.nome
-        .toLowerCase()
-        .includes(buscaRecibo.toLowerCase());
+      c.numero.toLowerCase().includes(termo) ||
+      c.pedido.numero.toLowerCase().includes(termo) ||
+      c.unidadeEducacional?.nome?.toLowerCase().includes(termo) ||
+      c.pedido.contrato.fornecedor.nome.toLowerCase().includes(termo);
     const matchStatus =
       statusFilterRecibo === "todos" || c.status === statusFilterRecibo;
     return matchBusca && matchStatus;
   });
 
-  // ATUALIZAÇÃO: Lógica de filtragem para CONSOLIDAÇÕES usando seus próprios estados
   const consolidacoesFiltradas = consolidacoes.filter((c) => {
+    const termo = buscaConsolidacao.toLowerCase();
     const matchBusca =
-      c.pedido.numero.toLowerCase().includes(buscaConsolidacao.toLowerCase()) ||
-      c.pedido.contrato.fornecedor.nome
-        .toLowerCase()
-        .includes(buscaConsolidacao.toLowerCase());
+      c.pedido.numero.toLowerCase().includes(termo) ||
+      c.pedido.contrato.fornecedor.nome.toLowerCase().includes(termo);
     const matchStatus =
       statusFilterConsolidacao === "todos" ||
       c.statusConsolidacao === statusFilterConsolidacao;
     return matchBusca && matchStatus;
   });
+
+  const consolidacoesPaginadas = consolidacoesFiltradas.slice(
+    (paginaConsolidacao - 1) * porPaginaConsolidacao,
+    paginaConsolidacao * porPaginaConsolidacao
+  );
+
+  const confirmacoesPaginadas = confirmacoesFiltradas.slice(
+    (paginaRecibo - 1) * porPaginaRecibo,
+    paginaRecibo * porPaginaRecibo
+  );
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -575,83 +594,95 @@ export default function Confirmacoes() {
                   <Loader2 className="h-12 w-12 mx-auto animate-spin" />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Pedido</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Data Pedido</TableHead>
-                      <TableHead>Status Consolidação</TableHead>
-                      <TableHead>Progresso</TableHead>
-                      <TableHead>Valor Total</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {consolidacoesFiltradas.map((consolidacao) => (
-                      <TableRow key={consolidacao.pedidoId}>
-                        <TableCell>
-                          <div>
-                            <span className="font-mono text-sm">
-                              {consolidacao.pedido.numero}
-                            </span>
-                            <p className="text-xs text-muted-foreground">
-                              {consolidacao.totalUnidades} recibo(s) gerado(s)
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {consolidacao.pedido.contrato.fornecedor.nome}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(
-                            consolidacao.pedido.dataPedido
-                          ).toLocaleDateString("pt-BR")}
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(consolidacao.statusConsolidacao)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>
-                                {consolidacao.unidadesConfirmadas}/
-                                {consolidacao.totalUnidades} recibos
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Progress
-                                value={consolidacao.percentualConfirmacao}
-                                className="w-20 h-2"
-                              />
-                              <span className="text-xs text-muted-foreground">
-                                {consolidacao.percentualConfirmacao.toFixed(0)}%
-                              </span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          R$ {consolidacao.pedido.valorTotal.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {/* Botão para imprimir todos os recibos do pedido */}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              navigate(
-                                `/recibos/imprimir-pedido/${consolidacao.pedidoId}`
-                              )
-                            }
-                          >
-                            <FileText className="h-3 w-3 mr-1" />
-                            Imprimir Recibos
-                          </Button>
-                        </TableCell>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Pedido</TableHead>
+                        <TableHead>Fornecedor</TableHead>
+                        <TableHead>Data Pedido</TableHead>
+                        <TableHead>Status Consolidação</TableHead>
+                        <TableHead>Progresso</TableHead>
+                        <TableHead>Valor Total</TableHead>
+                        <TableHead className="text-center">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {consolidacoesPaginadas.map((consolidacao) => (
+                        <TableRow key={consolidacao.pedidoId}>
+                          <TableCell>
+                            <div>
+                              <span className="font-mono text-sm">
+                                {consolidacao.pedido.numero}
+                              </span>
+                              <p className="text-xs text-muted-foreground">
+                                {consolidacao.totalUnidades} recibo(s) gerado(s)
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {consolidacao.pedido.contrato.fornecedor.nome}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(
+                              consolidacao.pedido.dataPedido
+                            ).toLocaleDateString("pt-BR")}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(consolidacao.statusConsolidacao)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span>
+                                  {consolidacao.unidadesConfirmadas}/
+                                  {consolidacao.totalUnidades} recibos
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Progress
+                                  value={consolidacao.percentualConfirmacao}
+                                  className="w-20 h-2"
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  {consolidacao.percentualConfirmacao.toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            R$ {consolidacao.pedido.valorTotal.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                navigate(
+                                  `/recibos/imprimir-pedido/${consolidacao.pedidoId}`
+                                )
+                              }
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              Imprimir Recibos
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <TablePagination
+                    currentPage={paginaConsolidacao}
+                    totalItems={consolidacoesFiltradas.length}
+                    pageSize={porPaginaConsolidacao}
+                    onPageChange={setPaginaConsolidacao}
+                    onPageSizeChange={(size) => {
+                      setPorPaginaConsolidacao(size);
+                      setPaginaConsolidacao(1);
+                    }}
+                    itemLabel="consolidações"
+                  />
+                </>
               )}
             </CardContent>
           </Card>
@@ -669,7 +700,7 @@ export default function Confirmacoes() {
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Buscar por número do recibo, pedido ou fornecedor..."
+                    placeholder="Buscar por número do recibo, pedido, unidade ou fornecedor..."
                     value={buscaRecibo}
                     onChange={(e) => setBuscaRecibo(e.target.value)}
                     className="pl-10"
@@ -763,103 +794,116 @@ export default function Confirmacoes() {
                   <Loader2 className="h-12 w-12 mx-auto animate-spin" />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Recibo</TableHead>
-                      <TableHead>Unidade</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Data Entrega</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Conformidade</TableHead>
-                      <TableHead>Eficiência</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {confirmacoesFiltradas.map((confirmacao) => (
-                      <TableRow key={confirmacao.id}>
-                        <TableCell>
-                          <div>
-                            <span className="font-mono text-sm">
-                              {confirmacao.numero}
-                            </span>
-                            <p className="text-xs text-muted-foreground">
-                              Pedido: {confirmacao.pedido.numero}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
-                            <span className="text-sm">
-                              {confirmacao.unidadeEducacional.nome}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {confirmacao.pedido.contrato.fornecedor.nome}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(confirmacao.dataEntrega).toLocaleDateString(
-                            "pt-BR"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(confirmacao.status)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            {getConformidadeBadge(
-                              confirmacao.eficienciaEntrega
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Recibo</TableHead>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead>Fornecedor</TableHead>
+                        <TableHead>Data Entrega</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Conformidade</TableHead>
+                        <TableHead>Eficiência</TableHead>
+                        <TableHead className="text-center">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {confirmacoesPaginadas.map((confirmacao) => (
+                        <TableRow key={confirmacao.id}>
+                          <TableCell>
+                            <div>
+                              <span className="font-mono text-sm">
+                                {confirmacao.numero}
+                              </span>
+                              <p className="text-xs text-muted-foreground">
+                                Pedido: {confirmacao.pedido.numero}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Building2 className="h-3 w-3" />
+                              <span className="text-sm">
+                                {confirmacao.unidadeEducacional.nome}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {confirmacao.pedido.contrato.fornecedor.nome}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(confirmacao.dataEntrega).toLocaleDateString(
+                              "pt-BR"
                             )}
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Progress
-                                value={confirmacao.eficienciaEntrega}
-                                className="w-16 h-1"
-                              />
-                              <span>
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(confirmacao.status)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {getConformidadeBadge(
+                                confirmacao.eficienciaEntrega
+                              )}
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Progress
+                                  value={confirmacao.eficienciaEntrega}
+                                  className="w-16 h-1"
+                                />
+                                <span>
+                                  {confirmacao.eficienciaEntrega.toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {confirmacao.eficienciaEntrega >= 100 ? (
+                                <TrendingUp className="h-3 w-3 text-success" />
+                              ) : (
+                                <TrendingDown className="h-3 w-3 text-warning" />
+                              )}
+                              <span className="text-sm">
                                 {confirmacao.eficienciaEntrega.toFixed(0)}%
                               </span>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {confirmacao.eficienciaEntrega >= 100 ? (
-                              <TrendingUp className="h-3 w-3 text-success" />
-                            ) : (
-                              <TrendingDown className="h-3 w-3 text-warning" />
-                            )}
-                            <span className="text-sm">
-                              {confirmacao.eficienciaEntrega.toFixed(0)}%
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {confirmacao.totalRecebido}/
-                            {confirmacao.totalSolicitado}
-                          </p>
-                        </TableCell>
+                            <p className="text-xs text-muted-foreground">
+                              {confirmacao.totalRecebido}/
+                              {confirmacao.totalSolicitado}
+                            </p>
+                          </TableCell>
 
-                        <TableCell className="text-right">
-                          <div className="flex justify-center gap-2">
-                            <ReciboDetailDialog reciboId={confirmacao.id} />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                navigate(`/recibos/imprimir/${confirmacao.id}`)
-                              }
-                            >
-                              <Printer className="h-3 w-3 mr-1" />
-                              Imprimir Recibo
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          <TableCell className="text-right">
+                            <div className="flex justify-center gap-2">
+                              <ReciboDetailDialog reciboId={confirmacao.id} />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  navigate(`/recibos/imprimir/${confirmacao.id}`)
+                                }
+                              >
+                                <Printer className="h-3 w-3 mr-1" />
+                                Imprimir Recibo
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <TablePagination
+                    currentPage={paginaRecibo}
+                    totalItems={confirmacoesFiltradas.length}
+                    pageSize={porPaginaRecibo}
+                    onPageChange={setPaginaRecibo}
+                    onPageSizeChange={(size) => {
+                      setPorPaginaRecibo(size);
+                      setPaginaRecibo(1);
+                    }}
+                    itemLabel="recibos"
+                  />
+                </>
               )}
             </CardContent>
           </Card>

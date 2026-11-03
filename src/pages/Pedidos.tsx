@@ -32,6 +32,7 @@ import {
   ImportPedidoDialog,
   DadosFormularioAlimentado,
 } from "@/components/pedidos/ImportPedidoDialog";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { useToast } from "@/hooks/use-toast";
 // COMENTÁRIO: O tipo 'Pedido' global pode ser removido se não for mais usado aqui.
 
@@ -74,6 +75,8 @@ export default function Pedidos() {
   const [pedidos, setPedidos] = useState<PedidoDaLista[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [itensPorPagina, setItensPorPagina] = useState(10);
   const [dadosImportadosFormulario, setDadosImportadosFormulario] =
     useState<DadosFormularioAlimentado | null>(null);
   const [stats, setStats] = useState({
@@ -155,6 +158,15 @@ export default function Pedidos() {
     };
     fetchPedidosEStats();
   }, [debouncedBusca, statusFilter, refreshKey]);
+
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [debouncedBusca, statusFilter]);
+
+  const pedidosPaginados = pedidos.slice(
+    (paginaAtual - 1) * itensPorPagina,
+    paginaAtual * itensPorPagina
+  );
 
   // COMENTÁRIO: Função de ajuda para renderizar o badge de status.
   const getStatusBadge = (status: string) => {
@@ -355,56 +367,70 @@ export default function Pedidos() {
               </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Número</TableHead>
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead>Data do Pedido</TableHead>
-                  <TableHead>Entrega Prevista</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Valor Total</TableHead>
-                  <TableHead>Itens</TableHead>
-                  <TableHead className="text-center">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pedidos.map((pedido) => (
-                  <TableRow key={pedido.id}>
-                    <TableCell className="font-mono">{pedido.numero}</TableCell>
-                    {/* ALTERAÇÃO: Removido o 'as any'. Agora é seguro aceder diretamente. */}
-                    <TableCell>{pedido.contrato.fornecedor.nome}</TableCell>
-                    <TableCell>
-                      {new Date(pedido.dataPedido).toLocaleDateString("pt-BR")}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(pedido.dataEntregaPrevista).toLocaleDateString(
-                        "pt-BR"
-                      )}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(pedido.status)}</TableCell>
-                    <TableCell className="font-medium">
-                      {pedido.valorTotal.toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })}
-                    </TableCell>
-                    {/* ALTERAÇÃO: Removido o 'as any'. Agora é seguro aceder diretamente. */}
-                    <TableCell>
-                      <Badge variant="outline">
-                        {pedido._count.itens}{" "}
-                        {pedido._count.itens === 1 ? "item" : "itens"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-center gap-2">
-                        <PedidoDetailDialog pedidoId={pedido.id} />
-                      </div>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Número</TableHead>
+                    <TableHead>Fornecedor</TableHead>
+                    <TableHead>Data do Pedido</TableHead>
+                    <TableHead>Entrega Prevista</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Valor Total</TableHead>
+                    <TableHead>Itens</TableHead>
+                    <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {pedidosPaginados.map((pedido) => (
+                    <TableRow key={pedido.id}>
+                      <TableCell className="font-mono">
+                        {pedido.numero}
+                      </TableCell>
+                      {/* ALTERAÇÃO: Removido o 'as any'. Agora é seguro aceder diretamente. */}
+                      <TableCell>{pedido.contrato.fornecedor.nome}</TableCell>
+                      <TableCell>
+                        {new Date(pedido.dataPedido).toLocaleDateString(
+                          "pt-BR"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(
+                          pedido.dataEntregaPrevista
+                        ).toLocaleDateString("pt-BR")}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(pedido.status)}</TableCell>
+                      <TableCell className="font-medium">
+                        {pedido.valorTotal.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </TableCell>
+                      {/* ALTERAÇÃO: Removido o 'as any'. Agora é seguro aceder diretamente. */}
+                      <TableCell>
+                        <Badge variant="outline">
+                          {pedido._count.itens}{" "}
+                          {pedido._count.itens === 1 ? "item" : "itens"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-center gap-2">
+                          <PedidoDetailDialog pedidoId={pedido.id} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                currentPage={paginaAtual}
+                totalItems={pedidos.length}
+                pageSize={itensPorPagina}
+                onPageChange={setPaginaAtual}
+                onPageSizeChange={setItensPorPagina}
+                itemLabel="pedidos"
+              />
+            </>
           )}
         </CardContent>
       </Card>

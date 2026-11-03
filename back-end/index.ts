@@ -4087,12 +4087,29 @@ app.get(
               },
             },
           },
+          {
+            unidadeEducacional: {
+              nome: { contains: q as string, mode: "insensitive" },
+            },
+          },
+          {
+            unidadeEducacional: {
+              codigo: { contains: q as string, mode: "insensitive" },
+            },
+          },
         ];
       }
 
       const recibos = await prisma.recibo.findMany({
         where: whereClause, // A cláusula where agora contém o filtro de unidade, se aplicável.
         include: {
+          unidadeEducacional: {
+            select: {
+              id: true,
+              nome: true,
+              codigo: true,
+            },
+          },
           pedido: {
             select: {
               numero: true,
@@ -4308,7 +4325,7 @@ app.post("/api/recibos", async (req: Request, res: Response) => {
       });
 
       return recibosCriados;
-    });
+    }, { timeout: 120000 });
 
     res
       .status(201)

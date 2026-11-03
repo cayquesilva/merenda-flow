@@ -67,15 +67,15 @@ import {
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from "@/services/api";
-import { useAuth } from "@/contexts/AuthContext"; // 1. Importe o hook de autenticação
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
 
-// Refinando a interface Estoque para refletir os includes do backend
 interface EstoqueDetalhado {
   id: string;
   itemContratoId: string;
@@ -85,7 +85,7 @@ interface EstoqueDetalhado {
   ultimaAtualizacao: string;
   createdAt: string;
   updatedAt: string;
-  tipoEstoque: "creche" | "escola"; // Tipo de estoque
+  tipoEstoque: "creche" | "escola";
   itemContrato: ItemContrato & {
     unidadeMedida: UnidadeMedida;
     contrato: Contrato & {
@@ -95,12 +95,10 @@ interface EstoqueDetalhado {
   unidadeEducacional: UnidadeEducacional;
 }
 
-// NOVO: Interface para as unidades com tipo de estoque
 interface UnidadeComTipoEstoque extends UnidadeEducacional {
   tipoEstoque: "creche" | "escola";
 }
 
-// Refinando a interface MovimentacaoEstoque para refletir os includes do backend
 interface MovimentacaoEstoqueDetalhada {
   id: string;
   estoqueId: string;
@@ -143,15 +141,15 @@ function useDebounce(value: string, delay: number) {
 interface MovimentacaoDialogProps {
   estoque: EstoqueDetalhado | null;
   onSuccess: () => void;
-  unidades: UnidadeEducacional[]; // Passa a lista de unidades para o dialog
-  disabled?: boolean; // 2. Adicione a propriedade 'disabled'
+  unidades: UnidadeEducacional[];
+  disabled?: boolean;
 }
 
 function MovimentacaoDialog({
   estoque,
   onSuccess,
   unidades,
-  disabled = false, // 2. Adicione a propriedade 'disabled'
+  disabled = false,
 }: MovimentacaoDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -164,8 +162,8 @@ function MovimentacaoDialog({
     quantidade: "",
     motivo: "",
     responsavel: "",
-    unidadeDestinoId: "", // NOVO: Unidade de destino
-    fotoDescarte: null as string | null, // NOVO: Foto para descarte
+    unidadeDestinoId: "",
+    fotoDescarte: null as string | null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -201,7 +199,6 @@ function MovimentacaoDialog({
       return;
     }
 
-    // Validação específica para remanejamento
     if (formData.tipo === "remanejamento" && !formData.unidadeDestinoId) {
       toast({
         title: "Erro",
@@ -258,7 +255,6 @@ function MovimentacaoDialog({
           formData.tipo === "descarte" ? formData.fotoDescarte : null,
       };
 
-      // ALTERAÇÃO: Chamada à API agora usa a apiService
       await apiService.createMovimentacaoEstoque(payload);
 
       toast({
@@ -315,13 +311,11 @@ function MovimentacaoDialog({
     </Button>
   );
 
-  // 5. Se estiver desabilitado, envolva o botão com um Tooltip
   if (disabled) {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            {/* É necessário um elemento extra para o Tooltip funcionar em botões desabilitados */}
             <span tabIndex={0} className="cursor-not-allowed">
               {BotaoMovimentar}
             </span>
@@ -452,7 +446,6 @@ function MovimentacaoDialog({
               />
             </div>
           )}
-          {/* NOVO: Campo de anexo de foto para descarte */}
           {formData.tipo === "descarte" && (
             <div>
               <Label htmlFor="fotoDescarte">
@@ -509,7 +502,6 @@ function MovimentacaoDialog({
   );
 }
 
-// NOVO COMPONENTE: Dialog para exibir o QR Code
 interface QRCodeDialogProps {
   estoqueId: string;
   itemName: string;
@@ -631,6 +623,11 @@ export default function Estoque() {
   const [tipoEstoqueSelecionado, setTipoEstoqueSelecionado] = useState("todos");
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const [paginaEstoque, setPaginaEstoque] = useState(1);
+  const [porPaginaEstoque, setPorPaginaEstoque] = useState(10);
+  const [paginaMov, setPaginaMov] = useState(1);
+  const [porPaginaMov, setPorPaginaMov] = useState(10);
+
   const [estoque, setEstoque] = useState<EstoqueDetalhado[]>([]);
   const [movimentacoes, setMovimentacoes] = useState<
     MovimentacaoEstoqueDetalhada[]
@@ -651,8 +648,8 @@ export default function Estoque() {
     valorTotalEstoque: 0,
   });
 
-  const { user } = useAuth(); // 2. Obtenha os dados do usuário logado
-  const { hasPermission } = useAuth(); // 2. Obtenha a função de permissão do contexto
+  const { user } = useAuth();
+  const { hasPermission } = useAuth();
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -661,15 +658,28 @@ export default function Estoque() {
   const [selectedQRCodeEstoque, setSelectedQRCodeEstoque] =
     useState<EstoqueDetalhado | null>(null);
 
+  useEffect(() => {
+    setPaginaEstoque(1);
+    setPaginaMov(1);
+  }, [debouncedBusca, unidadeSelecionada, tipoEstoqueSelecionado]);
+
+  const estoquePaginado = estoque.slice(
+    (paginaEstoque - 1) * porPaginaEstoque,
+    paginaEstoque * porPaginaEstoque
+  );
+
+  const movimentacoesPaginadas = movimentacoes.slice(
+    (paginaMov - 1) * porPaginaMov,
+    paginaMov * porPaginaMov
+  );
+
   const unidadesParaFiltro = useMemo(() => {
-    // Verifica se o usuário tem uma categoria com permissão restrita a unidades
     const isRestricted =
       user &&
       ["comissao_recebimento", "nutricionistas_externas"].includes(
         user.categoria
       );
 
-    // Se for restrito e tiver unidades vinculadas, use-as
     if (
       isRestricted &&
       user.unidadesEducacionais &&
@@ -678,7 +688,6 @@ export default function Estoque() {
       return user.unidadesEducacionais;
     }
 
-    // Senão, use a lista completa de todas as unidades
     return todasAsUnidades;
   }, [user, todasAsUnidades]);
 
@@ -694,8 +703,6 @@ export default function Estoque() {
     fetchUnidadesComTipo();
   }, []);
 
-  // Este useEffect agora busca TODAS as unidades ativas,
-  // pois um admin pode precisar ver todas para fazer remanejamentos.
   useEffect(() => {
     const fetchUnidades = async () => {
       try {
@@ -719,7 +726,6 @@ export default function Estoque() {
         if (tipoEstoqueSelecionado !== "todos")
           params.append("tipoEstoque", tipoEstoqueSelecionado);
 
-        // Chamadas em paralelo usando a apiService
         const [estoqueData, movimentacoesData] = await Promise.all([
           apiService.getEstoqueConsolidado(params),
           apiService.getEstoqueMovimentacoes(params),
@@ -947,7 +953,6 @@ export default function Estoque() {
                 </SelectContent>
               </Select>
             </div>
-            {/* NOVO: Filtro por tipo de estoque */}
             <div className="w-full md:w-40">
               <Select
                 value={tipoEstoqueSelecionado}
@@ -1005,95 +1010,108 @@ export default function Estoque() {
                   </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Unidade</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Tipo Estoque</TableHead>
-                      <TableHead>Quantidade Atual</TableHead>
-                      <TableHead>Quantidade Mínima</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Última Atualização</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {estoque.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">
-                              {item.itemContrato.nome}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.itemContrato.contrato.numero}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
-                            <span className="text-sm">
-                              {item.unidadeEducacional.nome}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {item.itemContrato.contrato.fornecedor.nome}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              item.tipoEstoque === "creche"
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {item.tipoEstoque === "creche"
-                              ? "Creche"
-                              : "Escola"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-medium">
-                            {item.quantidadeAtual}{" "}
-                            {item.itemContrato.unidadeMedida.sigla}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {item.quantidadeMinima}{" "}
-                          {item.itemContrato.unidadeMedida.sigla}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(item)}</TableCell>
-                        <TableCell>
-                          {new Date(item.ultimaAtualizacao).toLocaleDateString(
-                            "pt-BR"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center space-x-2 justify-end">
-                            <MovimentacaoDialog
-                              estoque={item}
-                              onSuccess={handleSuccess}
-                              unidades={todasAsUnidades}
-                              disabled={!hasPermission("estoque", "update")}
-                            />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleGenerateQRCode(item)}
-                            >
-                              <QrCode className="h-3 w-3" />
-                              Gerar QR
-                            </Button>
-                          </div>
-                        </TableCell>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead>Fornecedor</TableHead>
+                        <TableHead>Tipo Estoque</TableHead>
+                        <TableHead>Quantidade Atual</TableHead>
+                        <TableHead>Quantidade Mínima</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Última Atualização</TableHead>
+                        <TableHead className="text-center">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {estoquePaginado.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">
+                                {item.itemContrato.nome}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.itemContrato.contrato.numero}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Building2 className="h-3 w-3" />
+                              <span className="text-sm">
+                                {item.unidadeEducacional.nome}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {item.itemContrato.contrato.fornecedor.nome}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                item.tipoEstoque === "creche"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {item.tipoEstoque === "creche"
+                                ? "Creche"
+                                : "Escola"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium">
+                              {item.quantidadeAtual}{" "}
+                              {item.itemContrato.unidadeMedida.sigla}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {item.quantidadeMinima}{" "}
+                            {item.itemContrato.unidadeMedida.sigla}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(item)}</TableCell>
+                          <TableCell>
+                            {new Date(item.ultimaAtualizacao).toLocaleDateString(
+                              "pt-BR"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center space-x-2 justify-end">
+                              <MovimentacaoDialog
+                                estoque={item}
+                                onSuccess={handleSuccess}
+                                unidades={todasAsUnidades}
+                                disabled={!hasPermission("estoque", "update")}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleGenerateQRCode(item)}
+                              >
+                                <QrCode className="h-3 w-3" />
+                                Gerar QR
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <TablePagination
+                    currentPage={paginaEstoque}
+                    totalItems={estoque.length}
+                    pageSize={porPaginaEstoque}
+                    onPageChange={setPaginaEstoque}
+                    onPageSizeChange={(size) => {
+                      setPorPaginaEstoque(size);
+                      setPaginaEstoque(1);
+                    }}
+                    itemLabel="itens em estoque"
+                  />
+                </>
               )}
             </CardContent>
           </Card>
@@ -1123,93 +1141,106 @@ export default function Estoque() {
                   </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Unidade</TableHead>
-                      <TableHead>Quantidade</TableHead>
-                      <TableHead>Saldo Anterior</TableHead>
-                      <TableHead>Saldo Novo</TableHead>
-                      <TableHead>Responsável</TableHead>
-                      <TableHead>Motivo</TableHead>
-                      <TableHead>Foto</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {movimentacoes.map((mov) => (
-                      <TableRow key={mov.id}>
-                        <TableCell>
-                          {new Date(mov.dataMovimentacao).toLocaleDateString(
-                            "pt-BR"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {getTipoMovimentacaoBadge(
-                            mov.tipo,
-                            mov.quantidadeAnterior,
-                            mov.quantidadeNova
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">
-                              {mov.estoque.itemContrato.nome}
-                            </p>
-                            {mov.recibo && (
-                              <p className="text-xs text-muted-foreground">
-                                Recibo: {mov.recibo.numero}
-                              </p>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead>Quantidade</TableHead>
+                        <TableHead>Saldo Anterior</TableHead>
+                        <TableHead>Saldo Novo</TableHead>
+                        <TableHead>Responsável</TableHead>
+                        <TableHead>Motivo</TableHead>
+                        <TableHead>Foto</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {movimentacoesPaginadas.map((mov) => (
+                        <TableRow key={mov.id}>
+                          <TableCell>
+                            {new Date(mov.dataMovimentacao).toLocaleDateString(
+                              "pt-BR"
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {mov.estoque.unidadeEducacional.nome}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={
-                              mov.tipo === "saida" ||
+                          </TableCell>
+                          <TableCell>
+                            {getTipoMovimentacaoBadge(
+                              mov.tipo,
+                              mov.quantidadeAnterior,
+                              mov.quantidadeNova
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">
+                                {mov.estoque.itemContrato.nome}
+                              </p>
+                              {mov.recibo && (
+                                <p className="text-xs text-muted-foreground">
+                                  Recibo: {mov.recibo.numero}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {mov.estoque.unidadeEducacional.nome}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={
+                                mov.tipo === "saida" ||
+                                (mov.tipo === "remanejamento" &&
+                                  mov.quantidadeAnterior > mov.quantidadeNova) ||
+                                mov.tipo === "descarte"
+                                  ? "text-destructive"
+                                  : "text-success"
+                              }
+                            >
+                              {mov.tipo === "saida" ||
                               (mov.tipo === "remanejamento" &&
                                 mov.quantidadeAnterior > mov.quantidadeNova) ||
                               mov.tipo === "descarte"
-                                ? "text-destructive"
-                                : "text-success"
-                            }
-                          >
-                            {mov.tipo === "saida" ||
-                            (mov.tipo === "remanejamento" &&
-                              mov.quantidadeAnterior > mov.quantidadeNova) ||
-                            mov.tipo === "descarte"
-                              ? "-"
-                              : mov.tipo === "ajuste"
-                              ? ""
-                              : "+"}
-                            {mov.quantidade}{" "}
+                                ? "-"
+                                : mov.tipo === "ajuste"
+                                ? ""
+                                : "+"}
+                              {mov.quantidade}{" "}
+                              {mov.estoque.itemContrato.unidadeMedida.sigla}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {mov.quantidadeAnterior}{" "}
                             {mov.estoque.itemContrato.unidadeMedida.sigla}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {mov.quantidadeAnterior}{" "}
-                          {mov.estoque.itemContrato.unidadeMedida.sigla}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {mov.quantidadeNova}{" "}
-                          {mov.estoque.itemContrato.unidadeMedida.sigla}
-                        </TableCell>
-                        <TableCell>{mov.responsavel}</TableCell>
-                        <TableCell>
-                          <span className="text-sm">{mov.motivo}</span>
-                        </TableCell>
-                        <TableCell>
-                          <FotoDescarte mov={mov} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {mov.quantidadeNova}{" "}
+                            {mov.estoque.itemContrato.unidadeMedida.sigla}
+                          </TableCell>
+                          <TableCell>{mov.responsavel}</TableCell>
+                          <TableCell>
+                            <span className="text-sm">{mov.motivo}</span>
+                          </TableCell>
+                          <TableCell>
+                            <FotoDescarte mov={mov} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <TablePagination
+                    currentPage={paginaMov}
+                    totalItems={movimentacoes.length}
+                    pageSize={porPaginaMov}
+                    onPageChange={setPaginaMov}
+                    onPageSizeChange={(size) => {
+                      setPorPaginaMov(size);
+                      setPaginaMov(1);
+                    }}
+                    itemLabel="movimentações"
+                  />
+                </>
               )}
             </CardContent>
           </Card>

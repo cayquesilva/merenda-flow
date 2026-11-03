@@ -9,10 +9,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Recibo } from "@/types"; // Usando o tipo Recibo global
+import { Recibo } from "@/types";
 import { Loader2, Edit, CheckCircle, Package } from "lucide-react";
 import { Input } from "../ui/input";
 import { useNavigate } from "react-router-dom";
@@ -36,8 +44,6 @@ export function AjustarRecebimentoDialog({
   const [responsavel, setResponsavel] = useState("");
   const navigate = useNavigate();
 
-
-  // ATUALIZAÇÃO: Reset dos campos quando o modal abre
   useEffect(() => {
     if (open) {
       setResponsavel("");
@@ -45,7 +51,6 @@ export function AjustarRecebimentoDialog({
     }
   }, [open]);
 
-  // Filtra apenas os itens que precisam de complemento para exibição
   const itensNaoConformes = recibo.itens.filter((item) => !item.conforme);
 
   const handleGerarComplemento = async () => {
@@ -60,9 +65,6 @@ export function AjustarRecebimentoDialog({
 
     setIsLoading(true);
     try {
-      // ATUALIZAÇÃO: O payload voltou a ser simples.
-      // Ele envia os dados de todos os itens do recibo original.
-      // O backend irá calcular a diferença exata que faltou.
       const payload = {
         responsavel,
         observacoes,
@@ -107,8 +109,8 @@ export function AjustarRecebimentoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5" />
             Gerar Recibo Complementar para #{recibo.numero}
@@ -118,37 +120,46 @@ export function AjustarRecebimentoDialog({
             pendentes. Confirme os detalhes abaixo.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <Card>
-            <CardHeader>
+
+        <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden py-2">
+          <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CardHeader className="py-2.5 px-4 shrink-0 border-b">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Package className="h-4 w-4" />
-                Itens a serem complementados
+                Itens a serem complementados ({itensNaoConformes.length})
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {/* ATUALIZAÇÃO: A UI agora é uma lista simples, não um formulário. */}
-              <ul className="space-y-2 text-sm">
-                {itensNaoConformes.map((item) => {
-                  const diferenca =
-                    item.quantidadeSolicitada - (item.quantidadeRecebida ?? 0);
-                  return (
-                    <li
-                      key={item.id}
-                      className="flex justify-between p-2 rounded-md bg-muted/50"
-                    >
-                      <span>{item.itemPedido.itemContrato.nome}</span>
-                      <span className="font-mono font-semibold text-destructive">
-                        Faltam: {diferenca}{" "}
-                        {item.itemPedido.itemContrato.unidadeMedida.sigla}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+            <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-card z-10">
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-right">Faltam</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {itensNaoConformes.map((item) => {
+                    const diferenca =
+                      item.quantidadeSolicitada -
+                      (item.quantidadeRecebida ?? 0);
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">
+                          {item.itemPedido.itemContrato.nome}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-destructive">
+                          {diferenca}{" "}
+                          {item.itemPedido.itemContrato.unidadeMedida.sigla}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
-          <div className="grid gap-4">
+
+          <div className="grid gap-3 shrink-0">
             <div>
               <Label htmlFor="responsavel-ajuste">
                 Responsável pelo Ajuste *
@@ -169,11 +180,13 @@ export function AjustarRecebimentoDialog({
                 placeholder="Adicione observações para o novo recibo..."
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
+                rows={2}
               />
             </div>
           </div>
         </div>
-        <DialogFooter>
+
+        <DialogFooter className="shrink-0 pt-3 border-t">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

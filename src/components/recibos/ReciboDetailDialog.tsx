@@ -11,6 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Eye,
   Package,
   Building2,
@@ -37,7 +45,7 @@ import {
 } from "@/types";
 import React, { useEffect, useState, useCallback } from "react";
 import { AjustarRecebimentoDialog } from "@/components/recibos/AjustarRecebimentoDialog";
-import { useAuth } from "@/contexts/AuthContext"; // 1. Importe o hook useAuth
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Tooltip,
   TooltipContent,
@@ -45,7 +53,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// ATUALIZAÇÃO: A interface agora espera o campo `familiaRecibos` da API.
 interface ReciboDetalhado extends BaseRecibo {
   unidadeEducacional: UnidadeEducacional;
   pedido: Pedido & {
@@ -61,14 +68,13 @@ interface ReciboDetalhado extends BaseRecibo {
       unidadeEducacional: UnidadeEducacional;
     };
   })[];
-  familiaRecibos?: BaseRecibo[]; // Novo campo vindo do backend
+  familiaRecibos?: BaseRecibo[];
 }
 
 interface ReciboDetailDialogProps {
   reciboId: string;
 }
 
-// ATUALIZAÇÃO: Um novo componente de nó de árvore mais inteligente
 interface ReciboNodeProps {
   recibo: BaseRecibo & {
     itens: (ItemRecibo & {
@@ -80,8 +86,8 @@ interface ReciboNodeProps {
   familiaCompleta: BaseRecibo[];
   onReciboClick: (reciboId: string) => void;
   getStatusBadge: (status: string) => React.ReactNode;
-  currentReciboId: string; // ID do recibo que está sendo visualizado
-  level: number; // Nível de profundidade para indentação
+  currentReciboId: string;
+  level: number;
 }
 
 const ReciboTreeNode = ({
@@ -98,9 +104,9 @@ const ReciboTreeNode = ({
   const isCurrent = recibo.id === currentReciboId;
 
   return (
-    <div style={{ marginLeft: `${level * 20}px` }} className="mt-2">
+    <div style={{ marginLeft: `${level * 20}px` }} className="mt-1.5">
       <div
-        className={`flex justify-between items-center text-sm p-2 rounded-md transition-colors ${
+        className={`flex justify-between items-center text-xs p-1.5 rounded-md transition-colors ${
           isCurrent
             ? "bg-primary/10 ring-1 ring-primary/50"
             : "hover:bg-muted/50"
@@ -112,7 +118,9 @@ const ReciboTreeNode = ({
           </span>
           <Button
             variant="link"
-            className={`h-auto p-0 font-mono ${isCurrent ? "font-bold" : ""}`}
+            className={`h-auto p-0 font-mono text-xs ${
+              isCurrent ? "font-bold" : ""
+            }`}
             onClick={() => onReciboClick(recibo.id)}
           >
             #{recibo.numero}
@@ -140,7 +148,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
   const [recibo, setRecibo] = useState<ReciboDetalhado | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAjusteModalOpen, setIsAjusteModalOpen] = useState(false);
-  const { user, hasPermission } = useAuth(); // 2. Obtenha os dados do usuário logado
+  const { user, hasPermission } = useAuth();
 
   const fetchReciboDetails = useCallback(async (idToFetch: string) => {
     if (!idToFetch) return;
@@ -163,41 +171,10 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
 
   useEffect(() => {
     if (open) {
-      fetchReciboDetails(reciboId); // Carrega o recibo inicial quando o dialog abre
-    }
-  }, [open, reciboId, fetchReciboDetails]);
-
-  useEffect(() => {
-    if (open) {
       fetchReciboDetails(reciboId);
     }
   }, [open, reciboId, fetchReciboDetails]);
 
-  // ATUALIZAÇÃO: Funções para calcular quantidades totais usando a `familiaRecibos`.
-  const getQuantidadeTotalSolicitada = (itemAtual: ItemRecibo) => {
-    const itemPedidoId = itemAtual.itemPedidoId;
-    const reciboOriginal = recibo?.familiaRecibos?.[0];
-    const itemOriginal = reciboOriginal?.itens?.find(
-      (i) => i.itemPedidoId === itemPedidoId
-    );
-    return itemOriginal?.quantidadeSolicitada ?? itemAtual.quantidadeSolicitada;
-  };
-
-  const getQuantidadeTotalRecebida = (itemAtual: ItemRecibo) => {
-    const itemPedidoId = itemAtual.itemPedidoId;
-    return (
-      recibo?.familiaRecibos?.reduce((total, reciboIrmao) => {
-        const itemCorrelato = reciboIrmao.itens?.find(
-          (i) => i.itemPedidoId === itemPedidoId
-        );
-        return total + (itemCorrelato?.quantidadeRecebida ?? 0);
-      }, 0) ??
-      itemAtual.quantidadeRecebida ??
-      0
-    );
-  };
-
-  // ATUALIZAÇÃO: Cores e labels dos status melhoradas.
   const getStatusBadge = (status: string) => {
     const variants = {
       pendente: "warning",
@@ -220,7 +197,6 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     );
   };
 
-  // Funções de ação mantidas.
   const abrirQRCode = () => {
     if (recibo?.qrcode) {
       const qrWindow = window.open();
@@ -242,7 +218,6 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
     if (recibo) fetchReciboDetails(recibo.id);
   };
 
-  // Função para construir a cadeia de ancestrais ("pais dos pais")
   const buildAncestorChain = (
     currentRecibo: BaseRecibo,
     familia: BaseRecibo[]
@@ -278,8 +253,8 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
             Ver
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Detalhes do Recibo #{recibo?.numero}
@@ -289,28 +264,28 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
               entrega.
             </DialogDescription>
           </DialogHeader>
+
           {isLoading ? (
             <div className="flex justify-center p-20">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : recibo ? (
-            <div className="space-y-6">
-              {/* ATUALIZAÇÃO: Trilha de Ancestrais (Breadcrumb) */}
+            <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden py-1">
               {ancentrais.length > 0 && (
-                <Card className="bg-muted/50">
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-1 text-sm flex-wrap">
+                <Card className="bg-muted/50 shrink-0">
+                  <CardContent className="p-2.5">
+                    <div className="flex items-center gap-1 text-xs flex-wrap">
                       <span className="text-muted-foreground">Caminho:</span>
                       {ancentrais.map((ancestral) => (
                         <React.Fragment key={ancestral.id}>
                           <Button
                             variant="link"
-                            className="h-auto p-0"
+                            className="h-auto p-0 text-xs"
                             onClick={() => fetchReciboDetails(ancestral.id)}
                           >
                             Recibo #{ancestral.numero}
                           </Button>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                         </React.Fragment>
                       ))}
                       <span className="font-semibold text-primary">
@@ -321,18 +296,20 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                 </Card>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <FileText className="h-4 w-4" />
+                  <CardHeader className="py-2.5 px-3.5">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <FileText className="h-3.5 w-3.5" />
                       Informações do Recibo
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="py-2 px-3.5 space-y-1.5 text-xs">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Número:</span>
-                      <span className="font-mono">{recibo.numero}</span>
+                      <span className="font-mono font-medium">
+                        {recibo.numero}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Pedido:</span>
@@ -357,28 +334,42 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                         <span className="text-muted-foreground">
                           Resp. Recebimento:
                         </span>
-                        <span>{recibo.responsavelRecebimento}</span>
+                        <span className="truncate max-w-[130px]">
+                          {recibo.responsavelRecebimento}
+                        </span>
                       </div>
                     )}
                   </CardContent>
                 </Card>
+
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <User className="h-4 w-4" />
-                      Fornecedor
+                  <CardHeader className="py-2.5 px-3.5">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <User className="h-3.5 w-3.5" />
+                      Fornecedor e Unidade
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Nome:</span>
-                      <span className="font-medium text-right">
+                  <CardContent className="py-2 px-3.5 space-y-1.5 text-xs">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground shrink-0">
+                        Unidade:
+                      </span>
+                      <span className="font-medium text-right truncate">
+                        {recibo.unidadeEducacional?.nome ||
+                          recibo.itens[0]?.itemPedido?.unidadeEducacional?.nome}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground shrink-0">
+                        Fornecedor:
+                      </span>
+                      <span className="font-medium text-right truncate">
                         {recibo.pedido.contrato.fornecedor.nome}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">CNPJ:</span>
-                      <span className="font-mono text-sm">
+                      <span className="font-mono">
                         {recibo.pedido.contrato.fornecedor.cnpj}
                       </span>
                     </div>
@@ -387,7 +378,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                         <span className="text-muted-foreground">Telefone:</span>
                         <div className="flex items-center gap-1">
                           <Phone className="h-3 w-3" />
-                          <span className="text-sm">
+                          <span>
                             {recibo.pedido.contrato.fornecedor.telefone}
                           </span>
                         </div>
@@ -395,175 +386,74 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                     )}
                   </CardContent>
                 </Card>
-              </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <QrCode className="h-4 w-4" />
-                    QR Code para Confirmação
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                    <div className="text-center">
-                      <div className="inline-block p-2 bg-white rounded-lg border">
-                        <img
-                          src={recibo.qrcode}
-                          alt="QR Code"
-                          className="w-32 h-32 mx-auto"
-                        />
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Escaneie para confirmar recebimento
-                      </p>
+                <Card>
+                  <CardHeader className="py-2.5 px-3.5">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <QrCode className="h-3.5 w-3.5" />
+                      QR Code de Confirmação
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2 px-3.5 flex items-center gap-3">
+                    <div className="p-1.5 bg-white rounded border shrink-0">
+                      <img
+                        src={recibo.qrcode}
+                        alt="QR Code"
+                        className="w-16 h-16"
+                      />
                     </div>
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="font-medium mb-2">Como usar:</h4>
-                        <ol className="text-sm text-muted-foreground space-y-1">
-                          <li>1. No momento da entrega, escaneie o QR Code</li>
-                          <li>2. Ou clique no botão "Abrir Confirmação"</li>
-                          <li>3. Confirme os itens recebidos</li>
-                          <li>4. Indique não conformidades se houver</li>
-                        </ol>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={abrirQRCode}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <QrCode className="h-3 w-3 mr-1" />
-                          Ver QR Code
-                        </Button>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span
-                                className={
-                                  !hasPermission("recibos", "update")
-                                    ? "cursor-not-allowed"
-                                    : ""
-                                }
+                    <div className="flex flex-col gap-1.5 flex-1">
+                      <Button
+                        onClick={abrirQRCode}
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs w-full"
+                      >
+                        <QrCode className="h-3 w-3 mr-1" />
+                        Ver QR Code
+                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={
+                                !hasPermission("recibos", "update")
+                                  ? "cursor-not-allowed w-full"
+                                  : "w-full"
+                              }
+                            >
+                              <Button
+                                onClick={abrirConfirmacao}
+                                size="sm"
+                                className="h-7 text-xs w-full"
+                                disabled={!hasPermission("recibos", "update")}
                               >
-                                <Button
-                                  onClick={abrirConfirmacao}
-                                  size="sm"
-                                  disabled={!hasPermission("recibos", "update")}
-                                >
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  Abrir Confirmação
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Você não tem permissão para confirmar o
-                              recebimento.
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
+                                <Calendar className="h-3 w-3 mr-1" />
+                                Confirmar
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Você não tem permissão para confirmar o recebimento.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    Itens para Entrega
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recibo.itens.map((item) => {
-                      const totalSolicitado =
-                        getQuantidadeTotalSolicitada(item);
-                      const totalRecebido = getQuantidadeTotalRecebida(item);
-                      const sigla =
-                        item.itemPedido.itemContrato.unidadeMedida.sigla;
-                      return (
-                        <Card key={item.id} className="p-4">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="md:col-span-2">
-                              <h4 className="font-medium">
-                                {item.itemPedido.itemContrato.nome}
-                              </h4>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Building2 className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">
-                                  {item.itemPedido.unidadeEducacional.nome}
-                                </span>
-                              </div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Código:{" "}
-                                {item.itemPedido.unidadeEducacional.codigo}
-                              </div>
-                            </div>
-                            <div className="space-y-1 text-sm md:text-right">
-                              <p>
-                                <span className="text-muted-foreground">
-                                  Solicitado:{" "}
-                                </span>
-                                {item.quantidadeSolicitada}{" "}
-                                {
-                                  item.itemPedido.itemContrato.unidadeMedida
-                                    .sigla
-                                }
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">
-                                  Recebido:{" "}
-                                </span>
-                                {item.quantidadeRecebida ?? 0}{" "}
-                                {
-                                  item.itemPedido.itemContrato.unidadeMedida
-                                    .sigla
-                                }
-                              </p>
-                            </div>
-
-                            <div className="md:col-span-3 border-t pt-2 mt-2">
-                              <div className="text-xs text-center text-muted-foreground flex justify-between">
-                                <div>
-                                  Resumo deste recibo (#{recibo.numero}):
-                                  <span className="font-bold">
-                                    {" "}
-                                    {item.quantidadeSolicitada} solicitados
-                                  </span>
-                                  ,
-                                  <span className="font-bold">
-                                    {" "}
-                                    {item.quantidadeRecebida ?? 0} recebidos.
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  {"Status: "}
-                                  {getStatusBadge(recibo.status)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
 
               {reciboRaiz &&
                 recibo.familiaRecibos &&
                 recibo.familiaRecibos.length > 1 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Link2 className="h-4 w-4" />
+                  <Card className="shrink-0 max-h-28 overflow-y-auto">
+                    <CardHeader className="py-2 px-3.5">
+                      <CardTitle className="flex items-center gap-2 text-xs">
+                        <Link2 className="h-3.5 w-3.5" />
                         Árvore de Recibos
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="py-1.5 px-3.5">
                       <ReciboTreeNode
                         recibo={reciboRaiz}
                         familiaCompleta={recibo.familiaRecibos}
@@ -575,13 +465,67 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
                     </CardContent>
                   </Card>
                 )}
+
+              <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <CardHeader className="py-2.5 px-4 shrink-0 border-b">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Package className="h-4 w-4" />
+                    Itens para Entrega ({recibo.itens.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-card z-10">
+                      <TableRow>
+                        <TableHead>Produto</TableHead>
+                        <TableHead>Unidade Educacional</TableHead>
+                        <TableHead className="text-right">Solicitado</TableHead>
+                        <TableHead className="text-right">Recebido</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recibo.itens.map((item) => {
+                        const sigla =
+                          item.itemPedido.itemContrato.unidadeMedida.sigla;
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">
+                              {item.itemPedido.itemContrato.nome}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                                <Building2 className="h-3 w-3 shrink-0" />
+                                <span>
+                                  {item.itemPedido.unidadeEducacional.nome} (
+                                  {item.itemPedido.unidadeEducacional.codigo})
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {item.quantidadeSolicitada} {sigla}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-medium">
+                              {item.quantidadeRecebida ?? 0} {sigla}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {getStatusBadge(recibo.status)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             </div>
           ) : (
             <p className="text-center py-10">
               Não foi possível carregar os dados do recibo.
             </p>
           )}
-          <DialogFooter>
+
+          <DialogFooter className="shrink-0 pt-3 border-t">
             <Button
               onClick={handlePrintRecibo}
               variant="outline"
@@ -611,6 +555,7 @@ export function ReciboDetailDialog({ reciboId }: ReciboDetailDialogProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {recibo && (
         <AjustarRecebimentoDialog
           recibo={recibo}

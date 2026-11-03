@@ -8,9 +8,8 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Printer, FileText, AlertTriangle } from "lucide-react";
+import { Loader2, Printer, FileText, AlertTriangle, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-// Importar todas as interfaces base do seu arquivo de tipos
 import {
   Recibo as BaseRecibo,
   ItemRecibo,
@@ -30,7 +29,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// Interfaces detalhadas para corresponder ao retorno da API /api/recibos/imprimir/:id
 interface ItemContratoImpressao extends ItemContrato {
   unidadeMedida: UnidadeMedida;
 }
@@ -45,7 +43,6 @@ interface ItemReciboImpressaoDetalhado extends ItemRecibo {
 }
 
 interface PedidoImpressaoDetalhado extends Contrato {
-  // Pedido com contrato completo
   contrato: Contrato & {
     fornecedor: Fornecedor;
   };
@@ -56,19 +53,19 @@ interface ReciboParaImpressao
     BaseRecibo,
     "pedido" | "unidadeEducacional" | "itens" | "reciboOriginal"
   > {
-  pedido: PedidoImpressaoDetalhado; // Pedido com detalhes do contrato e fornecedor
-  unidadeEducacional: UnidadeEducacional; // Unidade Educacional completa
-  itens: ItemReciboImpressaoDetalhado[]; // Itens do recibo detalhados
+  pedido: PedidoImpressaoDetalhado;
+  unidadeEducacional: UnidadeEducacional;
+  itens: ItemReciboImpressaoDetalhado[];
   assinaturaDigital?: string | null;
   fotoReciboAssinado?: string | null;
-  reciboOriginal?: { id: string; numero: string } | null; // CORREÇÃO AQUI
+  reciboOriginal?: { id: string; numero: string } | null;
 }
 
 export default function ImprimirRecibo() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const printRef = useRef<HTMLDivElement>(null); // Ref para a área de impressão
+  const printRef = useRef<HTMLDivElement>(null);
 
   const [recibo, setRecibo] = useState<ReciboParaImpressao | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,7 +110,6 @@ export default function ImprimirRecibo() {
   const handlePrint = () => {
     if (printRef.current) {
       const printContents = printRef.current.innerHTML;
-      const originalContents = document.body.innerHTML;
 
       const printWindow = window.open("", "_blank");
       if (printWindow) {
@@ -124,8 +120,13 @@ export default function ImprimirRecibo() {
               <title>Imprimir Recibo ${recibo?.numero}</title>
               <script src="https://cdn.tailwindcss.com"></script>
               <style>
-                /* Estilos gerais para impressão */
-                body { font-family: sans-serif; margin: 0; padding: 16px; }
+                body {
+                  font-family: sans-serif;
+                  margin: 0;
+                  padding: 16px;
+                  background-color: #ffffff !important;
+                  color: #000000 !important;
+                }
                 .print\\:text-black { color: black !important; }
                 .print\\:shadow-none { box-shadow: none !important; }
                 .print\\:border-0 { border-width: 0 !important; }
@@ -144,14 +145,13 @@ export default function ImprimirRecibo() {
                 .print\\:mt-4 { margin-top: 16px !important; }
                 .break-inside-avoid-page { break-inside: avoid; }
                 .no-print { display: none !important; }
-                table, th, td { border-collapse: collapse; border: 1px solid #ccc; }
+                table, th, td { border-collapse: collapse; border: 1px solid #ccc; color: #000; background: #fff; }
+                th { background-color: #f3f4f6 !important; font-weight: 600; }
                 th, td { padding: 8px; text-align: left; }
-                
-                /* Estilos para as linhas de assinatura */
                 .signature-line {
                   border-bottom: 1px solid #000;
                   width: 80%;
-                  margin-top: 40px; /* Espaço para a assinatura */
+                  margin-top: 40px;
                   margin-bottom: 5px;
                 }
                 .signature-label {
@@ -159,6 +159,7 @@ export default function ImprimirRecibo() {
                   text-align: center;
                   width: 80%;
                   margin-top: 16px;
+                  color: #000;
                 }
               </style>
             </head>
@@ -203,7 +204,7 @@ export default function ImprimirRecibo() {
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
         <h2 className="text-2xl font-bold text-destructive mb-2">Erro</h2>
         <p className="text-lg text-muted-foreground mb-4">{error}</p>
-        <Button onClick={() => navigate("/")}>Voltar</Button>
+        <Button onClick={() => navigate(-1)}>Voltar</Button>
       </div>
     );
   }
@@ -218,119 +219,131 @@ export default function ImprimirRecibo() {
         <p className="text-lg text-muted-foreground mb-4">
           O recibo solicitado não pôde ser carregado.
         </p>
-        <Button onClick={() => navigate("/")}>Voltar</Button>
+        <Button onClick={() => navigate(-1)}>Voltar</Button>
       </div>
     );
   }
 
-  // O valor total recebido ainda é calculado, mas não será exibido na tabela
-  const totalValorRecebido = recibo.itens.reduce(
-    (sum, item) =>
-      sum +
-      item.quantidadeRecebida *
-        (item.itemPedido?.itemContrato?.valorUnitario ?? 0),
-    0
-  );
-
   return (
-    <div className="p-4 print:p-0">
+    <div className="p-4 print:p-0 space-y-4">
       <Card className="max-w-4xl mx-auto shadow-lg print:shadow-none print:border-0">
-        <CardHeader className="no-print">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Visualizar Recibo para Impressão
-          </CardTitle>
-          <CardDescription>Recibo #{recibo.numero}</CardDescription>
+        <CardHeader className="no-print flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Visualizar Recibo para Impressão
+            </CardTitle>
+            <CardDescription>Recibo #{recibo.numero}</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar
+            </Button>
+            <Button onClick={handlePrint}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir / Salvar PDF
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="p-6 print:p-0">
+
+        <CardContent className="p-6 print:p-0 bg-zinc-100 dark:bg-zinc-900/60">
+          {/* Simulação de Folha A4 sempre branca com texto em preto */}
           <div
             ref={printRef}
-            className="print:w-full print:h-auto print:p-4 print:text-black"
+            style={{ backgroundColor: "#ffffff", color: "#000000" }}
+            className="bg-white text-black border border-gray-300 shadow-md rounded-sm p-8 mx-auto max-w-[210mm] [--background:0_0%_100%] [--foreground:0_0%_0%] [--card:0_0%_100%] [--card-foreground:0_0%_0%] [--muted:210_40%_96.1%] [--muted-foreground:215_16%_35%] [--border:214_32%_80%] print:w-full print:h-auto print:p-4 print:text-black print:shadow-none print:border-0"
           >
-            {/* ATUALIZAÇÃO: Adiciona um subtítulo se for um recibo complementar */}
             {recibo.reciboOriginal && (
-              <h2 className="text-lg font-semibold text-muted-foreground print:text-base">
+              <h2 className="text-lg font-semibold text-gray-700 print:text-base mb-1">
                 (Recibo Complementar referente ao Recibo #
                 {recibo.reciboOriginal.numero})
               </h2>
             )}
-            <div className="flex justify-between items-center mb-6 print:mb-4">
-              <h1 className="text-3xl font-bold print:text-2xl">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-300 print:mb-4">
+              <h1 className="text-3xl font-bold text-black print:text-2xl">
                 Recibo de Entrega
               </h1>
               <div className="text-right">
-                <p className="font-mono text-xl print:text-lg">
+                <p className="font-mono text-xl font-bold text-black print:text-lg">
                   #{recibo.numero}
                 </p>
-                <p className="text-sm text-muted-foreground print:text-xs">
+                <p className="text-sm text-gray-700 print:text-xs">
                   Data de Emissão:{" "}
                   {new Date(recibo.createdAt).toLocaleDateString("pt-BR")}
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 print:grid-cols-2 print:gap-4 print:mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 print:grid-cols-2 print:gap-4 print:mb-4 text-black">
               <div>
-                <h3 className="font-semibold text-lg mb-2 print:text-base">
+                <h3 className="font-semibold text-lg mb-2 text-black print:text-base">
                   Informações do Pedido
                 </h3>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>Pedido:</strong> {recibo.pedido.numero}
                 </p>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>Contrato:</strong> {recibo.pedido.contrato.numero}
                 </p>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>Fornecedor:</strong>{" "}
                   {recibo.pedido.contrato.fornecedor.nome}
                 </p>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>CNPJ:</strong>{" "}
                   {recibo.pedido.contrato.fornecedor.cnpj}
                 </p>
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-2 print:text-base">
+                <h3 className="font-semibold text-lg mb-2 text-black print:text-base">
                   Detalhes da Entrega
                 </h3>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>Unidade:</strong> {recibo.unidadeEducacional.nome}
                 </p>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>Endereço:</strong>{" "}
                   {recibo.unidadeEducacional.endereco}
                 </p>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>Telefone:</strong>{" "}
                   {recibo.unidadeEducacional.telefone}
                 </p>
-                <p className="text-sm print:text-xs">
+                <p className="text-sm text-black print:text-xs">
                   <strong>Prazo limite de entrega:</strong>{" "}
                   {new Date(recibo.dataEntrega).toLocaleDateString("pt-BR")}
                 </p>
               </div>
             </div>
 
-            <h3 className="font-semibold text-lg mb-3 print:text-base print:mb-2">
+            <h3 className="font-semibold text-lg mb-3 text-black print:text-base print:mb-2">
               Itens do Pedido
             </h3>
-            <Table stackOnMobile={false} className="mb-6 print:mb-4 print:text-xs">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="print:py-1 font-medium">Item</TableHead>
-                  <TableHead className="print:py-1 font-medium">
+            <Table
+              stackOnMobile={false}
+              className="mb-6 print:mb-4 print:text-xs border border-gray-300 text-black"
+            >
+              <TableHeader className="bg-gray-100">
+                <TableRow className="border-gray-300 hover:bg-gray-100">
+                  <TableHead className="print:py-1 font-semibold text-black border border-gray-300">
+                    Item
+                  </TableHead>
+                  <TableHead className="print:py-1 font-semibold text-black border border-gray-300">
                     Qtd. Solicitada (Nesta Entrega)
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {recibo.itens.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium print:py-1">
+                  <TableRow
+                    key={item.id}
+                    className="border-gray-300 hover:bg-gray-50 text-black"
+                  >
+                    <TableCell className="font-medium text-black print:py-1 border border-gray-300">
                       {item.itemPedido?.itemContrato?.nome || "-"}
                     </TableCell>
-                    {/* ATUALIZAÇÃO: Usando as quantidades do ItemRecibo, não do ItemPedido */}
-                    <TableCell className="print:py-1 font-medium">
+                    <TableCell className="print:py-1 font-medium text-black border border-gray-300">
                       {item.quantidadeSolicitada}{" "}
                       {item.itemPedido?.itemContrato?.unidadeMedida?.sigla ||
                         "-"}
@@ -341,49 +354,47 @@ export default function ImprimirRecibo() {
             </Table>
 
             {recibo.observacoes && (
-              <div className="mb-6 print:mb-4">
-                <h3 className="font-semibold text-lg mb-2 print:text-base">
+              <div className="mb-6 print:mb-4 text-black">
+                <h3 className="font-semibold text-lg mb-2 text-black print:text-base">
                   Observações Gerais
                 </h3>
-                <p className="text-sm print:text-xs">{recibo.observacoes}</p>
+                <p className="text-sm text-black print:text-xs">
+                  {recibo.observacoes}
+                </p>
               </div>
             )}
 
-            {/* Assinaturas e Foto */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 print:grid-cols-2 print:gap-4 print:mb-4">
-              {/* Assinatura do Fornecedor (Placeholder para assinatura física) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 print:grid-cols-2 print:gap-4 print:mb-4 text-black">
               <div className="flex flex-col items-center">
-                <p className="signature-label">
+                <p className="signature-label text-black">
                   _____________________________________
                 </p>
-                <h3 className="font-semibold text-lg mb-2 print:text-base">
+                <h3 className="font-semibold text-lg mb-2 text-black print:text-base">
                   Assinatura do Fornecedor
                 </h3>
               </div>
 
-              {/* Assinatura do Recebedor (Placeholder para assinatura física ou texto) */}
               <div className="flex flex-col items-center">
-                <p className="signature-label">
+                <p className="signature-label text-black">
                   _____________________________________
                 </p>
-                <h3 className="font-semibold text-lg mb-2 print:text-base">
+                <h3 className="font-semibold text-lg mb-2 text-black print:text-base">
                   Assinatura do Recebedor
                 </h3>
               </div>
             </div>
 
-            {/* Área do QR Code */}
             {recibo.qrcode && (
-              <div className="mt-6 text-center print:mt-4">
-                <h3 className="font-semibold text-lg mb-2 print:text-base">
+              <div className="mt-6 text-center print:mt-4 text-black">
+                <h3 className="font-semibold text-lg mb-2 text-black print:text-base">
                   QR Code do Recibo
                 </h3>
                 <img
                   src={recibo.qrcode}
                   alt="QR Code do Recibo"
-                  className="w-32 h-32 mx-auto border border-gray-300 rounded-lg print:w-24 print:h-24 print:border-0"
+                  className="w-32 h-32 mx-auto bg-white p-1 border border-gray-300 rounded-lg print:w-24 print:h-24 print:border-0"
                 />
-                <p className="text-sm text-muted-foreground mt-1 print:text-xs">
+                <p className="text-sm text-gray-700 mt-1 print:text-xs">
                   Escaneie para ver os detalhes online.
                 </p>
               </div>
