@@ -32,7 +32,6 @@ import {
   Building2,
   FileSpreadsheet,
   Search,
-  Sparkles,
 } from "lucide-react";
 // Importar as interfaces completas do seu arquivo de tipos
 import {
@@ -348,27 +347,51 @@ export function NovoPedidoDialog({
   ) => {
     // 1. Calcula o consumo total necessário em GRAMAS para a unidade educacional
     let totalConsumoEmGramas = 0;
-    itemContrato.percapitas.forEach((percapita) => {
+    (itemContrato.percapitas || []).forEach((percapita) => {
       let numEstudantes = 0;
-      switch (percapita.tipoEstudante.id) {
-        case "bercario":
-          numEstudantes = unidade.estudantesBercario;
-          break;
-        case "maternal":
-          numEstudantes = unidade.estudantesMaternal;
-          break;
-        case "pre":
-          numEstudantes = unidade.estudantesPreEscola;
-          break;
-        case "regular":
-          numEstudantes = unidade.estudantesRegular;
-          break;
-        case "integral":
-          numEstudantes = unidade.estudantesIntegral;
-          break;
-        case "eja":
-          numEstudantes = unidade.estudantesEja;
-          break;
+      const chaveId = (percapita.tipoEstudante?.id || "").toLowerCase();
+      const chaveSigla = (percapita.tipoEstudante?.sigla || "").toLowerCase();
+      const chaveNome = (percapita.tipoEstudante?.nome || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      if (
+        chaveId === "bercario" ||
+        chaveSigla === "ber" ||
+        chaveNome.includes("bercario")
+      ) {
+        numEstudantes = unidade.estudantesBercario;
+      } else if (
+        chaveId === "maternal" ||
+        chaveSigla === "mat" ||
+        chaveNome.includes("maternal")
+      ) {
+        numEstudantes = unidade.estudantesMaternal;
+      } else if (
+        chaveId === "pre" ||
+        chaveSigla === "pre" ||
+        chaveNome.includes("pre")
+      ) {
+        numEstudantes = unidade.estudantesPreEscola;
+      } else if (
+        chaveId === "regular" ||
+        chaveSigla === "reg" ||
+        chaveNome.includes("regular")
+      ) {
+        numEstudantes = unidade.estudantesRegular;
+      } else if (
+        chaveId === "integral" ||
+        chaveSigla === "int" ||
+        chaveNome.includes("integral")
+      ) {
+        numEstudantes = unidade.estudantesIntegral;
+      } else if (
+        chaveId === "eja" ||
+        chaveSigla === "eja" ||
+        chaveNome.includes("eja")
+      ) {
+        numEstudantes = unidade.estudantesEja;
       }
 
       if (numEstudantes > 0 && percapita.ativo) {
@@ -387,15 +410,20 @@ export function NovoPedidoDialog({
     const siglaUnidade = itemContrato.unidadeMedida.sigla.toLowerCase();
     const gramagemPacote = itemContrato.gramagemPorPacote;
 
-    if (siglaUnidade === "pct" && gramagemPacote && gramagemPacote > 0) {
-      // Se for pacote, divide o total de gramas pela gramagem do pacote
+    if (
+      (siglaUnidade === "pct" ||
+        siglaUnidade === "pacote" ||
+        siglaUnidade === "un") &&
+      gramagemPacote &&
+      gramagemPacote > 0
+    ) {
+      // Se tiver gramagem por pacote configurada, divide o total de gramas pela gramagem do pacote
       quantidadeSugerida = totalConsumoEmGramas / gramagemPacote;
     } else if (siglaUnidade === "kg") {
       // Se for Kg, divide por 1000
       quantidadeSugerida = totalConsumoEmGramas / 1000;
     } else {
       // Para outras unidades (Un, L, etc.), a sugestão considera 1 para 1 (assumindo que a percápita representa a unidade)
-      // Esta parte pode ser ajustada se a lógica for diferente
       quantidadeSugerida = totalConsumoEmGramas;
     }
 
@@ -406,24 +434,51 @@ export function NovoPedidoDialog({
   const handleAdicionarItem = (item: ItemContratoDetalhado) => {
     if (itensPedido.find((ip) => ip.itemContrato.id === item.id)) return;
 
-    const unidadesComSugestao = unidades.map((u) => {
+    const unidadesBase = unidades.map((u) => {
       const isCreche =
         u.estudantesBercario > 0 ||
         u.estudantesMaternal > 0 ||
         u.estudantesPreEscola > 0;
-      const tipoEstoque = isCreche ? "creche" : "escola";
-
+      const tipoEstoque: "creche" | "escola" = isCreche ? "creche" : "escola";
       const sugestao = calcularSugestaoQuantidade(item, u);
 
       return {
         unidadeId: u.id,
-        quantidade:
-          tipoDePedidoAtivo && tipoEstoque === tipoDePedidoAtivo ? sugestao : 0,
         unidadeNome: u.nome,
         tipoEstoque,
         sugestao,
       };
     });
+
+    // Determina a aba ativa caso ainda não tenha sido definida na sessão
+    let abaAtiva: "creche" | "escola" = tipoDePedidoAtivo ?? "escola";
+    if (!tipoDePedidoAtivo) {
+      const temSugestaoEscola = unidadesBase.some(
+        (u) => u.tipoEstoque === "escola" && u.sugestao > 0
+      );
+      const temSugestaoCreche = unidadesBase.some(
+        (u) => u.tipoEstoque === "creche" && u.sugestao > 0
+      );
+
+      if (!temSugestaoEscola && temSugestaoCreche) {
+        abaAtiva = "creche";
+      } else if (
+        !temSugestaoEscola &&
+        !temSugestaoCreche &&
+        item.saldoEscola <= 0 &&
+        item.saldoCreche > 0
+      ) {
+        abaAtiva = "creche";
+      } else {
+        abaAtiva = "escola";
+      }
+      setTipoDePedidoAtivo(abaAtiva);
+    }
+
+    const unidadesComSugestao = unidadesBase.map((u) => ({
+      ...u,
+      quantidade: u.tipoEstoque === abaAtiva ? u.sugestao : 0,
+    }));
 
     setItensPedido((prev) => [
       ...prev,
@@ -438,29 +493,27 @@ export function NovoPedidoDialog({
     // Define o tipo de pedido para a sessão atual do diálogo
     setTipoDePedidoAtivo(novoTipoAtivo);
 
-    // Itera sobre todos os itens já adicionados ao pedido
+    // Itera sobre todos os itens já adicionados ao pedido e preenche automaticamente com o sugerido da aba selecionada
     setItensPedido((prevItens) =>
       prevItens.map((item) => {
-        const jaPossuiQuantidadesNaAba = item.unidades.some(
-          (u) => u.tipoEstoque === novoTipoAtivo && u.quantidade > 0
-        );
-        if (jaPossuiQuantidadesNaAba) {
-          return item;
-        }
-
-        // Recalcula as quantidades para todas as unidades baseado na aba selecionada
         const novasUnidades = item.unidades.map((unidade) => {
-          let novaQuantidade = 0;
-          const unidadeCompleta = unidades.find(
-            (u) => u.id === unidade.unidadeId
-          );
-          if (unidade.tipoEstoque === novoTipoAtivo && unidadeCompleta) {
-            novaQuantidade = calcularSugestaoQuantidade(
-              item.itemContrato,
-              unidadeCompleta
+          if (unidade.tipoEstoque === novoTipoAtivo) {
+            const unidadeCompleta = unidades.find(
+              (u) => u.id === unidade.unidadeId
             );
+            const sugestao =
+              unidade.sugestao > 0
+                ? unidade.sugestao
+                : unidadeCompleta
+                ? calcularSugestaoQuantidade(item.itemContrato, unidadeCompleta)
+                : 0;
+            return {
+              ...unidade,
+              sugestao,
+              quantidade: unidade.quantidade > 0 ? unidade.quantidade : sugestao,
+            };
           }
-          return { ...unidade, quantidade: novaQuantidade };
+          return { ...unidade, quantidade: 0 };
         });
 
         return { ...item, unidades: novasUnidades };
