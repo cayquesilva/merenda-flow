@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +30,9 @@ import {
   Package2,
   Loader2,
   Building2,
+  FileSpreadsheet,
+  Search,
+  Sparkles,
 } from "lucide-react";
 // Importar as interfaces completas do seu arquivo de tipos
 import {
@@ -40,6 +43,10 @@ import {
   PercapitaItem,
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DadosFormularioAlimentado,
+  construirItensPedidoFormDeMapeamento,
+} from "./ImportPedidoDialog";
 
 // Interface para o item de contrato com a nova estrutura de estoque
 interface ItemContratoDetalhado extends ItemContrato {
@@ -81,9 +88,15 @@ interface ItemPedidoForm {
 
 interface NovoPedidoDialogProps {
   onSuccess: () => void;
+  dadosImportados?: DadosFormularioAlimentado | null;
+  onClearDadosImportados?: () => void;
 }
 
-export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
+export function NovoPedidoDialog({
+  onSuccess,
+  dadosImportados,
+  onClearDadosImportados,
+}: NovoPedidoDialogProps) {
   const [open, setOpen] = useState(false);
   const [contratos, setContratos] = useState<ContratoDaLista[]>([]);
   const [unidades, setUnidades] = useState<UnidadeEducacional[]>([]);
@@ -95,11 +108,15 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   const [dataEntrega, setDataEntrega] = useState("");
   const [itensPedido, setItensPedido] = useState<ItemPedidoForm[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isImportingPlanilha, setIsImportingPlanilha] = useState(false);
   const [tiposEstudante, setTiposEstudante] = useState<TipoEstudante[]>([]);
   const [tipoDePedidoAtivo, setTipoDePedidoAtivo] = useState<
     "creche" | "escola" | null
   >(null); // NOVO ESTADO
+  const [buscaUnidade, setBuscaUnidade] = useState("");
+  const [apenasComQuantidade, setApenasComQuantidade] = useState(false);
 
+  const fileInputPlanilhaRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // COMENTÁRIO: Estado para armazenar os itens do contrato com suas percápitas
@@ -107,10 +124,57 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     ItemContratoDetalhado[]
   >([]);
 
+  const aplicarDadosAlimentados = (dados: DadosFormularioAlimentado) => {
+    if (dados.contrato) {
+      setContratoSelecionado(dados.contrato);
+      setSelectedContratoId(dados.contrato.id);
+      setContratos((prev) => {
+        const existe = prev.some((c) => c.id === dados.contrato.id);
+        if (existe) return prev;
+        return [
+          {
+            id: dados.contrato.id,
+            numero: dados.contrato.numero,
+            fornecedor: {
+              nome: dados.contrato.fornecedor?.nome || "Fornecedor",
+            },
+          },
+          ...prev,
+        ];
+      });
+    }
+    if (dados.unidades) {
+      setUnidades(dados.unidades);
+    }
+    if (dados.itensContratoComPercapita) {
+      setItensContratoComPercapita(dados.itensContratoComPercapita);
+    }
+    const dtSugerida = dados.dataEntregaPrevista || dados.dataEntregaSugerida;
+    if (dtSugerida) {
+      setDataEntrega(dtSugerida);
+    }
+    const tipoAtivo = dados.tipoDePedidoAtivo || dados.tipoPublico || "escola";
+    setTipoDePedidoAtivo(tipoAtivo);
+
+    const itensConstruidos = construirItensPedidoFormDeMapeamento(dados);
+    if (itensConstruidos.length > 0) {
+      setItensPedido(itensConstruidos);
+    }
+  };
+
+  useEffect(() => {
+    if (dadosImportados) {
+      setOpen(true);
+      aplicarDadosAlimentados(dadosImportados);
+    }
+  }, [dadosImportados]);
+
   useEffect(() => {
     if (open) {
       const fetchInitialData = async () => {
-        setIsLoading(true);
+        if (!dadosImportados) {
+          setIsLoading(true);
+        }
         try {
           // Busca a lista de contratos e as unidades com detalhes de estudantes
           const [contratosRes, unidadesRes, tiposEstudanteRes] =
@@ -135,9 +199,15 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
           if (!contratosRes.ok || !unidadesRes.ok || !tiposEstudanteRes.ok)
             throw new Error("Falha ao carregar dados iniciais.");
 
-          setContratos(await contratosRes.json());
-          setUnidades(await unidadesRes.json());
-          setTiposEstudante(await tiposEstudanteRes.json());
+          const contratosData = await contratosRes.json();
+          const unidadesData = await unidadesRes.json();
+          const tiposData = await tiposEstudanteRes.json();
+
+          setContratos(contratosData);
+          if (!dadosImportados) {
+            setUnidades(unidadesData);
+          }
+          setTiposEstudante(tiposData);
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Erro desconhecido";
@@ -158,8 +228,71 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       setSelectedContratoId(undefined);
       setItensContratoComPercapita([]);
       setTipoDePedidoAtivo(null); // RESETAR AQUI
+      setBuscaUnidade("");
+      setApenasComQuantidade(false);
+      onClearDadosImportados?.();
     }
   }, [open, toast]);
+
+  const handleUploadPlanilhaInterna = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    setIsImportingPlanilha(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      if (selectedContratoId) {
+        formData.append("contratoId", selectedContratoId);
+      }
+      if (dataEntrega) {
+        formData.append("dataEntregaPrevista", dataEntrega);
+      }
+      formData.append("atualizarUnidades", "true");
+      formData.append("atualizarPercapitas", "true");
+
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/pedidos/alimentar-formulario`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Falha ao alimentar o formulário a partir da planilha."
+        );
+      }
+
+      const itensConstruidos = construirItensPedidoFormDeMapeamento(data);
+      aplicarDadosAlimentados({
+        ...data,
+        itensPedidoForm: itensConstruidos,
+      });
+      toast({
+        title: "Planilha importada no formulário!",
+        description: `${itensConstruidos.length} produtos e quantidades por escola alimentados automaticamente.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao ler planilha",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingPlanilha(false);
+      if (fileInputPlanilhaRef.current) {
+        fileInputPlanilhaRef.current.value = "";
+      }
+    }
+  };
 
   const handleSelecionarContrato = async (contratoId: string) => {
     setSelectedContratoId(contratoId);
@@ -284,7 +417,8 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
 
       return {
         unidadeId: u.id,
-        quantidade: 0,
+        quantidade:
+          tipoDePedidoAtivo && tipoEstoque === tipoDePedidoAtivo ? sugestao : 0,
         unidadeNome: u.nome,
         tipoEstoque,
         sugestao,
@@ -307,17 +441,25 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     // Itera sobre todos os itens já adicionados ao pedido
     setItensPedido((prevItens) =>
       prevItens.map((item) => {
+        const jaPossuiQuantidadesNaAba = item.unidades.some(
+          (u) => u.tipoEstoque === novoTipoAtivo && u.quantidade > 0
+        );
+        if (jaPossuiQuantidadesNaAba) {
+          return item;
+        }
+
         // Recalcula as quantidades para todas as unidades baseado na aba selecionada
         const novasUnidades = item.unidades.map((unidade) => {
           let novaQuantidade = 0;
-          // Se a unidade pertence à aba ativa, calcula a sugestão
-          if (unidade.tipoEstoque === novoTipoAtivo) {
+          const unidadeCompleta = unidades.find(
+            (u) => u.id === unidade.unidadeId
+          );
+          if (unidade.tipoEstoque === novoTipoAtivo && unidadeCompleta) {
             novaQuantidade = calcularSugestaoQuantidade(
               item.itemContrato,
-              unidades.find((u) => u.id === unidade.unidadeId)! // Encontra a unidade completa para o cálculo
+              unidadeCompleta
             );
           }
-          // Se não pertence, a quantidade é 0.
           return { ...unidade, quantidade: novaQuantidade };
         });
 
@@ -352,9 +494,17 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
     );
   };
 
+  const calcularQuantidadeTotalItem = (item: ItemPedidoForm) =>
+    item.unidades.reduce((sum, u) => sum + u.quantidade, 0);
+
   const calcularTotalItem = (item: ItemPedidoForm) =>
-    item.unidades.reduce((sum, u) => sum + u.quantidade, 0) *
-    item.itemContrato.valorUnitario;
+    calcularQuantidadeTotalItem(item) * item.itemContrato.valorUnitario;
+
+  const calcularQuantidadeTotalPedido = () =>
+    itensPedido.reduce(
+      (sum, item) => sum + calcularQuantidadeTotalItem(item),
+      0
+    );
 
   const calcularTotalPedido = () =>
     itensPedido.reduce((sum, item) => sum + calcularTotalItem(item), 0);
@@ -378,11 +528,11 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       return false;
     }
 
-    if (calcularTotalPedido() <= 0) {
+    if (calcularQuantidadeTotalPedido() <= 0) {
       toast({
-        title: "Pedido sem valor",
+        title: "Pedido sem quantidades",
         description:
-          "O valor total do pedido não pode ser R$ 0,00. Verifique as quantidades.",
+          "Informe a quantidade de pelo menos uma unidade educacional.",
         variant: "destructive",
       });
       return false;
@@ -390,10 +540,12 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
 
     const saldosCreche: Record<string, number> = {};
     const saldosEscola: Record<string, number> = {};
+    const saldosAtuais: Record<string, number> = {};
 
     contratoSelecionado.itens.forEach((item) => {
       saldosCreche[item.id] = item.saldoCreche;
       saldosEscola[item.id] = item.saldoEscola;
+      saldosAtuais[item.id] = item.saldoAtual;
     });
 
     for (const item of itensPedido) {
@@ -401,21 +553,24 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       let totalEscolaPedido = 0;
 
       item.unidades.forEach((u) => {
-        const unidade = unidades.find((un) => un.id === u.unidadeId);
-        if (!unidade) return;
-
-        const isCreche =
-          unidade.estudantesBercario > 0 ||
-          unidade.estudantesMaternal > 0 ||
-          unidade.estudantesPreEscola > 0;
-        if (isCreche) {
+        if (u.tipoEstoque === "creche") {
           totalCrechePedido += u.quantidade;
         } else {
           totalEscolaPedido += u.quantidade;
         }
       });
 
-      if (totalCrechePedido > (saldosCreche[item.itemContrato.id] ?? 0)) {
+      const saldoCrecheDisp =
+        saldosCreche[item.itemContrato.id] ?? item.itemContrato.saldoCreche ?? 0;
+      const saldoEscolaDisp =
+        saldosEscola[item.itemContrato.id] ?? item.itemContrato.saldoEscola ?? 0;
+      const saldoTotalDisp =
+        saldosAtuais[item.itemContrato.id] ?? item.itemContrato.saldoAtual ?? 0;
+
+      if (
+        totalCrechePedido + totalEscolaPedido > saldoTotalDisp &&
+        totalCrechePedido > saldoCrecheDisp
+      ) {
         toast({
           title: "Saldo Insuficiente (Creche)",
           description: `O item "${item.itemContrato.nome}" ultrapassa o saldo disponível para creches.`,
@@ -424,7 +579,10 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
         return false;
       }
 
-      if (totalEscolaPedido > (saldosEscola[item.itemContrato.id] ?? 0)) {
+      if (
+        totalCrechePedido + totalEscolaPedido > saldoTotalDisp &&
+        totalEscolaPedido > saldoEscolaDisp
+      ) {
         toast({
           title: "Saldo Insuficiente (Escola)",
           description: `O item "${item.itemContrato.nome}" ultrapassa o saldo disponível para escolas.`,
@@ -495,7 +653,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
   const itensDisponiveis =
     itensContratoComPercapita.filter(
       (item) =>
-        (item.saldoCreche > 0 || item.saldoEscola > 0) &&
+        (item.saldoCreche > 0 || item.saldoEscola > 0 || item.saldoAtual > 0) &&
         !itensPedido.find((ip) => ip.itemContrato.id === item.id)
     ) || [];
 
@@ -509,14 +667,41 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Novo Pedido
-          </DialogTitle>
-          <DialogDescription>
-            Selecione um contrato e configure as quantidades por unidade
-            educacional
-          </DialogDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Novo Pedido
+              </DialogTitle>
+              <DialogDescription>
+                Selecione um contrato manualmente ou alimente os dados a partir
+                de uma planilha (.xlsx / .csv)
+              </DialogDescription>
+            </div>
+            <div>
+              <input
+                ref={fileInputPlanilhaRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleUploadPlanilhaInterna}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputPlanilhaRef.current?.click()}
+                disabled={isLoading || isImportingPlanilha}
+              >
+                {isImportingPlanilha ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-primary" />
+                )}
+                Alimentar via Planilha (.xlsx/.csv)
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
 
         {isLoading ? (
@@ -550,7 +735,6 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
                   id="dataEntrega"
                   value={dataEntrega}
                   onChange={(v) => setDataEntrega(v)}
-                  min={new Date().toISOString().split("T")[0]}
                 />
               </div>
             </div>
@@ -602,161 +786,234 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
 
                 {itensPedido.length > 0 && (
                   <Card>
-                    <CardHeader>
-                      <CardTitle>Itens do Pedido</CardTitle>
+                    <CardHeader className="space-y-3">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <CardTitle className="flex items-center gap-2">
+                          Itens do Pedido ({itensPedido.length})
+                        </CardTitle>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="relative w-64">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              placeholder="Filtrar escola/creche..."
+                              value={buscaUnidade}
+                              onChange={(e) => setBuscaUnidade(e.target.value)}
+                              className="pl-8 h-8 text-xs"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant={
+                              apenasComQuantidade ? "default" : "outline"
+                            }
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() =>
+                              setApenasComQuantidade((prev) => !prev)
+                            }
+                          >
+                            {apenasComQuantidade
+                              ? "Exibindo c/ Quantidade > 0"
+                              : "Todas as Unidades"}
+                          </Button>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-6">
-                        {itensPedido.map((item) => (
-                          <div
-                            key={item.itemContrato.id}
-                            className="border rounded-lg p-4 space-y-4"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-medium">
-                                  {item.itemContrato.nome}
-                                </h4>
-                                <p className="text-sm text-muted-foreground">
-                                  Saldo disponível:{" "}
-                                  {item.itemContrato.saldoAtual}{" "}
-                                  {item.itemContrato.unidadeMedida.sigla} | R${" "}
-                                  {item.itemContrato.valorUnitario.toFixed(2)} /{" "}
-                                  {item.itemContrato.unidadeMedida.sigla}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline">
-                                  Total: R$ {calcularTotalItem(item).toFixed(2)}
-                                </Badge>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleRemoverItem(item.itemContrato.id)
-                                  }
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            {/* NOVO: Estrutura de Abas para separar Creches e Escolas */}
-                            <Tabs
-                              defaultValue="creches"
-                              className="w-full"
-                              value={tipoDePedidoAtivo ?? ""}
-                              onValueChange={(value) =>
-                                handleTabChange(value as "creche" | "escola")
-                              }
+                        {itensPedido.map((item) => {
+                          const qtdTotalItem =
+                            calcularQuantidadeTotalItem(item);
+                          return (
+                            <div
+                              key={item.itemContrato.id}
+                              className="border rounded-lg p-4 space-y-4"
                             >
-                              <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="creche">
-                                  Pedido para Creches
-                                </TabsTrigger>
-                                <TabsTrigger value="escola">
-                                  Pedido para Escolas
-                                </TabsTrigger>
-                              </TabsList>
-
-                              {/* Conteúdo da Aba de Creches */}
-                              <TabsContent value="creche">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                                  {item.unidades
-                                    .filter(
-                                      (unidade) =>
-                                        unidade.tipoEstoque === "creche"
-                                    )
-                                    .map((unidade) => (
-                                      <div
-                                        key={unidade.unidadeId}
-                                        className="space-y-2"
-                                      >
-                                        <Label className="text-sm font-medium">
-                                          <div className="flex items-center gap-1">
-                                            <Building2 className="h-3 w-3" />
-                                            {unidade.unidadeNome}
-                                          </div>
-                                        </Label>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          max={item.itemContrato.saldoCreche}
-                                          value={unidade.quantidade || 0}
-                                          onChange={(e) =>
-                                            handleQuantidadeChange(
-                                              item.itemContrato.id,
-                                              unidade.unidadeId,
-                                              parseInt(e.target.value) || 0
-                                            )
-                                          }
-                                        />
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          Sugerido: {unidade.sugestao}{" "}
-                                          {
-                                            item.itemContrato.unidadeMedida
-                                              .sigla
-                                          }
-                                        </p>
-                                      </div>
-                                    ))}
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <h4 className="font-medium">
+                                    {item.itemContrato.nome}
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    Saldo disponível:{" "}
+                                    {item.itemContrato.saldoAtual}{" "}
+                                    {item.itemContrato.unidadeMedida.sigla} | R${" "}
+                                    {item.itemContrato.valorUnitario.toFixed(2)}{" "}
+                                    / {item.itemContrato.unidadeMedida.sigla}
+                                  </p>
                                 </div>
-                              </TabsContent>
-
-                              {/* Conteúdo da Aba de Escolas */}
-                              <TabsContent value="escola">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                                  {item.unidades
-                                    .filter(
-                                      (unidade) =>
-                                        unidade.tipoEstoque === "escola"
-                                    )
-                                    .map((unidade) => (
-                                      <div
-                                        key={unidade.unidadeId}
-                                        className="space-y-2"
-                                      >
-                                        <Label className="text-sm font-medium">
-                                          <div className="flex items-center gap-1">
-                                            <Building2 className="h-3 w-3" />
-                                            {unidade.unidadeNome}
-                                          </div>
-                                        </Label>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          max={item.itemContrato.saldoEscola}
-                                          value={unidade.quantidade || 0}
-                                          onChange={(e) =>
-                                            handleQuantidadeChange(
-                                              item.itemContrato.id,
-                                              unidade.unidadeId,
-                                              parseInt(e.target.value) || 0
-                                            )
-                                          }
-                                        />
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          Sugerido: {unidade.sugestao}{" "}
-                                          {
-                                            item.itemContrato.unidadeMedida
-                                              .sigla
-                                          }
-                                        </p>
-                                      </div>
-                                    ))}
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary">
+                                    Qtd:{" "}
+                                    {qtdTotalItem.toLocaleString("pt-BR")}{" "}
+                                    {item.itemContrato.unidadeMedida.sigla}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    Total: R${" "}
+                                    {calcularTotalItem(item).toFixed(2)}
+                                  </Badge>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleRemoverItem(item.itemContrato.id)
+                                    }
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
                                 </div>
-                              </TabsContent>
-                            </Tabs>
-                          </div>
-                        ))}
+                              </div>
+                              {/* NOVO: Estrutura de Abas para separar Creches e Escolas */}
+                              <Tabs
+                                defaultValue="escola"
+                                className="w-full"
+                                value={tipoDePedidoAtivo ?? "escola"}
+                                onValueChange={(value) =>
+                                  handleTabChange(value as "creche" | "escola")
+                                }
+                              >
+                                <TabsList className="grid w-full grid-cols-2">
+                                  <TabsTrigger value="creche">
+                                    Pedido para Creches
+                                  </TabsTrigger>
+                                  <TabsTrigger value="escola">
+                                    Pedido para Escolas
+                                  </TabsTrigger>
+                                </TabsList>
+
+                                {/* Conteúdo da Aba de Creches */}
+                                <TabsContent value="creche">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4 max-h-80 overflow-y-auto pr-1">
+                                    {item.unidades
+                                      .filter(
+                                        (unidade) =>
+                                          unidade.tipoEstoque === "creche" &&
+                                          (!buscaUnidade ||
+                                            unidade.unidadeNome
+                                              .toLowerCase()
+                                              .includes(
+                                                buscaUnidade.toLowerCase()
+                                              )) &&
+                                          (!apenasComQuantidade ||
+                                            unidade.quantidade > 0)
+                                      )
+                                      .map((unidade) => (
+                                        <div
+                                          key={unidade.unidadeId}
+                                          className="space-y-2 p-2 rounded border bg-muted/10"
+                                        >
+                                          <Label className="text-xs font-medium">
+                                            <div className="flex items-center gap-1">
+                                              <Building2 className="h-3 w-3 shrink-0" />
+                                              <span className="truncate">
+                                                {unidade.unidadeNome}
+                                              </span>
+                                            </div>
+                                          </Label>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            max={item.itemContrato.saldoCreche}
+                                            value={unidade.quantidade || 0}
+                                            onChange={(e) =>
+                                              handleQuantidadeChange(
+                                                item.itemContrato.id,
+                                                unidade.unidadeId,
+                                                parseInt(e.target.value) || 0
+                                              )
+                                            }
+                                            className="h-8"
+                                          />
+                                          <p className="text-[11px] text-muted-foreground">
+                                            Sugerido: {unidade.sugestao}{" "}
+                                            {
+                                              item.itemContrato.unidadeMedida
+                                                .sigla
+                                            }
+                                          </p>
+                                        </div>
+                                      ))}
+                                  </div>
+                                </TabsContent>
+
+                                {/* Conteúdo da Aba de Escolas */}
+                                <TabsContent value="escola">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4 max-h-80 overflow-y-auto pr-1">
+                                    {item.unidades
+                                      .filter(
+                                        (unidade) =>
+                                          unidade.tipoEstoque === "escola" &&
+                                          (!buscaUnidade ||
+                                            unidade.unidadeNome
+                                              .toLowerCase()
+                                              .includes(
+                                                buscaUnidade.toLowerCase()
+                                              )) &&
+                                          (!apenasComQuantidade ||
+                                            unidade.quantidade > 0)
+                                      )
+                                      .map((unidade) => (
+                                        <div
+                                          key={unidade.unidadeId}
+                                          className="space-y-2 p-2 rounded border bg-muted/10"
+                                        >
+                                          <Label className="text-xs font-medium">
+                                            <div className="flex items-center gap-1">
+                                              <Building2 className="h-3 w-3 shrink-0" />
+                                              <span className="truncate">
+                                                {unidade.unidadeNome}
+                                              </span>
+                                            </div>
+                                          </Label>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            max={item.itemContrato.saldoEscola}
+                                            value={unidade.quantidade || 0}
+                                            onChange={(e) =>
+                                              handleQuantidadeChange(
+                                                item.itemContrato.id,
+                                                unidade.unidadeId,
+                                                parseInt(e.target.value) || 0
+                                              )
+                                            }
+                                            className="h-8"
+                                          />
+                                          <p className="text-[11px] text-muted-foreground">
+                                            Sugerido: {unidade.sugestao}{" "}
+                                            {
+                                              item.itemContrato.unidadeMedida
+                                                .sigla
+                                            }
+                                          </p>
+                                        </div>
+                                      ))}
+                                  </div>
+                                </TabsContent>
+                              </Tabs>
+                            </div>
+                          );
+                        })}
                       </div>
                       <Separator className="my-4" />
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-semibold">
-                          Total do Pedido:
+                      <div className="flex flex-wrap justify-between items-center gap-4">
+                        <span className="text-sm text-muted-foreground">
+                          Volume Total:{" "}
+                          <strong>
+                            {calcularQuantidadeTotalPedido().toLocaleString(
+                              "pt-BR"
+                            )}{" "}
+                            unidades
+                          </strong>
                         </span>
-                        <span className="text-lg font-bold">
-                          R$ {calcularTotalPedido().toFixed(2)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-semibold">
+                            Total do Pedido:
+                          </span>
+                          <span className="text-lg font-bold">
+                            R$ {calcularTotalPedido().toFixed(2)}
+                          </span>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -779,7 +1036,7 @@ export function NovoPedidoDialog({ onSuccess }: NovoPedidoDialogProps) {
               isLoading ||
               !contratoSelecionado ||
               itensPedido.length === 0 ||
-              calcularTotalPedido() <= 0
+              calcularQuantidadeTotalPedido() <= 0
             }
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -24,9 +24,15 @@ import {
   DollarSign,
   Package,
   Loader2,
+  Download,
 } from "lucide-react";
 import { NovoPedidoDialog } from "@/components/pedidos/NovoPedidoDialog";
 import { PedidoDetailDialog } from "@/components/pedidos/PedidoDetailDialog";
+import {
+  ImportPedidoDialog,
+  DadosFormularioAlimentado,
+} from "@/components/pedidos/ImportPedidoDialog";
+import { useToast } from "@/hooks/use-toast";
 // COMENTÁRIO: O tipo 'Pedido' global pode ser removido se não for mais usado aqui.
 
 // ALTERAÇÃO: Criamos um tipo específico que corresponde exatamente ao que a nossa API de listagem retorna.
@@ -67,6 +73,9 @@ export default function Pedidos() {
   // ALTERAÇÃO: O estado agora usa o nosso novo tipo 'PedidoDaLista'.
   const [pedidos, setPedidos] = useState<PedidoDaLista[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [dadosImportadosFormulario, setDadosImportadosFormulario] =
+    useState<DadosFormularioAlimentado | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     pendentes: 0,
@@ -74,7 +83,47 @@ export default function Pedidos() {
     valorTotal: 0,
   });
 
+  const { toast } = useToast();
   const handleSuccess = () => setRefreshKey((prev) => prev + 1);
+
+  const handleExportarPlanilha = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:3001"
+        }/api/pedidos/exportar-dados`
+      );
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Não foi possível exportar os pedidos.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "pedidos_exportados.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Planilha exportada!",
+        description: "O download dos pedidos em .xlsx foi iniciado.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao exportar",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // COMENTÁRIO: Efeito que busca os pedidos e as estatísticas da API.
   useEffect(() => {
@@ -141,7 +190,29 @@ export default function Pedidos() {
             Gerencie as solicitações de entrega de merenda
           </p>
         </div>
-        <NovoPedidoDialog onSuccess={handleSuccess} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportarPlanilha}
+            disabled={isExporting || pedidos.length === 0}
+          >
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Exportar Planilha
+          </Button>
+          <ImportPedidoDialog
+            onSuccess={handleSuccess}
+            onOpenInForm={(dados) => setDadosImportadosFormulario(dados)}
+          />
+          <NovoPedidoDialog
+            onSuccess={handleSuccess}
+            dadosImportados={dadosImportadosFormulario}
+            onClearDadosImportados={() => setDadosImportadosFormulario(null)}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

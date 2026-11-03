@@ -2219,7 +2219,1249 @@ app.get("/api/unidades-ativas", async (req: Request, res: Response) => {
   }
 });
 
-// --- INÍCIO DAS ROTAS DE PEDIDOS (CRUD) ---
+// --- INÍCIO DAS ROTAS DE PEDIDOS (CRUD E IMPORTAÇÃO DE PLANILHA) ---
+
+// Tabela de preços unitários de referência caso um item da planilha precise ser criado do zero no contrato
+const PRECOS_REFERENCIA_MERENDA: Record<string, number> = {
+  ACUCAR: 4.5,
+  "ARROZ BRANCO": 5.8,
+  "ARROZ PARBOILIZADO": 5.6,
+  "BISCOITO SALGADO": 4.2,
+  "BISCOITO DOCE": 4.2,
+  COLORIFICO: 2.5,
+  "CONDIMENTO MISTO": 2.8,
+  "EXTRATO DE TOMATE": 3.9,
+  "FARINHA DE MILHO FLOCAO": 3.2,
+  "FARINHA DE MILHO": 3.2,
+  MARGARINA: 4.5,
+  SAL: 1.8,
+  VINAGRE: 2.9,
+  CAFE: 12.5,
+  "GOMA DE TAPIOCA": 7.5,
+  "FEIJAO PRETO": 8.5,
+  OVOS: 0.95,
+  OVO: 0.95,
+  "CARNE COM OSSO": 29.9,
+  "CARNE DE CHARQUE": 44.9,
+  "CANJICA AMARELA": 4.8,
+};
+
+function normalizarTextoPedido(str: unknown): string {
+  return String(str ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizarBaseUnidade(str: unknown): string {
+  return normalizarTextoPedido(str)
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizarChaveCurtaUnidade(str: unknown): string {
+  const base = normalizarBaseUnidade(str);
+  const stopWords = new Set([
+    "EMEF",
+    "EMEI",
+    "CEAI",
+    "CRECHE",
+    "COT",
+    "ESCOLA",
+    "MUNICIPAL",
+    "PROF",
+    "PROFESSOR",
+    "PROFESSORA",
+    "DR",
+    "DOUTOR",
+    "DEP",
+    "DEPUTADO",
+    "PE",
+    "PADRE",
+    "VEREADOR",
+    "POETA",
+    "ESCRITORA",
+    "DE",
+    "DA",
+    "DO",
+    "DOS",
+    "DAS",
+    "E",
+  ]);
+  const tokens = base.split(" ").filter((t) => t && !stopWords.has(t));
+  return tokens.join(" ") || base;
+}
+
+function casarUnidadeEducacional<T extends { id: string; nome: string; codigo?: string }>(
+  nomePlanilha: string,
+  unidadesExistentes: T[],
+  codigoPlanilha?: string
+): T | null {
+  if (codigoPlanilha) {
+    const porCodigo = unidadesExistentes.find(
+      (u) => u.codigo && u.codigo.toUpperCase() === codigoPlanilha.trim().toUpperCase()
+    );
+    if (porCodigo) return porCodigo;
+  }
+
+  const normPlanilha = normalizarTextoPedido(nomePlanilha);
+  const basePlanilha = normalizarBaseUnidade(nomePlanilha);
+  const curtaPlanilha = normalizarChaveCurtaUnidade(nomePlanilha);
+
+  // 1. Casamento exato normalizado
+  for (const u of unidadesExistentes) {
+    if (normalizarTextoPedido(u.nome) === normPlanilha) return u;
+  }
+  // 2. Casamento sem sufixos (EJA)/(INTEGRAL) e pontuação
+  for (const u of unidadesExistentes) {
+    if (normalizarBaseUnidade(u.nome) === basePlanilha) return u;
+  }
+  // 3. Casamento pela chave curta (sem EMEF/PROF/DR/preposições)
+  for (const u of unidadesExistentes) {
+    if (normalizarChaveCurtaUnidade(u.nome) === curtaPlanilha) return u;
+  }
+
+  // 4. Casamento por inclusão de tokens (respeitando diferenciadores como números 1/2 e ANEXO)
+  const tokensPlanilha = curtaPlanilha.split(" ").filter(Boolean);
+  if (tokensPlanilha.length >= 2) {
+    const numerosPlanilha = tokensPlanilha.filter((t) => /^\d+$/.test(t) || t === "ANEXO" || t === "NAY" || t === "JOELMA");
+    for (const u of unidadesExistentes) {
+      const curtaBanco = normalizarChaveCurtaUnidade(u.nome);
+      const tokensBanco = curtaBanco.split(" ").filter(Boolean);
+      if (tokensBanco.length < 2) continue;
+      const numerosBanco = tokensBanco.filter((t) => /^\d+$/.test(t) || t === "ANEXO" || t === "NAY" || t === "JOELMA");
+      if (numerosPlanilha.join(",") !== numerosBanco.join(",")) continue;
+
+      const todosPlanilhaNoBanco = tokensPlanilha.every((t) => tokensBanco.includes(t));
+      const todosBancoNaPlanilha = tokensBanco.every((t) => tokensPlanilha.includes(t));
+      if (todosPlanilhaNoBanco || todosBancoNaPlanilha) {
+        return u;
+      }
+    }
+  }
+
+  return null;
+}
+
+function tokenizarItemMerenda(str: string): string[] {
+  const norm = normalizarTextoPedido(str)
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const stop = new Set(["DE", "DA", "DO", "DOS", "DAS", "COM", "SEM", "PARA", "POR", "EM", "NO", "NA", "TIPO", "A", "O", "E"]);
+  return norm
+    .split(" ")
+    .filter((t) => t && !stop.has(t))
+    .map((t) => {
+      if (t === "OVOS") return "OVO";
+      if (t === "FLOCADA" || t === "FLOCADO") return "FLOCAO";
+      if (t === "COLORAU") return "COLORIFICO";
+      if (t === "MACAXEIRA") return "MANDIOCA";
+      return t;
+    });
+}
+
+function casarItemContrato<T extends { id: string; nome: string }>(
+  nomePlanilha: string,
+  itensContrato: T[]
+): T | null {
+  const normPlanilha = normalizarTextoPedido(nomePlanilha)
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const tokensPlanilha = tokenizarItemMerenda(nomePlanilha);
+  if (tokensPlanilha.length === 0) return null;
+
+  // 1. Casamento exato
+  for (const item of itensContrato) {
+    const normItem = normalizarTextoPedido(item.nome)
+      .replace(/[^A-Z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (normItem === normPlanilha) return item;
+  }
+
+  // 2. Casamento por todos os tokens (com o primeiro token principal igual, ex: ARROZ, BISCOITO, FARINHA, SAL)
+  let melhorCandidato: T | null = null;
+  let melhorPontuacao = 0;
+
+  for (const item of itensContrato) {
+    const tokensItem = tokenizarItemMerenda(item.nome);
+    if (tokensItem.length === 0) continue;
+
+    // O substantivo principal (primeiro token) deve coincidir para evitar que "SAL" case com "BISCOITO SALGADO"
+    if (tokensItem[0] !== tokensPlanilha[0]) continue;
+
+    const todosTokensPresentes = tokensPlanilha.every((tp) => tokensItem.includes(tp));
+    if (todosTokensPresentes) {
+      // Quanto menor a diferença de tokens extras, mais específico é o casamento
+      const pontuacao = 100 - Math.min(50, Math.abs(tokensItem.length - tokensPlanilha.length));
+      if (pontuacao > melhorPontuacao) {
+        melhorPontuacao = pontuacao;
+        melhorCandidato = item;
+      }
+    }
+  }
+
+  return melhorCandidato;
+}
+
+function interpretarEmbalagemPlanilha(
+  embalagemRaw: unknown,
+  qtdPctRaw: unknown,
+  nomeItem: string
+): { siglaUnidade: string; gramagemPorPacote: number | null; descricaoEmbalagem: string } {
+  const embStr = String(embalagemRaw ?? "").trim();
+  const qtdPctStr = String(qtdPctRaw ?? "").trim();
+  const fonte = embStr || qtdPctStr;
+  const upper = normalizarTextoPedido(fonte);
+  const nomeNorm = normalizarTextoPedido(nomeItem);
+
+  if (upper === "UND" || upper === "UN" || upper === "UNID" || upper === "UNIDADE" || nomeNorm === "OVOS" || nomeNorm === "OVO") {
+    return { siglaUnidade: "Un", gramagemPorPacote: null, descricaoEmbalagem: embStr || "UND" };
+  }
+
+  if (upper === "KG" || upper === "QUILO" || upper === "QUILOGRAMA") {
+    return { siglaUnidade: "Kg", gramagemPorPacote: 1000, descricaoEmbalagem: embStr || "Kg" };
+  }
+
+  // Ex: "1kg", "1 kg"
+  const matchKg = upper.match(/^(\d+(?:[.,]\d+)?)\s*KG$/);
+  if (matchKg) {
+    const kgVal = parseFloat(matchKg[1].replace(",", "."));
+    return {
+      siglaUnidade: "Kg",
+      gramagemPorPacote: Math.round(kgVal * 1000),
+      descricaoEmbalagem: embStr,
+    };
+  }
+
+  // Ex: "350g", "100g", "500g", "250g"
+  const matchG = upper.match(/^(\d+(?:[.,]\d+)?)\s*G$/);
+  if (matchG) {
+    const gVal = parseFloat(matchG[1].replace(",", "."));
+    return {
+      siglaUnidade: "Pct",
+      gramagemPorPacote: gVal,
+      descricaoEmbalagem: embStr,
+    };
+  }
+
+  // Ex: "340 ml", "500ml"
+  const matchMl = upper.match(/^(\d+(?:[.,]\d+)?)\s*ML$/);
+  if (matchMl) {
+    const mlVal = parseFloat(matchMl[1].replace(",", "."));
+    return {
+      siglaUnidade: "Pct",
+      gramagemPorPacote: mlVal,
+      descricaoEmbalagem: embStr,
+    };
+  }
+
+  // Ex: número puro como 1000 (1000g por pacote) ou 350
+  const matchNum = upper.match(/^(\d+(?:[.,]\d+)?)$/);
+  if (matchNum) {
+    const numVal = parseFloat(matchNum[1].replace(",", "."));
+    return {
+      siglaUnidade: "Pct",
+      gramagemPorPacote: numVal,
+      descricaoEmbalagem: `${numVal}g`,
+    };
+  }
+
+  // Fallback por tipo de item conhecido
+  if (nomeNorm.includes("BISCOITO")) {
+    return { siglaUnidade: "Pct", gramagemPorPacote: 350, descricaoEmbalagem: "350g" };
+  }
+  if (nomeNorm.includes("ACUCAR") || nomeNorm.includes("ARROZ") || nomeNorm.includes("FEIJAO") || nomeNorm.includes("SAL")) {
+    return { siglaUnidade: "Kg", gramagemPorPacote: 1000, descricaoEmbalagem: "1kg" };
+  }
+
+  return { siglaUnidade: "Pct", gramagemPorPacote: null, descricaoEmbalagem: embStr || "Pct" };
+}
+
+function extrairNumeroLimpo(val: unknown): number {
+  if (typeof val === "number") return isFinite(val) ? val : 0;
+  const str = String(val ?? "").trim();
+  if (!str) return 0;
+  const match = str.match(/(\d+(?:[.,]\d+)?)/);
+  if (!match) return 0;
+  const parsed = parseFloat(match[1].replace(",", "."));
+  return isFinite(parsed) ? parsed : 0;
+}
+
+interface EscolaPlanilhaPedido {
+  colIndex: number;
+  nomePlanilha: string;
+  codigoPlanilha?: string;
+  rota: string;
+  totalAlunos: number;
+  estudantesRegular: number;
+  estudantesIntegral: number;
+  estudantesEja: number;
+  estudantesPreEscola: number;
+}
+
+interface ItemPlanilhaPedido {
+  rowIndex: number;
+  nomePlanilha: string;
+  secao: string;
+  oculto: boolean;
+  embalagem: string;
+  siglaUnidade: string;
+  gramagemPorPacote: number | null;
+  percaptaGramas: number;
+  frequenciaMensal: number;
+  valorUnitarioPlanilha?: number;
+  escolasAtendidas: number;
+  quantidadeTotal: number;
+  consolidadoPlanilha: number;
+  distribuicao: {
+    colIndex: number;
+    escolaNome: string;
+    rota: string;
+    quantidade: number;
+  }[];
+}
+
+interface ResultadoParsePlanilhaPedido {
+  formato: "matriz" | "tabular";
+  titulo: string;
+  fornecedorDetectado: string;
+  tipoPublico: "escola" | "creche";
+  dataEntregaSugerida: string;
+  escolas: EscolaPlanilhaPedido[];
+  itens: ItemPlanilhaPedido[];
+  totaisAlunos: {
+    matriculados: number;
+    regular: number;
+    integral: number;
+    eja: number;
+  };
+}
+
+function parsePlanilhaPedidoBuffer(buffer: Buffer): ResultadoParsePlanilhaPedido {
+  const workbook = xlsx.read(buffer, { type: "buffer", cellStyles: true });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const rows: unknown[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+  if (!rows || rows.length === 0) {
+    throw new Error("A planilha enviada está vazia.");
+  }
+
+  const headerRow = (rows[0] || []).map((c) => String(c ?? "").trim());
+  const headerUpper = headerRow.map((c) => normalizarTextoPedido(c));
+
+  // Verifica se é o formato Tabular (exportado pelo sistema)
+  const isTabular =
+    headerUpper.includes("ITEMNOME") ||
+    headerUpper.includes("UNIDADENOME") ||
+    headerUpper.includes("CONTRATONUMERO") ||
+    headerUpper.includes("PEDIDONUMERO");
+
+  const dataSugeridaDate = new Date();
+  dataSugeridaDate.setDate(dataSugeridaDate.getDate() + 7);
+  const dataEntregaSugerida = dataSugeridaDate.toISOString().split("T")[0];
+
+  if (isTabular) {
+    const jsonRows = xlsx.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: "" });
+    const escolasMap = new Map<string, EscolaPlanilhaPedido>();
+    const itensMap = new Map<string, ItemPlanilhaPedido>();
+    let fornecedorDetectado = "";
+    let titulo = "Planilha Tabular de Pedidos";
+
+    jsonRows.forEach((r, idx) => {
+      const escolaNome = String(r.UnidadeNome || r.Unidade || r.Escola || "").trim();
+      const escolaCodigo = String(r.UnidadeCodigo || r.CodigoUnidade || "").trim();
+      const itemNome = String(r.ItemNome || r.Item || r.Produto || "").trim();
+      const qtd = Number(r.Quantidade ?? r.Qtd ?? 0) || 0;
+      const sigla = String(r.ItemUnidadeSigla || r.UnidadeMedida || "Pct").trim();
+      const valUnit = Number(r.ItemValorUnitario ?? r.ValorUnitario ?? 0) || undefined;
+      const forn = String(r.FornecedorNome || r.Fornecedor || "").trim();
+      const contratoNum = String(r.ContratoNumero || r.Contrato || "").trim();
+
+      if (forn && !fornecedorDetectado) fornecedorDetectado = forn;
+      if (contratoNum && titulo === "Planilha Tabular de Pedidos") {
+        titulo = `Contrato ${contratoNum}${forn ? ` - ${forn}` : ""}`;
+      }
+
+      if (!escolaNome || !itemNome || qtd <= 0) return;
+
+      let esc = escolasMap.get(escolaNome);
+      if (!esc) {
+        esc = {
+          colIndex: escolasMap.size + 1,
+          nomePlanilha: escolaNome,
+          codigoPlanilha: escolaCodigo || undefined,
+          rota: String(r.Rota || "").trim(),
+          totalAlunos: 0,
+          estudantesRegular: 0,
+          estudantesIntegral: 0,
+          estudantesEja: 0,
+          estudantesPreEscola: 0,
+        };
+        escolasMap.set(escolaNome, esc);
+      }
+
+      let item = itensMap.get(itemNome);
+      if (!item) {
+        item = {
+          rowIndex: idx + 2,
+          nomePlanilha: itemNome,
+          secao: "REGULAR",
+          oculto: false,
+          embalagem: sigla,
+          siglaUnidade: sigla,
+          gramagemPorPacote: null,
+          percaptaGramas: 0,
+          frequenciaMensal: 0,
+          valorUnitarioPlanilha: valUnit,
+          escolasAtendidas: 0,
+          quantidadeTotal: 0,
+          consolidadoPlanilha: 0,
+          distribuicao: [],
+        };
+        itensMap.set(itemNome, item);
+      }
+
+      item.distribuicao.push({
+        colIndex: esc.colIndex,
+        escolaNome: esc.nomePlanilha,
+        rota: esc.rota,
+        quantidade: qtd,
+      });
+      item.quantidadeTotal += qtd;
+      item.consolidadoPlanilha += qtd;
+      item.escolasAtendidas = item.distribuicao.length;
+    });
+
+    return {
+      formato: "tabular",
+      titulo,
+      fornecedorDetectado,
+      tipoPublico: "escola",
+      dataEntregaSugerida,
+      escolas: Array.from(escolasMap.values()),
+      itens: Array.from(itensMap.values()),
+      totaisAlunos: { matriculados: 0, regular: 0, integral: 0, eja: 0 },
+    };
+  }
+
+  // --- FORMATO MATRIZ (Ex: PEDIDO MAXXI CEREAIS ESCOLAS OUTUBRO) ---
+  const titulo = headerRow[0] || "Pedido Importado via Planilha";
+  const tituloNorm = normalizarTextoPedido(titulo);
+  const tipoPublico: "escola" | "creche" = tituloNorm.includes("CRECHE") ? "creche" : "escola";
+
+  // Extrair nome do fornecedor a partir da célula A1 (ex: "MAXXI  ESCOLAS OUTUBRO 2026" -> "MAXXI")
+  const palavrasIgnorarTitulo = new Set([
+    "PEDIDO",
+    "PEDIDOS",
+    "ESCOLAS",
+    "ESCOLA",
+    "CRECHES",
+    "CRECHE",
+    "JANEIRO",
+    "FEVEREIRO",
+    "MARCO",
+    "ABRIL",
+    "MAIO",
+    "JUNHO",
+    "JULHO",
+    "AGOSTO",
+    "SETEMBRO",
+    "OUTUBRO",
+    "NOVEMBRO",
+    "DEZEMBRO",
+  ]);
+  const tokensTitulo = tituloNorm
+    .split(" ")
+    .filter((t) => t && !palavrasIgnorarTitulo.has(t) && !/^\d{4}$/.test(t));
+  const fornecedorDetectado = tokensTitulo.join(" ").trim() || "MAXXI";
+
+  // Encontrar coluna CONSOLIDADO (ou última coluna de escola)
+  let consolidadoCol = headerUpper.findIndex((c) => c === "CONSOLIDADO" || c === "TOTAL");
+  if (consolidadoCol === -1) {
+    consolidadoCol = headerRow.length;
+  }
+
+  const metadataHeaders = [
+    "QUANTIDADE PCT",
+    "PERCAPTA",
+    "PERCAPITA",
+    "FRENQUENCIA",
+    "FREQUENCIA",
+    "EMBALAGEM",
+  ];
+
+  // Localizar linhas de quantidade de alunos (linha 1: NUMERO DE ALUNOS MATR., e bloco PARCIAL/INTEGRAL/EJA)
+  let rowAlunosMatr: unknown[] | null = null;
+  let rowIntegralAlunos: unknown[] | null = null;
+  let rowEjaAlunos: unknown[] | null = null;
+  let indiceParcial = -1;
+
+  for (let r = 1; r < rows.length; r++) {
+    const label = normalizarTextoPedido(rows[r]?.[0]);
+    if (!rowAlunosMatr && (label.startsWith("NUMERO DE ALUNOS") || label.startsWith("ALUNOS MATR"))) {
+      rowAlunosMatr = rows[r];
+    }
+    if (label === "PARCIAL") {
+      indiceParcial = r;
+      for (let sub = r + 1; sub < Math.min(rows.length, r + 5); sub++) {
+        const subLabel = normalizarTextoPedido(rows[sub]?.[0]);
+        if (subLabel === "INTEGRAL") rowIntegralAlunos = rows[sub];
+        if (subLabel === "EJA") rowEjaAlunos = rows[sub];
+      }
+      break;
+    }
+  }
+
+  // Identificar todas as colunas de Unidades Educacionais e suas Rotas
+  const escolas: EscolaPlanilhaPedido[] = [];
+  let rotaAtual = "";
+
+  for (let c = 1; c < consolidadoCol; c++) {
+    const rawHeader = headerRow[c];
+    if (!rawHeader) continue;
+    const upper = headerUpper[c];
+
+    if (metadataHeaders.some((m) => upper.includes(m))) continue;
+    if (upper.startsWith("ROTA ")) {
+      rotaAtual = rawHeader.replace(/\s+/g, " ").trim();
+      continue;
+    }
+
+    const totalAlunos = Math.round(extrairNumeroLimpo(rowAlunosMatr?.[c]));
+    const integral = Math.round(extrairNumeroLimpo(rowIntegralAlunos?.[c]));
+    const eja = Math.round(extrairNumeroLimpo(rowEjaAlunos?.[c]));
+    const regular = tipoPublico === "escola" ? Math.max(0, totalAlunos - integral - eja) : 0;
+    const preEscola = tipoPublico === "creche" ? Math.max(0, totalAlunos) : 0;
+
+    escolas.push({
+      colIndex: c,
+      nomePlanilha: rawHeader.replace(/\s+/g, " ").trim(),
+      rota: rotaAtual,
+      totalAlunos,
+      estudantesRegular: regular,
+      estudantesIntegral: integral,
+      estudantesEja: eja,
+      estudantesPreEscola: preEscola,
+    });
+  }
+
+  const limiteLinhas = indiceParcial !== -1 ? indiceParcial : rows.length;
+  const itens: ItemPlanilhaPedido[] = [];
+  const itensVistos = new Set<string>();
+  let secaoAtual = "REGULAR";
+
+  for (let r = 1; r < limiteLinhas; r++) {
+    const row = rows[r] || [];
+    const rawNome = String(row[0] ?? "").replace(/\s+/g, " ").trim();
+    if (!rawNome) continue;
+
+    const upperNome = normalizarTextoPedido(rawNome);
+    if (
+      upperNome.startsWith("NUMERO DE ALUNOS") ||
+      upperNome.startsWith("ALUNOS MATR") ||
+      upperNome === "PARCIAL" ||
+      upperNome === "EJA"
+    ) {
+      continue;
+    }
+
+    if (upperNome === "INTEGRAL" || upperNome.startsWith("PEDIDO DE PROTE")) {
+      secaoAtual = upperNome;
+      continue;
+    }
+
+    // Evita reprocessar rascunhos duplicados caso a planilha tenha uma segunda tabela abaixo
+    if (itensVistos.has(upperNome)) {
+      continue;
+    }
+
+    const isHidden = Boolean((worksheet["!rows"] as { hidden?: boolean }[] | undefined)?.[r]?.hidden);
+
+    const qtdPctRaw = row[1];
+    const percapta1Raw = row[2];
+    const freq1Raw = row[3];
+    const embalagemRaw = row[4];
+    const percapta2Raw = row[5];
+    const freq2Raw = row[6];
+
+    const infoEmb = interpretarEmbalagemPlanilha(embalagemRaw, qtdPctRaw, rawNome);
+    const percaptaGramas = extrairNumeroLimpo(percapta2Raw !== "" ? percapta2Raw : percapta1Raw);
+    const frequenciaMensal = Math.round(extrairNumeroLimpo(freq2Raw !== "" ? freq2Raw : freq1Raw));
+
+    const distribuicao: ItemPlanilhaPedido["distribuicao"] = [];
+    let somaQuantidades = 0;
+
+    for (const esc of escolas) {
+      const cellVal = row[esc.colIndex];
+      if (cellVal === "" || cellVal === null || cellVal === undefined) continue;
+
+      // Ignora marcações textuais nas células (ex: "F", "E", "C", "H", "A", "D", "A" de escola FECHADA)
+      let numVal = NaN;
+      if (typeof cellVal === "number") {
+        numVal = cellVal;
+      } else if (typeof cellVal === "string") {
+        const trimmed = cellVal.trim();
+        if (/^\d+(?:[.,]\d+)?$/.test(trimmed)) {
+          numVal = parseFloat(trimmed.replace(",", "."));
+        }
+      }
+
+      if (!isNaN(numVal) && numVal > 0) {
+        distribuicao.push({
+          colIndex: esc.colIndex,
+          escolaNome: esc.nomePlanilha,
+          rota: esc.rota,
+          quantidade: numVal,
+        });
+        somaQuantidades += numVal;
+      }
+    }
+
+    const consolidadoPlanilha = extrairNumeroLimpo(row[consolidadoCol]) || somaQuantidades;
+
+    // Ignora linhas sem nenhuma distribuição e sem consolidado (ex: linhas divisórias vazias)
+    if (somaQuantidades <= 0 && consolidadoPlanilha <= 0) {
+      continue;
+    }
+
+    itensVistos.add(upperNome);
+
+    // Verificar se há valor unitário anotado na coluna após o consolidado (ex: linha Carne com Osso tem 59 na col 136)
+    const possivelPrecoCol = extrairNumeroLimpo(row[consolidadoCol + 1]);
+
+    itens.push({
+      rowIndex: r + 1,
+      nomePlanilha: rawNome,
+      secao: secaoAtual,
+      oculto: isHidden,
+      embalagem: infoEmb.descricaoEmbalagem,
+      siglaUnidade: infoEmb.siglaUnidade,
+      gramagemPorPacote: infoEmb.gramagemPorPacote,
+      percaptaGramas,
+      frequenciaMensal,
+      valorUnitarioPlanilha: possivelPrecoCol > 0 ? possivelPrecoCol : undefined,
+      escolasAtendidas: distribuicao.length,
+      quantidadeTotal: somaQuantidades,
+      consolidadoPlanilha,
+      distribuicao,
+    });
+  }
+
+  const totaisAlunos = escolas.reduce(
+    (acc, e) => {
+      acc.matriculados += e.totalAlunos;
+      acc.regular += e.estudantesRegular;
+      acc.integral += e.estudantesIntegral;
+      acc.eja += e.estudantesEja;
+      return acc;
+    },
+    { matriculados: 0, regular: 0, integral: 0, eja: 0 }
+  );
+
+  return {
+    formato: "matriz",
+    titulo,
+    fornecedorDetectado,
+    tipoPublico,
+    dataEntregaSugerida,
+    escolas,
+    itens,
+    totaisAlunos,
+  };
+}
+
+interface OpcoesAlimentacaoPedido {
+  contratoId?: string;
+  dataPedido?: string;
+  dataEntregaPrevista?: string;
+  incluirLinhasOcultas?: boolean;
+  itensSelecionados?: string[];
+  atualizarUnidades?: boolean;
+  atualizarPercapitas?: boolean;
+  modo: "importar" | "formulario";
+}
+
+async function alimentarDadosPlanilhaPedido(
+  parsed: ResultadoParsePlanilhaPedido,
+  opcoes: OpcoesAlimentacaoPedido
+) {
+  const {
+    contratoId,
+    dataPedido,
+    dataEntregaPrevista,
+    incluirLinhasOcultas = false,
+    itensSelecionados,
+    atualizarUnidades = true,
+    atualizarPercapitas = true,
+    modo,
+  } = opcoes;
+
+  // Filtra os itens que serão processados
+  const filtroNomes =
+    itensSelecionados && itensSelecionados.length > 0
+      ? new Set(itensSelecionados.map((n) => normalizarTextoPedido(n)))
+      : null;
+
+  const itensParaProcessar = parsed.itens.filter((it) => {
+    if (filtroNomes) {
+      return filtroNomes.has(normalizarTextoPedido(it.nomePlanilha));
+    }
+    if (!incluirLinhasOcultas && it.oculto) {
+      return false;
+    }
+    return it.quantidadeTotal > 0;
+  });
+
+  if (itensParaProcessar.length === 0) {
+    throw new Error("Nenhum item com quantidade válida foi selecionado para importação.");
+  }
+
+  return await prisma.$transaction(
+    async (tx) => {
+      // 1. Garantir Unidades de Medida básicas
+      const unidadesMedidaPadrao = [
+        { nome: "Quilograma", sigla: "Kg" },
+        { nome: "Grama", sigla: "g" },
+        { nome: "Pacote", sigla: "Pct" },
+        { nome: "Litro", sigla: "L" },
+        { nome: "Unidade", sigla: "Un" },
+        { nome: "Caixa", sigla: "Cx" },
+      ];
+      const mapaUnidadesMedida = new Map<string, { id: string; sigla: string; nome: string }>();
+      const existentesUM = await tx.unidadeMedida.findMany();
+      existentesUM.forEach((um) => mapaUnidadesMedida.set(um.sigla.toUpperCase(), um));
+
+      for (const umPadrao of unidadesMedidaPadrao) {
+        if (!mapaUnidadesMedida.has(umPadrao.sigla.toUpperCase())) {
+          const criada = await tx.unidadeMedida.create({ data: umPadrao });
+          mapaUnidadesMedida.set(criada.sigla.toUpperCase(), criada);
+        }
+      }
+
+      // 2. Garantir Tipos de Estudante básicos (para alimentar Percápitas)
+      const tiposPadrao = [
+        { id: "bercario", nome: "Berçário", sigla: "BER", categoria: "creche", ordem: 1 },
+        { id: "maternal", nome: "Maternal", sigla: "MAT", categoria: "creche", ordem: 2 },
+        { id: "pre", nome: "Pré-Escola", sigla: "PRE", categoria: "creche", ordem: 3 },
+        { id: "regular", nome: "Turmas Regulares", sigla: "REG", categoria: "escola", ordem: 4 },
+        { id: "integral", nome: "Turmas Integrais", sigla: "INT", categoria: "escola", ordem: 5 },
+        { id: "eja", nome: "Educação de Jovens e Adultos", sigla: "EJA", categoria: "escola", ordem: 6 },
+      ];
+      const tiposExistentes = await tx.tipoEstudante.findMany();
+      const idsTiposExistentes = new Set(tiposExistentes.map((t) => t.id));
+      for (const tp of tiposPadrao) {
+        if (!idsTiposExistentes.has(tp.id)) {
+          await tx.tipoEstudante.create({ data: tp }).catch(() => null);
+        }
+      }
+
+      // 3. Resolver Contrato e Fornecedor
+      let contrato = null;
+      if (contratoId && contratoId !== "auto") {
+        contrato = await tx.contrato.findUnique({
+          where: { id: contratoId },
+          include: { fornecedor: true, itens: { include: { unidadeMedida: true } } },
+        });
+      }
+
+      if (!contrato) {
+        const todosContratos = await tx.contrato.findMany({
+          where: { tipo: "nutricao" },
+          include: { fornecedor: true, itens: { include: { unidadeMedida: true } } },
+          orderBy: { createdAt: "desc" },
+        });
+        const chaveFornecedor = normalizarTextoPedido(parsed.fornecedorDetectado);
+        contrato =
+          todosContratos.find(
+            (c) =>
+              normalizarTextoPedido(c.fornecedor.nome).includes(chaveFornecedor) ||
+              normalizarTextoPedido(c.numero).includes(chaveFornecedor)
+          ) || null;
+      }
+
+      if (!contrato) {
+        // Criar ou buscar fornecedor correspondente ao detectado na planilha
+        const nomeFornecedor = parsed.fornecedorDetectado
+          ? `${parsed.fornecedorDetectado} CEREAIS`
+          : "FORNECEDOR IMPORTADO";
+        const todosFornecedores = await tx.fornecedor.findMany();
+        let fornecedor =
+          todosFornecedores.find((f) =>
+            normalizarTextoPedido(f.nome).includes(normalizarTextoPedido(parsed.fornecedorDetectado))
+          ) || null;
+
+        if (!fornecedor) {
+          const sufixoUnico = String(Date.now()).slice(-8);
+          const cnpjGerado = `99.${sufixoUnico.slice(0, 3)}.${sufixoUnico.slice(3, 6)}/0001-${sufixoUnico.slice(6, 8)}`;
+          fornecedor = await tx.fornecedor.create({
+            data: {
+              nome: nomeFornecedor,
+              cnpj: cnpjGerado,
+              email: `contato.${normalizarTextoPedido(parsed.fornecedorDetectado).toLowerCase().replace(/[^a-z0-9]/g, "") || "fornecedor"}.${sufixoUnico}@merenda.local`,
+              telefone: "(83) 99999-9999",
+              endereco: "Importado via Planilha de Pedido",
+              ativo: true,
+            },
+          });
+        }
+
+        const anoAtual = new Date().getFullYear();
+        const numeroContrato = `CT-${normalizarTextoPedido(parsed.fornecedorDetectado).replace(/[^A-Z0-9]/g, "").slice(0, 10) || "IMP"}-${anoAtual}`;
+        const existentePorNum = await tx.contrato.findUnique({
+          where: { numero: numeroContrato },
+          include: { fornecedor: true, itens: { include: { unidadeMedida: true } } },
+        });
+
+        if (existentePorNum) {
+          contrato = existentePorNum;
+        } else {
+          contrato = await tx.contrato.create({
+            data: {
+              numero: numeroContrato,
+              tipo: "nutricao",
+              dataInicio: new Date(anoAtual, 0, 1),
+              dataFim: new Date(anoAtual, 11, 31, 23, 59, 59),
+              valorTotal: 0,
+              status: "ativo",
+              fornecedorId: fornecedor.id,
+            },
+            include: { fornecedor: true, itens: { include: { unidadeMedida: true } } },
+          });
+        }
+      }
+
+      // 4. Alimentar / Casar Unidades Educacionais
+      const unidadesNoBanco = await tx.unidadeEducacional.findMany();
+      const codigosUsados = new Set(unidadesNoBanco.map((u) => u.codigo.toUpperCase()));
+      const emailsUsados = new Set(unidadesNoBanco.map((u) => u.email.toLowerCase()));
+      const mapaColunaParaUnidade = new Map<number, UnidadeEducacional>();
+
+      let unidadesCriadas = 0;
+      let unidadesAtualizadas = 0;
+      let seqCodigo = unidadesNoBanco.length + 1;
+
+      for (const escPlanilha of parsed.escolas) {
+        const existente = casarUnidadeEducacional(
+          escPlanilha.nomePlanilha,
+          unidadesNoBanco,
+          escPlanilha.codigoPlanilha
+        );
+
+        if (existente) {
+          if (atualizarUnidades && escPlanilha.totalAlunos > 0) {
+            const dadosUpdate: Prisma.UnidadeEducacionalUpdateInput = {};
+            if (parsed.tipoPublico === "creche") {
+              dadosUpdate.estudantesPreEscola = escPlanilha.estudantesPreEscola;
+            } else {
+              dadosUpdate.estudantesRegular = escPlanilha.estudantesRegular;
+              dadosUpdate.estudantesIntegral = escPlanilha.estudantesIntegral;
+              dadosUpdate.estudantesEja = escPlanilha.estudantesEja;
+            }
+            if (escPlanilha.rota && (!existente.endereco || existente.endereco === "Endereço não informado")) {
+              dadosUpdate.endereco = escPlanilha.rota;
+            }
+
+            const atualizada = await tx.unidadeEducacional.update({
+              where: { id: existente.id },
+              data: dadosUpdate,
+            });
+            mapaColunaParaUnidade.set(escPlanilha.colIndex, atualizada);
+            unidadesAtualizadas++;
+          } else {
+            mapaColunaParaUnidade.set(escPlanilha.colIndex, existente);
+          }
+        } else {
+          // Gerar código e e-mail únicos para criar a Unidade Educacional
+          let novoCodigo = escPlanilha.codigoPlanilha?.trim() || "";
+          while (!novoCodigo || codigosUsados.has(novoCodigo.toUpperCase())) {
+            novoCodigo = `UNID-${String(seqCodigo).padStart(3, "0")}`;
+            seqCodigo++;
+          }
+          codigosUsados.add(novoCodigo.toUpperCase());
+
+          const slugBase =
+            normalizarBaseUnidade(escPlanilha.nomePlanilha)
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "")
+              .slice(0, 32) || `unidade${seqCodigo}`;
+          let novoEmail = `contato@${slugBase}.edu.br`;
+          let sufixoEmail = 1;
+          while (emailsUsados.has(novoEmail.toLowerCase())) {
+            novoEmail = `contato${sufixoEmail}@${slugBase}.edu.br`;
+            sufixoEmail++;
+          }
+          emailsUsados.add(novoEmail.toLowerCase());
+
+          const criada = await tx.unidadeEducacional.create({
+            data: {
+              nome: escPlanilha.nomePlanilha,
+              codigo: novoCodigo,
+              email: novoEmail,
+              telefone: "(83) 3310-6000",
+              endereco: escPlanilha.rota || "Campina Grande - PB",
+              ativo: true,
+              estudantesBercario: 0,
+              estudantesMaternal: 0,
+              estudantesPreEscola: escPlanilha.estudantesPreEscola,
+              estudantesRegular: escPlanilha.estudantesRegular,
+              estudantesIntegral: escPlanilha.estudantesIntegral,
+              estudantesEja: escPlanilha.estudantesEja,
+            },
+          });
+
+          unidadesNoBanco.push(criada);
+          mapaColunaParaUnidade.set(escPlanilha.colIndex, criada);
+          unidadesCriadas++;
+        }
+      }
+
+      // 5. Alimentar / Casar Itens do Contrato e Percápitas
+      const itensContratoAtuais = [...contrato.itens];
+      let itensContratoCriados = 0;
+      let itensContratoAssociados = 0;
+      let percapitasAtualizadas = 0;
+
+      const itensResolvidos: {
+        itemPlanilha: ItemPlanilhaPedido;
+        itemContrato: typeof itensContratoAtuais[number];
+      }[] = [];
+
+      for (const itemPlan of itensParaProcessar) {
+        const umKey = itemPlan.siglaUnidade.toUpperCase();
+        const unidadeMedida =
+          mapaUnidadesMedida.get(umKey) ||
+          mapaUnidadesMedida.get("PCT") ||
+          Array.from(mapaUnidadesMedida.values())[0];
+
+        let itemContrato = casarItemContrato(itemPlan.nomePlanilha, itensContratoAtuais);
+
+        const chavePreco = normalizarTextoPedido(itemPlan.nomePlanilha)
+          .replace(/[^A-Z0-9\s]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        const precoPadrao =
+          itemPlan.valorUnitarioPlanilha ??
+          PRECOS_REFERENCIA_MERENDA[chavePreco] ??
+          5.0;
+
+        if (itemContrato) {
+          itensContratoAssociados++;
+          const precisaSaldoCreche = parsed.tipoPublico === "creche";
+          const novoGramagem = itemContrato.gramagemPorPacote ?? itemPlan.gramagemPorPacote;
+          const novoValorUnitario =
+            itemContrato.valorUnitario > 0 ? itemContrato.valorUnitario : precoPadrao;
+
+          if (modo === "formulario") {
+            // No modo formulário, garante que o item tenha saldo suficiente para validação no NovoPedidoDialog
+            const saldoAlvo = Math.max(
+              precisaSaldoCreche ? itemContrato.saldoCreche : itemContrato.saldoEscola,
+              itemPlan.quantidadeTotal
+            );
+            const qtdOriginalAlvo = Math.max(
+              itemContrato.quantidadeOriginal,
+              itemPlan.quantidadeTotal
+            );
+            itemContrato = await tx.itemContrato.update({
+              where: { id: itemContrato.id },
+              data: {
+                gramagemPorPacote: novoGramagem,
+                valorUnitario: novoValorUnitario,
+                quantidadeOriginal: qtdOriginalAlvo,
+                saldoAtual: Math.max(itemContrato.saldoAtual, saldoAlvo),
+                ...(precisaSaldoCreche
+                  ? {
+                      quantidadeCreche: Math.max(itemContrato.quantidadeCreche, saldoAlvo),
+                      saldoCreche: saldoAlvo,
+                    }
+                  : {
+                      quantidadeEscola: Math.max(itemContrato.quantidadeEscola, saldoAlvo),
+                      saldoEscola: saldoAlvo,
+                    }),
+              },
+              include: { unidadeMedida: true },
+            });
+          } else {
+            // No modo importar, ajusta o saldo subtraindo a quantidade pedida (ou expande quantidadeOriginal se era 0)
+            const qtdOriginalBase = Math.max(
+              itemContrato.quantidadeOriginal,
+              itemPlan.quantidadeTotal
+            );
+            const saldoEscolaBase =
+              itemContrato.quantidadeEscola > 0 || itemContrato.saldoEscola > 0
+                ? itemContrato.saldoEscola
+                : qtdOriginalBase;
+            const saldoCrecheBase =
+              itemContrato.quantidadeCreche > 0 || itemContrato.saldoCreche > 0
+                ? itemContrato.saldoCreche
+                : qtdOriginalBase;
+            const saldoAtualBase =
+              itemContrato.saldoAtual > 0 ? itemContrato.saldoAtual : qtdOriginalBase;
+
+            itemContrato = await tx.itemContrato.update({
+              where: { id: itemContrato.id },
+              data: {
+                gramagemPorPacote: novoGramagem,
+                valorUnitario: novoValorUnitario,
+                quantidadeOriginal: qtdOriginalBase,
+                saldoAtual: Math.max(0, saldoAtualBase - itemPlan.quantidadeTotal),
+                ...(precisaSaldoCreche
+                  ? {
+                      quantidadeCreche: Math.max(itemContrato.quantidadeCreche, qtdOriginalBase),
+                      saldoCreche: Math.max(0, saldoCrecheBase - itemPlan.quantidadeTotal),
+                    }
+                  : {
+                      quantidadeEscola: Math.max(itemContrato.quantidadeEscola, qtdOriginalBase),
+                      saldoEscola: Math.max(0, saldoEscolaBase - itemPlan.quantidadeTotal),
+                    }),
+              },
+              include: { unidadeMedida: true },
+            });
+          }
+        } else {
+          // Criar novo ItemContrato vinculado ao contrato
+          const qtdContratadaEstimada = itemPlan.quantidadeTotal * 10;
+          const saldoPosPedido =
+            modo === "importar"
+              ? Math.max(0, qtdContratadaEstimada - itemPlan.quantidadeTotal)
+              : qtdContratadaEstimada;
+          const isCreche = parsed.tipoPublico === "creche";
+
+          itemContrato = await tx.itemContrato.create({
+            data: {
+              nome: itemPlan.nomePlanilha,
+              valorUnitario: precoPadrao,
+              gramagemPorPacote: itemPlan.gramagemPorPacote,
+              quantidadeOriginal: qtdContratadaEstimada,
+              saldoAtual: saldoPosPedido,
+              quantidadeCreche: isCreche ? qtdContratadaEstimada : 0,
+              saldoCreche: isCreche ? saldoPosPedido : 0,
+              quantidadeEscola: isCreche ? 0 : qtdContratadaEstimada,
+              saldoEscola: isCreche ? 0 : saldoPosPedido,
+              contratoId: contrato.id,
+              unidadeMedidaId: unidadeMedida.id,
+            },
+            include: { unidadeMedida: true },
+          });
+          itensContratoAtuais.push(itemContrato);
+          itensContratoCriados++;
+        }
+
+        // Alimentar Percápitas do item se a planilha informou percápita/frequência
+        if (atualizarPercapitas && itemPlan.percaptaGramas > 0) {
+          const tiposAlvo =
+            itemPlan.secao === "INTEGRAL"
+              ? ["integral"]
+              : parsed.tipoPublico === "creche"
+              ? ["bercario", "maternal", "pre"]
+              : ["regular", "integral", "eja"];
+
+          const freqVal = itemPlan.frequenciaMensal > 0 ? itemPlan.frequenciaMensal : 5;
+          for (const tipoEstudanteId of tiposAlvo) {
+            await tx.percapitaItem.upsert({
+              where: {
+                itemContratoId_tipoEstudanteId: {
+                  itemContratoId: itemContrato.id,
+                  tipoEstudanteId,
+                },
+              },
+              update: {
+                gramagemPorEstudante: itemPlan.percaptaGramas,
+                frequenciaMensal: freqVal,
+                ativo: true,
+              },
+              create: {
+                itemContratoId: itemContrato.id,
+                tipoEstudanteId,
+                gramagemPorEstudante: itemPlan.percaptaGramas,
+                frequenciaMensal: freqVal,
+                ativo: true,
+              },
+            });
+            percapitasAtualizadas++;
+          }
+        }
+
+        itensResolvidos.push({ itemPlanilha: itemPlan, itemContrato });
+      }
+
+      // Atualiza o valorTotal do contrato caso tenha sido criado com valorTotal = 0
+      if (contrato.valorTotal === 0) {
+        const todosItensDoContrato = await tx.itemContrato.findMany({
+          where: { contratoId: contrato.id },
+        });
+        const somaValorContrato = todosItensDoContrato.reduce(
+          (acc, i) => acc + i.quantidadeOriginal * i.valorUnitario,
+          0
+        );
+        if (somaValorContrato > 0) {
+          contrato = await tx.contrato.update({
+            where: { id: contrato.id },
+            data: { valorTotal: somaValorContrato },
+            include: { fornecedor: true, itens: { include: { unidadeMedida: true } } },
+          });
+        }
+      }
+
+      // 6. Se for modo "formulario", retorna toda a estrutura pronta para alimentar o NovoPedidoDialog
+      if (modo === "formulario") {
+        const contratoCompleto = await tx.contrato.findUnique({
+          where: { id: contrato.id },
+          include: {
+            fornecedor: true,
+            itens: { include: { unidadeMedida: true } },
+          },
+        });
+
+        const itensComPercapita = await tx.itemContrato.findMany({
+          where: { contratoId: contrato.id },
+          include: {
+            unidadeMedida: true,
+            contrato: { select: { id: true, numero: true, fornecedor: { select: { nome: true } } } },
+            percapitas: { include: { tipoEstudante: true } },
+          },
+          orderBy: { nome: "asc" },
+        });
+
+        const todasUnidadesAtivas = await tx.unidadeEducacional.findMany({
+          where: { ativo: true },
+          orderBy: { nome: "asc" },
+        });
+
+        return {
+          modo: "formulario" as const,
+          contrato: contratoCompleto,
+          itensContratoComPercapita: itensComPercapita,
+          unidades: todasUnidadesAtivas,
+          tipoPublico: parsed.tipoPublico,
+          dataEntregaSugerida: dataEntregaPrevista || parsed.dataEntregaSugerida,
+          mapeamentoItens: itensResolvidos.map(({ itemPlanilha, itemContrato }) => {
+            const quantidadesPorUnidadeId: Record<string, number> = {};
+            for (const dist of itemPlanilha.distribuicao) {
+              const un = mapaColunaParaUnidade.get(dist.colIndex);
+              if (un) {
+                quantidadesPorUnidadeId[un.id] =
+                  (quantidadesPorUnidadeId[un.id] || 0) + dist.quantidade;
+              }
+            }
+            return {
+              itemContratoId: itemContrato.id,
+              nomePlanilha: itemPlanilha.nomePlanilha,
+              quantidadeTotal: itemPlanilha.quantidadeTotal,
+              quantidadesPorUnidadeId,
+            };
+          }),
+          resumo: {
+            tituloPlanilha: parsed.titulo,
+            contratoNumero: contrato.numero,
+            fornecedorNome: contrato.fornecedor.nome,
+            unidadesCriadas,
+            unidadesAtualizadas,
+            itensContratoCriados,
+            itensContratoAssociados,
+            percapitasAtualizadas,
+          },
+        };
+      }
+
+      // 7. Modo "importar": criar o Pedido e todos os registros de ItemPedido
+      const itensPedidoCreateMany: {
+        pedidoId: string;
+        itemContratoId: string;
+        unidadeEducacionalId: string;
+        quantidade: number;
+      }[] = [];
+
+      let valorTotalPedido = 0;
+      let somaUnidadesPedidas = 0;
+
+      for (const { itemPlanilha, itemContrato } of itensResolvidos) {
+        // Agrupa caso duas colunas apontem para a mesma unidade
+        const qtdPorUnidade = new Map<string, number>();
+        for (const dist of itemPlanilha.distribuicao) {
+          const unidade = mapaColunaParaUnidade.get(dist.colIndex);
+          if (!unidade || dist.quantidade <= 0) continue;
+          qtdPorUnidade.set(unidade.id, (qtdPorUnidade.get(unidade.id) || 0) + dist.quantidade);
+        }
+
+        for (const [unidadeEducacionalId, quantidade] of qtdPorUnidade.entries()) {
+          itensPedidoCreateMany.push({
+            pedidoId: "", // preenchido logo após criar o pedido
+            itemContratoId: itemContrato.id,
+            unidadeEducacionalId,
+            quantidade,
+          });
+          valorTotalPedido += quantidade * itemContrato.valorUnitario;
+          somaUnidadesPedidas += quantidade;
+        }
+      }
+
+      const numeroPedido = `PD-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+      const dtPedido = dataPedido ? new Date(dataPedido) : new Date();
+      const dtEntrega = dataEntregaPrevista
+        ? new Date(dataEntregaPrevista)
+        : new Date(parsed.dataEntregaSugerida);
+
+      const novoPedido = await tx.pedido.create({
+        data: {
+          numero: numeroPedido,
+          contratoId: contrato.id,
+          dataPedido: dtPedido,
+          dataEntregaPrevista: dtEntrega,
+          valorTotal: valorTotalPedido,
+          status: "pendente",
+        },
+      });
+
+      if (itensPedidoCreateMany.length > 0) {
+        await tx.itemPedido.createMany({
+          data: itensPedidoCreateMany.map((ip) => ({
+            ...ip,
+            pedidoId: novoPedido.id,
+          })),
+        });
+      }
+
+      await tx.metadado.upsert({
+        where: { chave: "ultima_importacao_pedidos" },
+        update: { valor: new Date().toISOString() },
+        create: {
+          chave: "ultima_importacao_pedidos",
+          valor: new Date().toISOString(),
+        },
+      });
+
+      return {
+        modo: "importar" as const,
+        pedido: novoPedido,
+        resumo: {
+          tituloPlanilha: parsed.titulo,
+          numeroPedido: novoPedido.numero,
+          contratoId: contrato.id,
+          contratoNumero: contrato.numero,
+          fornecedorNome: contrato.fornecedor.nome,
+          totalProdutosImportados: itensResolvidos.length,
+          totalRegistrosItemPedido: itensPedidoCreateMany.length,
+          quantidadeTotalUnidades: somaUnidadesPedidas,
+          valorTotal: valorTotalPedido,
+          unidadesCriadas,
+          unidadesAtualizadas,
+          itensContratoCriados,
+          itensContratoAssociados,
+          percapitasAtualizadas,
+        },
+      };
+    },
+    { timeout: 120000 }
+  );
+}
 
 // COMENTÁRIO: Retorna as estatísticas principais para os cards no topo da página de Pedidos.
 // UTILIZAÇÃO: Chamada pela página `Pedidos.tsx` para obter os totais.
@@ -2247,6 +3489,279 @@ app.get("/api/pedidos/stats", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Não foi possível buscar as estatísticas." });
   }
 });
+
+// COMENTÁRIO: Exporta os pedidos cadastrados em formato XLSX.
+app.get("/api/pedidos/exportar-dados", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const pedidos = await prisma.pedido.findMany({
+      include: {
+        contrato: { include: { fornecedor: true } },
+        itens: {
+          include: {
+            itemContrato: { include: { unidadeMedida: true } },
+            unidadeEducacional: true,
+          },
+        },
+      },
+      orderBy: { dataPedido: "desc" },
+    });
+
+    const rows: Record<string, unknown>[] = [];
+    for (const p of pedidos) {
+      if (p.itens.length === 0) {
+        rows.push({
+          PedidoNumero: p.numero,
+          Status: p.status,
+          DataPedido: p.dataPedido.toISOString().substring(0, 10),
+          DataEntregaPrevista: p.dataEntregaPrevista.toISOString().substring(0, 10),
+          ContratoNumero: p.contrato.numero,
+          FornecedorNome: p.contrato.fornecedor.nome,
+          UnidadeCodigo: "",
+          UnidadeNome: "",
+          Rota: "",
+          ItemNome: "",
+          ItemUnidadeSigla: "",
+          Quantidade: 0,
+          ItemValorUnitario: 0,
+          Subtotal: 0,
+        });
+        continue;
+      }
+
+      for (const item of p.itens) {
+        rows.push({
+          PedidoNumero: p.numero,
+          Status: p.status,
+          DataPedido: p.dataPedido.toISOString().substring(0, 10),
+          DataEntregaPrevista: p.dataEntregaPrevista.toISOString().substring(0, 10),
+          ContratoNumero: p.contrato.numero,
+          FornecedorNome: p.contrato.fornecedor.nome,
+          UnidadeCodigo: item.unidadeEducacional.codigo,
+          UnidadeNome: item.unidadeEducacional.nome,
+          Rota: item.unidadeEducacional.endereco || "",
+          ItemNome: item.itemContrato.nome,
+          ItemUnidadeSigla: item.itemContrato.unidadeMedida?.sigla || "Un",
+          Quantidade: item.quantidade,
+          ItemValorUnitario: item.itemContrato.valorUnitario,
+          Subtotal: Number((item.quantidade * item.itemContrato.valorUnitario).toFixed(2)),
+        });
+      }
+    }
+
+    const worksheet = xlsx.utils.json_to_sheet(rows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Pedidos");
+
+    const excelBuffer = xlsx.write(workbook, { bookType: "xlsx", type: "buffer" });
+    res.setHeader("Content-Disposition", "attachment; filename=pedidos_exportados.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(excelBuffer);
+  } catch (error) {
+    console.error("Erro ao exportar pedidos:", error);
+    res.status(500).json({ error: "Falha ao exportar os pedidos." });
+  }
+});
+
+// COMENTÁRIO: Analisa previamente a planilha de pedido (.xlsx / .csv) e retorna a pré-visualização
+// com o casamento automático de Contrato, Unidades Educacionais e Itens.
+app.post(
+  "/api/pedidos/analisar-planilha",
+  optionalAuthenticateToken,
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    }
+
+    try {
+      const parsed = parsePlanilhaPedidoBuffer(req.file.buffer);
+      const contratoIdReq = req.body?.contratoId as string | undefined;
+
+      const [contratos, unidadesNoBanco] = await Promise.all([
+        prisma.contrato.findMany({
+          where: { tipo: "nutricao" },
+          include: { fornecedor: true, itens: { include: { unidadeMedida: true } } },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.unidadeEducacional.findMany(),
+      ]);
+
+      let contratoMatch =
+        contratoIdReq && contratoIdReq !== "auto"
+          ? contratos.find((c) => c.id === contratoIdReq) || null
+          : null;
+
+      if (!contratoMatch && parsed.fornecedorDetectado) {
+        const fornNorm = normalizarTextoPedido(parsed.fornecedorDetectado);
+        contratoMatch =
+          contratos.find(
+            (c) =>
+              normalizarTextoPedido(c.fornecedor.nome).includes(fornNorm) ||
+              normalizarTextoPedido(c.numero).includes(fornNorm)
+          ) || null;
+      }
+
+      let escolasEncontradasNoBanco = 0;
+      const escolasDetalhadas = parsed.escolas.map((esc) => {
+        const match = casarUnidadeEducacional(esc.nomePlanilha, unidadesNoBanco, esc.codigoPlanilha);
+        if (match) escolasEncontradasNoBanco++;
+        return {
+          ...esc,
+          unidadeMatch: match ? { id: match.id, nome: match.nome, codigo: match.codigo } : null,
+        };
+      });
+
+      const itensDetalhados = parsed.itens.map((it) => {
+        const match = contratoMatch ? casarItemContrato(it.nomePlanilha, contratoMatch.itens) : null;
+        const chavePreco = normalizarTextoPedido(it.nomePlanilha)
+          .replace(/[^A-Z0-9\s]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        const valorUnitarioEstimado =
+          match?.valorUnitario ||
+          it.valorUnitarioPlanilha ||
+          PRECOS_REFERENCIA_MERENDA[chavePreco] ||
+          5.0;
+
+        return {
+          ...it,
+          valorUnitarioEstimado,
+          subtotalEstimado: Number((it.quantidadeTotal * valorUnitarioEstimado).toFixed(2)),
+          itemContratoMatch: match
+            ? {
+                id: match.id,
+                nome: match.nome,
+                valorUnitario: match.valorUnitario,
+                saldoAtual: match.saldoAtual,
+                unidadeSigla: match.unidadeMedida?.sigla || it.siglaUnidade,
+              }
+            : null,
+        };
+      });
+
+      res.json({
+        formato: parsed.formato,
+        titulo: parsed.titulo,
+        fornecedorDetectado: parsed.fornecedorDetectado,
+        tipoPublico: parsed.tipoPublico,
+        dataEntregaSugerida: parsed.dataEntregaSugerida,
+        contratoSugerido: contratoMatch
+          ? {
+              id: contratoMatch.id,
+              numero: contratoMatch.numero,
+              fornecedorNome: contratoMatch.fornecedor.nome,
+            }
+          : null,
+        totalEscolas: parsed.escolas.length,
+        escolasEncontradasNoBanco,
+        escolasNovas: parsed.escolas.length - escolasEncontradasNoBanco,
+        totaisAlunos: parsed.totaisAlunos,
+        itens: itensDetalhados,
+        escolas: escolasDetalhadas,
+      });
+    } catch (error) {
+      console.error("Erro ao analisar planilha de pedido:", error);
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível analisar a planilha enviada.",
+      });
+    }
+  }
+);
+
+// COMENTÁRIO: Alimenta o formulário de Novo Pedido (`NovoPedidoDialog.tsx`) a partir da planilha,
+// garantindo que o Contrato, as Unidades Educacionais e os Itens/Percápitas existam no banco.
+app.post(
+  "/api/pedidos/alimentar-formulario",
+  optionalAuthenticateToken,
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    }
+
+    try {
+      const parsed = parsePlanilhaPedidoBuffer(req.file.buffer);
+      const incluirLinhasOcultas =
+        req.body?.incluirLinhasOcultas === "true" || req.body?.incluirLinhasOcultas === true;
+      const itensSelecionados = req.body?.itensSelecionados
+        ? JSON.parse(req.body.itensSelecionados)
+        : undefined;
+
+      const resultado = await alimentarDadosPlanilhaPedido(parsed, {
+        contratoId: req.body?.contratoId,
+        dataEntregaPrevista: req.body?.dataEntregaPrevista,
+        incluirLinhasOcultas,
+        itensSelecionados,
+        atualizarUnidades: true,
+        atualizarPercapitas: true,
+        modo: "formulario",
+      });
+
+      res.status(200).json(resultado);
+    } catch (error) {
+      console.error("Erro ao alimentar formulário de pedido via planilha:", error);
+      res.status(500).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erro ao processar a planilha para o formulário de pedido.",
+      });
+    }
+  }
+);
+
+// COMENTÁRIO: Importa a planilha de pedido (matriz ou tabular), alimenta Unidades Educacionais,
+// Itens do Contrato, Percápitas, cria o Pedido com todos os seus Itens e atualiza os saldos.
+app.post(
+  "/api/pedidos/importar",
+  optionalAuthenticateToken,
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    }
+
+    try {
+      const parsed = parsePlanilhaPedidoBuffer(req.file.buffer);
+      const incluirLinhasOcultas =
+        req.body?.incluirLinhasOcultas === "true" || req.body?.incluirLinhasOcultas === true;
+      const atualizarUnidades =
+        req.body?.atualizarUnidades !== "false" && req.body?.atualizarUnidades !== false;
+      const atualizarPercapitas =
+        req.body?.atualizarPercapitas !== "false" && req.body?.atualizarPercapitas !== false;
+      const itensSelecionados = req.body?.itensSelecionados
+        ? JSON.parse(req.body.itensSelecionados)
+        : undefined;
+
+      const resultado = await alimentarDadosPlanilhaPedido(parsed, {
+        contratoId: req.body?.contratoId,
+        dataPedido: req.body?.dataPedido,
+        dataEntregaPrevista: req.body?.dataEntregaPrevista,
+        incluirLinhasOcultas,
+        itensSelecionados,
+        atualizarUnidades,
+        atualizarPercapitas,
+        modo: "importar",
+      });
+
+      res.status(201).json({
+        message: "Planilha de pedido importada e informações alimentadas com sucesso!",
+        ...resultado,
+      });
+    } catch (error) {
+      console.error("Erro ao importar planilha de pedido:", error);
+      res.status(500).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível importar a planilha de pedido.",
+      });
+    }
+  }
+);
 
 // COMENTÁRIO: Lista todos os pedidos com filtros.
 // UTILIZAÇÃO: Usada na tabela principal da página `Pedidos.tsx`.
@@ -2327,56 +3842,114 @@ app.post("/api/pedidos", async (req: Request, res: Response) => {
   ).slice(-6)}`;
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const novoPedido = await tx.pedido.create({
-        data: {
-          numero: numeroPedido,
-          contratoId,
-          dataPedido: new Date(),
-          dataEntregaPrevista: new Date(dataEntregaPrevista),
-          valorTotal,
-          status: "pendente",
-        },
-      });
-
-      for (const item of itens) {
-        await tx.itemPedido.create({
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const novoPedido = await tx.pedido.create({
           data: {
-            pedidoId: novoPedido.id,
-            itemContratoId: item.itemContratoId,
-            unidadeEducacionalId: item.unidadeEducacionalId,
-            quantidade: item.quantidade,
+            numero: numeroPedido,
+            contratoId,
+            dataPedido: new Date(),
+            dataEntregaPrevista: new Date(dataEntregaPrevista),
+            valorTotal,
+            status: "pendente",
           },
         });
 
-        // NOVO: Busca a unidade para determinar o tipo de estoque
-        const unidade = await tx.unidadeEducacional.findUnique({
-          where: { id: item.unidadeEducacionalId },
-        });
-        if (!unidade) throw new Error("Unidade educacional não encontrada.");
+        const itensValidos = (itens || []).filter(
+          (item: { quantidade?: number }) => Number(item.quantidade) > 0
+        );
 
-        const isCreche =
-          (unidade.estudantesBercario || 0) > 0 ||
-          (unidade.estudantesMaternal || 0) > 0 ||
-          (unidade.estudantesPreEscola || 0) > 0;
-        const campoSaldoAjustar = isCreche ? "saldoCreche" : "saldoEscola";
+        if (itensValidos.length > 0) {
+          await tx.itemPedido.createMany({
+            data: itensValidos.map(
+              (item: {
+                itemContratoId: string;
+                unidadeEducacionalId: string;
+                quantidade: number;
+              }) => ({
+                pedidoId: novoPedido.id,
+                itemContratoId: item.itemContratoId,
+                unidadeEducacionalId: item.unidadeEducacionalId,
+                quantidade: Number(item.quantidade),
+              })
+            ),
+          });
 
-        // NOVO: Atualiza os saldos de forma segregada no ItemContrato
-        await tx.itemContrato.update({
-          where: { id: item.itemContratoId },
-          data: {
-            [campoSaldoAjustar]: {
-              decrement: item.quantidade,
-            },
-            // Também decrementa o saldo geral para manter a consistência
-            saldoAtual: {
-              decrement: item.quantidade,
-            },
-          },
-        });
-      }
-      return novoPedido;
-    });
+          // Busca as unidades envolvidas em lote para evitar N+1 consultas em pedidos grandes (ex: 109 escolas)
+          const unidadeIds = [
+            ...new Set<string>(
+              itensValidos.map(
+                (i: { unidadeEducacionalId: string }) => i.unidadeEducacionalId
+              )
+            ),
+          ];
+          const unidades = await tx.unidadeEducacional.findMany({
+            where: { id: { in: unidadeIds } },
+          });
+          const mapaUnidades = new Map(unidades.map((u) => [u.id, u]));
+
+          // Agrupa os decrementos por itemContratoId
+          const decrementosPorItem = new Map<
+            string,
+            { creche: number; escola: number; total: number }
+          >();
+
+          for (const item of itensValidos) {
+            const unidade = mapaUnidades.get(item.unidadeEducacionalId);
+            if (!unidade) throw new Error("Unidade educacional não encontrada.");
+
+            const isCreche =
+              (unidade.estudantesBercario || 0) > 0 ||
+              (unidade.estudantesMaternal || 0) > 0 ||
+              (unidade.estudantesPreEscola || 0) > 0;
+
+            const atual = decrementosPorItem.get(item.itemContratoId) || {
+              creche: 0,
+              escola: 0,
+              total: 0,
+            };
+            const qtd = Number(item.quantidade) || 0;
+            if (isCreche) {
+              atual.creche += qtd;
+            } else {
+              atual.escola += qtd;
+            }
+            atual.total += qtd;
+            decrementosPorItem.set(item.itemContratoId, atual);
+          }
+
+          for (const [itemContratoId, dec] of decrementosPorItem.entries()) {
+            const itemAtual = await tx.itemContrato.findUnique({
+              where: { id: itemContratoId },
+            });
+            if (!itemAtual) continue;
+
+            // Se a unidade tinha alunos de pré-escola mas o contrato concentrou o saldo em saldoEscola, desconta do saldo disponível
+            const usarSaldoEscolaParaCreche =
+              dec.creche > 0 && itemAtual.saldoCreche < dec.creche && itemAtual.saldoEscola >= dec.total;
+
+            const decCreche = usarSaldoEscolaParaCreche ? 0 : dec.creche;
+            const decEscola = usarSaldoEscolaParaCreche ? dec.total : dec.escola;
+
+            await tx.itemContrato.update({
+              where: { id: itemContratoId },
+              data: {
+                ...(decCreche > 0
+                  ? { saldoCreche: { decrement: decCreche } }
+                  : {}),
+                ...(decEscola > 0
+                  ? { saldoEscola: { decrement: decEscola } }
+                  : {}),
+                saldoAtual: { decrement: dec.total },
+              },
+            });
+          }
+        }
+
+        return novoPedido;
+      },
+      { timeout: 60000 }
+    );
 
     res.status(201).json(result);
   } catch (error) {
