@@ -22,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Plus,
   Minus,
@@ -62,6 +61,7 @@ interface ItemContratoDetalhado extends ItemContrato {
     };
   };
   percapitas: PercapitaItem[]; // Adicionado para incluir a percápita
+  sugestoesPorUnidade?: Record<string, number>;
 }
 
 // Interface para a lista de contratos que vem da API
@@ -401,6 +401,44 @@ export function NovoPedidoDialog({
       }
     });
 
+    // Se o item veio sem percápita configurada (ex: linha da planilha sem coluna percapta preenchida),
+    // utiliza a sugestão histórica do contrato ou a referência padrão PNAE pelo número de alunos da unidade
+    if (totalConsumoEmGramas === 0) {
+      const historicoUnidade = itemContrato.sugestoesPorUnidade?.[unidade.id];
+      if (historicoUnidade && historicoUnidade > 0) {
+        return Math.ceil(historicoUnidade);
+      }
+
+      const temPercapitaAtiva = (itemContrato.percapitas || []).some(
+        (p) => p.ativo && p.gramagemPorEstudante > 0
+      );
+      if (!temPercapitaAtiva) {
+        const totalAlunosUnidade =
+          (unidade.estudantesBercario || 0) +
+          (unidade.estudantesMaternal || 0) +
+          (unidade.estudantesPreEscola || 0) +
+          (unidade.estudantesRegular || 0) +
+          (unidade.estudantesIntegral || 0) +
+          (unidade.estudantesEja || 0);
+
+        if (totalAlunosUnidade > 0) {
+          const nomeNorm = itemContrato.nome
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toUpperCase();
+          if (nomeNorm.includes("ACUCAR")) {
+            totalConsumoEmGramas = totalAlunosUnidade * 15 * 10;
+          } else if (nomeNorm.includes("ARROZ")) {
+            totalConsumoEmGramas = totalAlunosUnidade * 30 * 10;
+          } else if (nomeNorm.includes("BISCOITO")) {
+            totalConsumoEmGramas = totalAlunosUnidade * 30 * 13;
+          } else if (nomeNorm.includes("FEIJAO")) {
+            totalConsumoEmGramas = totalAlunosUnidade * 35 * 4;
+          }
+        }
+      }
+    }
+
     if (totalConsumoEmGramas === 0) {
       return 0;
     }
@@ -510,7 +548,8 @@ export function NovoPedidoDialog({
             return {
               ...unidade,
               sugestao,
-              quantidade: unidade.quantidade > 0 ? unidade.quantidade : sugestao,
+              quantidade:
+                unidade.quantidade > 0 ? unidade.quantidade : sugestao,
             };
           }
           return { ...unidade, quantidade: 0 };
@@ -718,8 +757,8 @@ export function NovoPedidoDialog({
           Novo Pedido
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] h-[90vh] max-h-[90vh] flex flex-col overflow-hidden p-6">
+        <DialogHeader className="shrink-0 pb-3 border-b">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
             <div>
               <DialogTitle className="flex items-center gap-2">
@@ -758,11 +797,11 @@ export function NovoPedidoDialog({
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex justify-center items-center p-20">
+          <div className="flex-1 flex justify-center items-center p-20">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-2 py-3 space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="contrato">Contrato *</Label>
@@ -796,19 +835,19 @@ export function NovoPedidoDialog({
               <>
                 {itensDisponiveis.length > 0 && (
                   <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
+                    <CardHeader className="py-3 px-4">
+                      <CardTitle className="flex items-center gap-2 text-base">
                         <Package2 className="h-4 w-4" />
-                        Itens Disponíveis no Contrato
+                        Itens Disponíveis no Contrato ({itensDisponiveis.length})
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <CardContent className="px-4 pb-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                         {itensDisponiveis.map((item) => (
                           <Card key={item.id} className="p-3">
                             <div className="space-y-2">
                               <div>
-                                <h4 className="font-medium text-sm">
+                                <h4 className="font-medium text-sm truncate" title={item.nome}>
                                   {item.nome}
                                 </h4>
                                 <p className="text-xs text-muted-foreground">
@@ -839,9 +878,9 @@ export function NovoPedidoDialog({
 
                 {itensPedido.length > 0 && (
                   <Card>
-                    <CardHeader className="space-y-3">
+                    <CardHeader className="py-3 px-4 space-y-2">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className="flex items-center gap-2 text-base">
                           Itens do Pedido ({itensPedido.length})
                         </CardTitle>
                         <div className="flex flex-wrap items-center gap-2">
@@ -872,7 +911,7 @@ export function NovoPedidoDialog({
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="px-4 pb-4">
                       <div className="space-y-6">
                         {itensPedido.map((item) => {
                           const qtdTotalItem =
@@ -916,7 +955,7 @@ export function NovoPedidoDialog({
                                   </Button>
                                 </div>
                               </div>
-                              {/* NOVO: Estrutura de Abas para separar Creches e Escolas */}
+                              {/* Estrutura de Abas para separar Creches e Escolas */}
                               <Tabs
                                 defaultValue="escola"
                                 className="w-full"
@@ -925,7 +964,7 @@ export function NovoPedidoDialog({
                                   handleTabChange(value as "creche" | "escola")
                                 }
                               >
-                                <TabsList className="grid w-full grid-cols-2">
+                                <TabsList className="grid w-full max-w-md grid-cols-2">
                                   <TabsTrigger value="creche">
                                     Pedido para Creches
                                   </TabsTrigger>
@@ -936,7 +975,7 @@ export function NovoPedidoDialog({
 
                                 {/* Conteúdo da Aba de Creches */}
                                 <TabsContent value="creche">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4 max-h-80 overflow-y-auto pr-1">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mt-4 max-h-[60vh] overflow-y-auto pr-1">
                                     {item.unidades
                                       .filter(
                                         (unidade) =>
@@ -953,10 +992,10 @@ export function NovoPedidoDialog({
                                       .map((unidade) => (
                                         <div
                                           key={unidade.unidadeId}
-                                          className="space-y-2 p-2 rounded border bg-muted/10"
+                                          className="space-y-2 p-2.5 rounded border bg-muted/10"
                                         >
                                           <Label className="text-xs font-medium">
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-1" title={unidade.unidadeNome}>
                                               <Building2 className="h-3 w-3 shrink-0" />
                                               <span className="truncate">
                                                 {unidade.unidadeNome}
@@ -991,7 +1030,7 @@ export function NovoPedidoDialog({
 
                                 {/* Conteúdo da Aba de Escolas */}
                                 <TabsContent value="escola">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4 max-h-80 overflow-y-auto pr-1">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mt-4 max-h-[60vh] overflow-y-auto pr-1">
                                     {item.unidades
                                       .filter(
                                         (unidade) =>
@@ -1008,10 +1047,10 @@ export function NovoPedidoDialog({
                                       .map((unidade) => (
                                         <div
                                           key={unidade.unidadeId}
-                                          className="space-y-2 p-2 rounded border bg-muted/10"
+                                          className="space-y-2 p-2.5 rounded border bg-muted/10"
                                         >
                                           <Label className="text-xs font-medium">
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-1" title={unidade.unidadeNome}>
                                               <Building2 className="h-3 w-3 shrink-0" />
                                               <span className="truncate">
                                                 {unidade.unidadeNome}
@@ -1048,26 +1087,6 @@ export function NovoPedidoDialog({
                           );
                         })}
                       </div>
-                      <Separator className="my-4" />
-                      <div className="flex flex-wrap justify-between items-center gap-4">
-                        <span className="text-sm text-muted-foreground">
-                          Volume Total:{" "}
-                          <strong>
-                            {calcularQuantidadeTotalPedido().toLocaleString(
-                              "pt-BR"
-                            )}{" "}
-                            unidades
-                          </strong>
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-semibold">
-                            Total do Pedido:
-                          </span>
-                          <span className="text-lg font-bold">
-                            R$ {calcularTotalPedido().toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -1075,26 +1094,50 @@ export function NovoPedidoDialog({
             )}
           </div>
         )}
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={isLoading}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSalvar}
-            disabled={
-              isLoading ||
-              !contratoSelecionado ||
-              itensPedido.length === 0 ||
-              calcularQuantidadeTotalPedido() <= 0
-            }
-          >
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Criar Pedido
-          </Button>
+
+        <DialogFooter className="shrink-0 pt-3 border-t mt-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-background">
+          <div className="flex flex-wrap items-center gap-4">
+            {itensPedido.length > 0 && (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  Volume Total:{" "}
+                  <strong className="text-foreground">
+                    {calcularQuantidadeTotalPedido().toLocaleString("pt-BR")}{" "}
+                    unidades
+                  </strong>
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-semibold">
+                    Total do Pedido:
+                  </span>
+                  <span className="text-lg font-bold text-primary">
+                    R$ {calcularTotalPedido().toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={isLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSalvar}
+              disabled={
+                isLoading ||
+                !contratoSelecionado ||
+                itensPedido.length === 0 ||
+                calcularQuantidadeTotalPedido() <= 0
+              }
+            >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Criar Pedido
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
