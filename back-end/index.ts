@@ -2793,8 +2793,27 @@ function parsePlanilhaPedidoBuffer(buffer: Buffer): ResultadoParsePlanilhaPedido
     const freq2Raw = row[6];
 
     const infoEmb = interpretarEmbalagemPlanilha(embalagemRaw, qtdPctRaw, rawNome);
-    const percaptaGramas = extrairNumeroLimpo(percapta2Raw !== "" ? percapta2Raw : percapta1Raw);
-    const frequenciaMensal = Math.round(extrairNumeroLimpo(freq2Raw !== "" ? freq2Raw : freq1Raw));
+    let percaptaGramas = extrairNumeroLimpo(percapta2Raw !== "" ? percapta2Raw : percapta1Raw);
+    let frequenciaMensal = Math.round(extrairNumeroLimpo(freq2Raw !== "" ? freq2Raw : freq1Raw));
+
+    if (percaptaGramas <= 0) {
+      if (upperNome.includes("ACUCAR")) {
+        percaptaGramas = 15;
+        frequenciaMensal = frequenciaMensal > 0 ? frequenciaMensal : 10;
+      } else if (upperNome.includes("ARROZ")) {
+        percaptaGramas = 30;
+        frequenciaMensal = frequenciaMensal > 0 ? frequenciaMensal : 10;
+      } else if (upperNome.includes("BISCOITO")) {
+        percaptaGramas = 30;
+        frequenciaMensal = frequenciaMensal > 0 ? frequenciaMensal : 13;
+      } else if (upperNome.includes("FEIJAO")) {
+        percaptaGramas = 35;
+        frequenciaMensal = frequenciaMensal > 0 ? frequenciaMensal : 4;
+      } else if (upperNome.includes("CANJICA")) {
+        percaptaGramas = 30;
+        frequenciaMensal = frequenciaMensal > 0 ? frequenciaMensal : 4;
+      }
+    }
 
     const distribuicao: ItemPlanilhaPedido["distribuicao"] = [];
     let somaQuantidades = 0;
@@ -6632,24 +6651,60 @@ app.get(
   async (req: Request, res: Response) => {
     const { contratoId } = req.params;
     try {
-      const itensContrato = await prisma.itemContrato.findMany({
-        where: {
-          contratoId,
-          contrato: {
-            status: "ativo",
-          },
-        },
-        include: {
-          unidadeMedida: true,
-          percapitas: {
-            include: {
-              tipoEstudante: true,
+      const [itensContrato, ultimoPedido] = await Promise.all([
+        prisma.itemContrato.findMany({
+          where: {
+            contratoId,
+            contrato: {
+              status: "ativo",
             },
           },
-        },
-      });
+          include: {
+            unidadeMedida: true,
+            percapitas: {
+              include: {
+                tipoEstudante: true,
+              },
+            },
+          },
+          orderBy: { nome: "asc" },
+        }),
+        prisma.pedido.findFirst({
+          where: { contratoId },
+          orderBy: { createdAt: "desc" },
+          include: {
+            itens: {
+              select: {
+                itemContratoId: true,
+                unidadeEducacionalId: true,
+                quantidade: true,
+              },
+            },
+          },
+        }),
+      ]);
 
-      res.json(itensContrato);
+      // Mapa de sugestões históricas do último pedido deste contrato (útil quando um item da planilha não tinha percápita informada)
+      const mapaHistoricoPorItem = new Map<string, Record<string, number>>();
+      if (ultimoPedido?.itens) {
+        for (const ip of ultimoPedido.itens) {
+          if (ip.quantidade <= 0) continue;
+          let porUnidade = mapaHistoricoPorItem.get(ip.itemContratoId);
+          if (!porUnidade) {
+            porUnidade = {};
+            mapaHistoricoPorItem.set(ip.itemContratoId, porUnidade);
+          }
+          porUnidade[ip.unidadeEducacionalId] =
+            (porUnidade[ip.unidadeEducacionalId] || 0) + ip.quantidade;
+        }
+      }
+
+      const resultado = itensContrato.map((item) => ({
+        ...item,
+        sugestoesPorUnidade: mapaHistoricoPorItem.get(item.id) || {},
+      }));
+
+      res.json(resultado);
     } catch (error) {
       console.error("Erro ao buscar itens de contrato com per cápita:", error);
       res.status(500).json({
