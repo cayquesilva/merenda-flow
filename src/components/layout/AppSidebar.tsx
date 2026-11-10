@@ -29,14 +29,16 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
-  // Sanfona: o menu nasce fechado e só um grupo fica aberto por vez, o que evita a barra de
-  // rolagem. O grupo continua aberto ao navegar; ao recarregar a página volta tudo fechado.
-  const [grupoAberto, setGrupoAberto] = useState<string | null>(null);
+  // Mantém os grupos abertos por padrão, permitindo que o usuário recolha ou expanda individualmente
+  const [gruposFechados, setGruposFechados] = useState<Record<string, boolean>>({});
 
   const isActive = (path: string) => currentPath === path;
 
   const toggleGroup = (groupName: string) => {
-    setGrupoAberto((atual) => (atual === groupName ? null : groupName));
+    setGruposFechados((prev) => ({
+      ...prev,
+      [groupName]: !prev[groupName],
+    }));
   };
 
   const getNavClassName = (path: string) => {
@@ -70,7 +72,7 @@ export function AppSidebar() {
             section.items.some((item) => canAccessModule(item.module as ModuleName))
           )
           .map((section) => {
-          const isExpanded = grupoAberto === section.group;
+          const isExpanded = !gruposFechados[section.group];
           const hasActiveItem = section.items.some(
             (item) =>
               isActive(item.url) && canAccessModule(item.module as ModuleName)
